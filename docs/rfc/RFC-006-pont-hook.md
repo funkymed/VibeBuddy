@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | todo (0 %) |
+| **Status** | blocked (0 %) — spike fait, contrat `PermissionRequest` non vérifié |
 | **Author** | Cyril Pereira |
 | **Created** | 2026-08-19 |
 | **Updated** | 2026-08-19 |
@@ -140,7 +140,7 @@ horodatée est ce qui rend l'erreur réparable.
 
 | # | Tâche | Statut | % |
 |---|---|---|---|
-| T1 | Spike : un hook trivial reçoit-il un `PermissionRequest` et sa décision est-elle honorée ? (Q1) | todo | 0 |
+| T1 | Spike : un hook trivial reçoit-il un `PermissionRequest` et sa décision est-elle honorée ? (Q1) | **in-progress** | **60** — voir [`docs/spikes/hook-contract.md`](../spikes/hook-contract.md) |
 | T2 | Deuxième cible `notch-hook` + `HookProtocol.swift` partagé + garde-fou anti-`import AppKit` | todo | 0 |
 | T3 | `HookSocketServer` (actor) : bind, `chmod 0600`, accept, ligne-JSON | todo | 0 |
 | T4 | Détection de déconnexion du pair en `DispatchSource` | todo | 0 |
@@ -158,8 +158,39 @@ sauvegarde. Le hook démarre en moins de 8 ms.
 
 ## 6. Open Questions
 
-**Q1 — Le contrat de hook fonctionne-t-il ? (spike, bloquant pour RFC-007)**
-Si ce spike échoue, RFC-006 et RFC-007 sont annulées et le périmètre se réduit.
+**Q1 — Le contrat de hook fonctionne-t-il ?** *Spike fait le 2026-08-20, sans conclusion.*
+
+**Établi** — `--settings <fichier>` charge bien des hooks, sans rien écrire dans
+`~/.claude/`. `SessionStart`, `UserPromptSubmit`, `PreToolUse` et `Stop` se
+déclenchent tous, avec des charges utiles complètes.
+
+Deux gains inattendus pour d'autres RFC :
+
+- **`transcript_path` est fourni** sur chaque événement — plus besoin de déduire
+  le chemin du jsonl (RFC-003).
+- **`effort` arrive dans `PreToolUse`** — RFC-003 le parse aujourd'hui depuis le
+  transcript.
+
+**Non établi** — `PermissionRequest` ne s'est **jamais** déclenché, y compris
+lorsqu'une permission a été réellement refusée (lecture de `/etc/hosts` hors du
+répertoire de travail : `PreToolUse` part, `PermissionRequest` non).
+
+Hypothèse **non vérifiée** : ce hook n'intervient que sur un prompt interactif,
+absent en mode `-p`. La tentative en pseudo-terminal n'a pas abouti — piloter une
+session interactive demande un vrai terminal.
+
+**Conséquence : RFC-006 et RFC-007 restent bloquées**, soit 8 à 12 jours-homme
+qu'il vaut mieux ne pas engager sur une hypothèse. Le cœur du produit ne dépend
+pas de cette réponse : RFC-012 tire ses quatre signaux du transcript.
+
+Ce qu'il faut pour conclure, et qui demande une main humaine :
+
+```sh
+cd docs/spikes/hook/project
+claude --settings ../settings.json --permission-mode manual
+# puis : « Lis le fichier /etc/hosts »
+# → si le hook fonctionne, le refus porte « REFUS-SPIKE-7f3a »
+```
 
 ```sh
 mkdir -p /tmp/hookspike && cat > /tmp/hookspike/h.sh <<'SH'

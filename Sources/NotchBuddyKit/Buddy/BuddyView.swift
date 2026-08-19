@@ -47,19 +47,44 @@ public struct BuddyView: View {
     /// The lower of what the motion needs and what the budget allows.
     ///
     /// An animated expression needs a clock even when its motion is `.none`:
-    /// frames advance once a second, so `still` would freeze it on frame one.
-    /// One frame per second needs no more than the ambient tier.
+    /// frames advance on their own rate, so `still` would freeze it on frame
+    /// one. The tier has to clear that rate — a buddy asking for twelve images
+    /// per second on an eight-hertz clock drops every third frame, which reads
+    /// as stuttering rather than as fast.
     private var tier: AnimationBudget.Tier {
         guard let settings else { return .still }
         if budget.tier == .still { return .still }
+        let clock = manifest.rate(for: settings) <= AnimationBudget.Tier.ambient.rawValue
+            ? AnimationBudget.Tier.ambient.rawValue
+            : AnimationBudget.Tier.lively.rawValue
         let wanted = settings.frames.count > 1
-            ? max(settings.motion.preferredTier.rawValue, AnimationBudget.Tier.ambient.rawValue)
+            ? max(settings.motion.preferredTier.rawValue, clock)
             : settings.motion.preferredTier.rawValue
         return AnimationBudget.Tier(rawValue: min(wanted, budget.tier.rawValue)) ?? .ambient
     }
 
     private var colour: Color {
         Color(hex: settings?.colour ?? manifest.colour) ?? .primary
+    }
+
+    /// Width reserved for the face: the widest frame of the *current*
+    /// expression, at its own point size.
+    ///
+    /// Without it the box tracks each frame's own width, so it changes once a
+    /// second as the animation cycles. Left-anchoring hides that at the left
+    /// edge, but the motion effects — scale, offset, shake — act around the box
+    /// centre, so a box that breathes makes the buddy drift while it is
+    /// supposed to be bouncing in place.
+    ///
+    /// Reserved per expression rather than across the whole buddy: the slot
+    /// already holds the global maximum, so anything wider here would just be
+    /// padding the layout has accounted for twice.
+    private var reservedWidth: CGFloat {
+        guard let settings else { return 0 }
+        let size = manifest.size(for: settings)
+        return settings.frames
+            .map { PillLayout.measure($0, size: size, weight: .medium, family: manifest.font) }
+            .max() ?? 0
     }
 
     public var body: some View {
@@ -69,6 +94,7 @@ public struct BuddyView: View {
 
             face(phase: phase)
                 .modifier(PixelGrid(colour: colour))
+                .frame(width: reservedWidth > 0 ? reservedWidth : nil, alignment: .leading)
                 .scaleEffect(motion.scale)
                 .offset(x: motion.offset.width + motion.gaze.width * 0.4,
                         y: motion.offset.height)
@@ -92,9 +118,11 @@ public struct BuddyView: View {
         // advance width for most of them — it falls back per glyph and the
         // alignment ends up worse. Width is handled by measuring, not the font.
         PixelatedText(
-            text: settings?.frame(at: phase, secondsPerFrame: BuddyManifest.secondsPerFrame) ?? "",
+            text: settings?.frame(
+                at: phase,
+                secondsPerFrame: manifest.secondsPerFrame(for: settings)) ?? "",
             colour: colour,
-            fontSize: manifest.fontSize,
+            fontSize: manifest.size(for: settings),
             pixelSize: Self.pixelSize,
             font: manifest.font
         )
@@ -113,7 +141,20 @@ public struct BuddyView: View {
     /// about three the kaomoji stop being legible.
     static let pixelSize: CGFloat = 2
 
-    private var interval: Double { tier == .still ? 1 : 1 / tier.rawValue }
+    /// How often the timeline is allowed to tick.
+    ///
+    /// The tier is a ceiling, not a target. A face whose motion is `.none`
+    /// changes only when its frame changes, so ticking at the tier would wake
+    /// the view eight times to redraw the same glyphs — the whole point of D3
+    /// is that nobody gets to spend wakeups they have no use for. Anything that
+    /// actually moves does need the full rate, because its transform is
+    /// continuous in phase.
+    private var interval: Double {
+        guard tier != .still else { return 1 }
+        let clock = 1 / tier.rawValue
+        guard (settings?.motion ?? MotionKind.none) == MotionKind.none else { return clock }
+        return max(clock, manifest.secondsPerFrame(for: settings))
+    }
 }
 
 /// A pixel grid over whatever it wraps.

@@ -4,6 +4,9 @@ App macOS native qui transforme la notch du MacBook en tableau de bord de ses
 agents de code. Swift / SwiftPM, macOS 14+, **zéro dépendance externe**
 (stdlib + frameworks Apple).
 
+> **Reprise après effacement de contexte : lire [`docs/hook.md`](docs/hook.md) en premier.**
+> Ce fichier-ci donne les règles ; celui-là donne l'état réel et les pièges.
+
 ## Objectifs produit
 
 Par ordre d'importance. Toute fonctionnalité qui ne sert aucun de ces objectifs
@@ -89,10 +92,10 @@ bas niveau en créditant MIT. La carte de réemprunt `fichier:ligne` est dans
 | [002](docs/rfc/RFC-002-fenetre-notch.md) | Fenêtre notch : NSPanel, click-through, multi-écran | **in-progress** | **95 %** | v1 | 4-6 j |
 | [003](docs/rfc/done/RFC-003-collecte-sessions.md) | Collecte de sessions : source de vérité unique | **done** | **100 %** | v1 | ✔ |
 | [004](docs/rfc/RFC-004-usage-live.md) | Utilisation live : Keychain + endpoint OAuth | **in-progress** | **90 %** | v1 | 0,5 j |
-| [005](docs/rfc/RFC-005-rendu-buddy.md) | Buddy : manifeste ASCII et rendu | **in-progress** | **92 %** | v1 | 0,5 j |
-| [006](docs/rfc/RFC-006-pont-hook.md) | Pont hook Claude Code : binaire dédié + socket Unix | todo | 0 % | v1 | 3-5 j |
+| [005](docs/rfc/RFC-005-rendu-buddy.md) | Buddy : format `.buddy` animé et rendu | **in-progress** | **95 %** | v1 | 0,5 j |
+| [006](docs/rfc/RFC-006-pont-hook.md) | Pont hook Claude Code : binaire dédié + socket Unix | **blocked** | **0 %** | v1 | 3-5 j |
 | [007](docs/rfc/RFC-007-interception-permissions.md) | Interception des permissions : file, rendu, décisions | todo | 0 % | v1 | 5-7 j |
-| [008](docs/rfc/RFC-008-vue-sessions.md) | Vue sessions et saut vers le terminal hôte | **in-progress** | **45 %** | v1.1 | 3-4 j |
+| [008](docs/rfc/RFC-008-vue-sessions.md) | Vue sessions et saut vers le terminal hôte | **in-progress** | **60 %** | v1.1 | 2-3 j |
 | [009](docs/rfc/RFC-009-index-activite.md) | Index d'activité persistant (heatmap et historique) | todo | 0 % | v1.2 | 3-4 j |
 | [010](docs/rfc/RFC-010-preferences-apparence.md) | Préférences (fenêtre native), i18n et apparence | **in-progress** | **35 %** | v1 | 2-3 j |
 | [011](docs/rfc/RFC-011-build-distribution.md) | Build, empaquetage, signature, distribution | todo | 0 % | v1 | 2-4 j |
@@ -112,15 +115,15 @@ Ordre = ordre de réalisation, pas ordre de numérotation.
 #   RFC      Titre                                          Avancement            %    Reste   Jalon
 1   RFC-002  Fenêtre notch (NSPanel, click-through)          ███████████████████░  95 %   0,5 j  v1
 2   RFC-012  Détection d'état et alertes  ← objectif n°1     ██████████████████░░  90 %   0,5 j  v1
-3   RFC-005  Buddy : manifeste ASCII et rendu                ██████████████████░░  92 %   0,5 j  v1
+3   RFC-005  Buddy : format .buddy animé et rendu            ███████████████████░  95 %   0,5 j  v1
 4   —        Spike keychain + oauth-usage                    ████████████████████ 100 %   ✔     v1
 5   RFC-004  Utilisation live (Keychain + OAuth)             ██████████████████░░  90 %   0,5 j  v1
-6   —        Spike contrat de hook                           ░░░░░░░░░░░░░░░░░░░░   0 %   0,5 j  v1
-7   RFC-006  Pont hook + socket Unix                         ░░░░░░░░░░░░░░░░░░░░   0 %   3-5 j  v1
-8   RFC-007  Interception des permissions                    ░░░░░░░░░░░░░░░░░░░░   0 %   5-7 j  v1
+6   —        Spike contrat de hook                           ████████████░░░░░░░░  60 %   ⚠      v1
+7   RFC-006  Pont hook + socket Unix          ⚠ BLOQUÉE      ░░░░░░░░░░░░░░░░░░░░   0 %   3-5 j  v1
+8   RFC-007  Interception des permissions      ⚠ BLOQUÉE      ░░░░░░░░░░░░░░░░░░░░   0 %   5-7 j  v1
 9   RFC-010  Préférences (fenêtre native) + i18n             ███████░░░░░░░░░░░░░  35 %   2-3 j  v1
 10  RFC-011  Build, signature, distribution                  ░░░░░░░░░░░░░░░░░░░░   0 %   2-4 j  v1
-11  RFC-008  Vue sessions + saut terminal/tmux               █████████░░░░░░░░░░░  45 %   3-4 j  v1.1
+11  RFC-008  Vue sessions + saut terminal/tmux               ████████████░░░░░░░░  60 %   2-3 j  v1.1
 12  RFC-009  Index d'activité (heatmap + historique)         ░░░░░░░░░░░░░░░░░░░░   0 %   3-4 j  v1.2
 
 ── DONE ──

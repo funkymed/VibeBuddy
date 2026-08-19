@@ -1,40 +1,46 @@
 # emoji — jeu de kaomoji animés pour notch-buddy
 #
-# Une image par ligne, une seconde par image.
+# Une image par ligne. « speed » donne le nombre d'images par seconde (1 par défaut).
 # Une ligne vide termine une section.
 # Le mot de couleur avant le code hexadécimal est décoratif : seul le #RRGGBB compte.
+#
+# Sur l'en-tête d'une expression, les deux nombres sont positionnels :
+# la taille d'abord, la vitesse ensuite — « working (green #55FF55) 12 3 ».
 
-sleeping (blue #00BBFF)
+size: 20
+speed: 1
+
+sleeping (blue #00BBFF) 13 0.5
 ᓚ₍⑅^- .-^₎ -ᶻ 𝗓 𐰁
 ᓚ₍⑅^- .-^₎ -𐰁 ᶻ 𝗓
 ᓚ₍⑅^- .-^₎ -𝗓 𐰁 ᶻ
 
-idle (yellow #FFBB00)
+idle (yellow #FFBB00) 17
 (ᵕ • ᴗ •)
 („• ֊ •„)
 (• ᴗ •ᵕ )
 ( ─ ‿ ─ )
 
-working (green #55FF55)
-૮₍´｡ᵔ ꈊ ᵔ｡`₎ა
-૮₍  ˶•⤙•˶ ₎ა 
-૮₍｡´ᴖ ˔ ᴖ`｡₎ა
-ε(´｡•᎑•`)っ  
-૮₍ ˶ᵔ ᵕ ᵔ˶ ₎ა
+working (green #55FF55) 12 2
+● ○ ○
+○ ● ○
+○ ○ ●
+○ ● ○
 
-awaiting (blue #00BBFF)
- ≽^•⩊•^≼  
- (=^◡^=)  
-(=^ ◡ ^=) 
-̣ (˶^▾^˶ ) ̣
- (｡^‿^♡)  
+awaiting (blue #00BBFF) 17
+(˶^◡^˶) 
+̣(˶^▾^˶) 
+̣(˶^•^˶) 
 
-finished (blue #00BBFF)
-٩(ˊᗜˋ*)و  ♡
-ദ്ദി(ᵔᗜᵔ)    ♡
-( ๑ ˃̵ᴗ˂̵)و ♡
+finished (blue #00BBFF) 15 2
+♥︎ ⁠♡ ⁠♡ 
+⁠♡ ♥︎ ⁠♡
+♡ ⁠♡ ♥︎
+♥︎ ⁠♡ ⁠♡
+♥︎ ⁠♥︎ ⁠♡ 
+♥︎ ♥︎ ⁠♥︎ 
 
-failed (red #FF5555)
+failed (red #FF5555) 16 2
 (⊙ ω ⊙)
 (˶˃ᆺ˂˶)
 (╥ ω ╥)

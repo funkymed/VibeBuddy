@@ -27,7 +27,19 @@ import Foundation
 /// ```
 /// font: Menlo
 /// size: 14
+/// speed: 2          # images par seconde ; 1 par défaut
 /// ```
+///
+/// An expression may override the size, then the speed, on its own header line:
+///
+/// ```
+/// working (green #55FF55) 17 4
+/// ```
+///
+/// The two numbers are positional — size first, speed second — so an expression
+/// that only wants a different speed still states its size. Named suffixes were
+/// the alternative and they turn a napkin format into a small language; a header
+/// with two numbers on it is still readable out loud.
 ///
 /// A missing `font` means the system font, which is the right default: it
 /// composes fallbacks per glyph, and no single installed family covers the rare
@@ -49,8 +61,15 @@ public struct BuddyFile: Sendable {
     /// Built per parse rather than held statically: `Regex` is not `Sendable`,
     /// and a shared one across concurrent parses is a real race rather than a
     /// compiler complaint. Parsing happens once per buddy file.
-    private static func headerPattern() -> Regex<(Substring, Substring, Substring, Substring)> {
-        /^\s*([a-zA-Z][a-zA-Z0-9_-]*)\s*\(([^)]*?)#([0-9A-Fa-f]{6})\s*\)\s*$/
+    private static func headerPattern()
+        -> Regex<(Substring, Substring, Substring, Substring, Substring?, Substring?)> {
+        // Optional trailing size, then optional speed:
+        // `working (green #55FF55) 17 4`
+        //
+        // The speed accepts a decimal point because half a frame per second is
+        // a real thing to ask for; the size does not, because a fractional
+        // point size is not.
+        /^\s*([a-zA-Z][a-zA-Z0-9_-]*)\s*\(([^)]*?)#([0-9A-Fa-f]{6})\s*\)\s*(\d{1,2})?\s*(\d+(?:\.\d+)?)?\s*$/
     }
 
     public static func parse(_ text: String, id: String, name: String) -> ParseResult {
@@ -58,9 +77,11 @@ public struct BuddyFile: Sendable {
         var problems: [String] = []
 
         let header = headerPattern()
-        var current: (name: String, colour: String, frames: [String])?
+        var current: (name: String, colour: String, size: CGFloat?,
+                      rate: Double?, frames: [String])?
         var font: String?
         var size: CGFloat = 13
+        var speed: Double = BuddyManifest.defaultFrameRate
 
         func flush() {
             guard let section = current else { return }
@@ -72,7 +93,9 @@ public struct BuddyFile: Sendable {
             expressions[section.name] = BuddyManifest.Expression(
                 frames: section.frames,
                 motion: MotionKind.default(for: section.name),
-                colour: "#" + section.colour
+                colour: "#" + section.colour,
+                fontSize: section.size,
+                framesPerSecond: section.rate
             )
             current = nil
         }
@@ -96,11 +119,30 @@ public struct BuddyFile: Sendable {
                 if key == "size", let parsed = Double(value), parsed >= 6, parsed <= 48 {
                     size = CGFloat(parsed); continue
                 }
+                // Out-of-range values fall through to the "unparsed line"
+                // report rather than being clamped: a file asking for 200
+                // images per second is a mistake, and silently drawing 30 hides
+                // it until someone wonders why the buddy ignores them.
+                if key == "speed", let parsed = Double(value),
+                   BuddyManifest.isValidFrameRate(parsed) {
+                    speed = parsed; continue
+                }
             }
 
             if let match = try? header.wholeMatch(in: line) {
                 flush()
-                current = (String(match.1).lowercased(), String(match.3).uppercased(), [])
+                let perExpressionSize: CGFloat? = match.4
+                    .flatMap { Double(String($0)) }
+                    .map { CGFloat($0) }
+                let perExpressionRate: Double? = match.5
+                    .flatMap { Double(String($0)) }
+                    .flatMap { BuddyManifest.isValidFrameRate($0) ? $0 : nil }
+                if match.5 != nil, perExpressionRate == nil {
+                    problems.append(
+                        "ligne \(index + 1) : vitesse hors bornes, celle du fichier est gardée")
+                }
+                current = (String(match.1).lowercased(), String(match.3).uppercased(),
+                           perExpressionSize, perExpressionRate, [])
                 continue
             }
 
@@ -128,6 +170,7 @@ public struct BuddyFile: Sendable {
                 name: name,
                 colour: expressions["idle"]?.colour ?? "#FFFFFF",
                 fontSize: size,
+                framesPerSecond: speed,
                 font: font,
                 expressions: expressions
             ),

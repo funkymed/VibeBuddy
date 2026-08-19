@@ -38,19 +38,13 @@ struct PanelHeader: View {
                     .fixedSize()
             }
 
-            VStack(alignment: .leading, spacing: 1) {
-                HStack(spacing: 6) {
-                    Text("notch-buddy")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(.white)
-                    Text(AppVersion.short)
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(.blue.opacity(0.85))
-                }
-                Text(summary)
-                    .font(.system(size: 11))
-                    .foregroundStyle(.white.opacity(0.5))
-            }
+            // Just what the agents are doing. The app's own name sits on the
+            // identity line below, where it is read once rather than competing
+            // with the state on every glance.
+            Text(summary)
+                .font(.system(size: 13))
+                .foregroundStyle(.white.opacity(0.65))
+                .lineLimit(1)
 
             Spacer(minLength: 8)
 
@@ -66,13 +60,13 @@ struct PanelHeader: View {
         HStack(spacing: 5) {
             Circle()
                 .fill(live.isEmpty ? Color.white.opacity(0.3) : .green)
-                .frame(width: 5, height: 5)
+                .frame(width: 7, height: 7)
             Text("\(live.count) / \(sessions.count)")
-                .font(.system(size: 11, weight: .medium, design: .monospaced))
-                .foregroundStyle(.white.opacity(0.75))
+                .font(.system(size: 12, weight: .medium, design: .monospaced))
+                .foregroundStyle(.white.opacity(0.8))
         }
-        .padding(.horizontal, 9)
-        .padding(.vertical, 5)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
         .background(Capsule().fill(.white.opacity(0.08)))
     }
 
@@ -83,9 +77,9 @@ struct PanelHeader: View {
     private var settingsButton: some View {
         Button(action: onSettings) {
             Image(systemName: "slider.horizontal.3")
-                .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(.white.opacity(0.55))
-                .frame(width: 24, height: 24)
+                .font(.system(size: 14, weight: .medium))
+                .foregroundStyle(.white.opacity(0.6))
+                .frame(width: 26, height: 26)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -100,9 +94,9 @@ struct PanelHeader: View {
     private var quitButton: some View {
         Button(action: onQuit) {
             Image(systemName: "power")
-                .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(.white.opacity(0.55))
-                .frame(width: 24, height: 24)
+                .font(.system(size: 14, weight: .medium))
+                .foregroundStyle(.white.opacity(0.6))
+                .frame(width: 26, height: 26)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

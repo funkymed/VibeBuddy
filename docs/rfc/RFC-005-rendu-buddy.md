@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | in-progress (92 %) — format ASCII et disposition livrés, reste le scénario C |
+| **Status** | in-progress (95 %) — format texte animé livré, reste le scénario C |
 | **Author** | Cyril Pereira |
 | **Created** | 2026-08-19 |
 | **Updated** | 2026-08-19 |
@@ -196,6 +196,7 @@ tête est ronde.
 | T7 | **Manifeste tigreboite** — premier client externe du format | **done** | **100** |
 | T8 | Mapping `BuddyExpression` ← état RFC-012, fonction pure + tests | **done** | **100** |
 | T9 | `perfcheck.sh` A et B | **done** | **100** |
+| T12 | Animation par images, rechargement à chaud, taille et couleur par expression | **done** | **100** |
 | T10 | `perfcheck.sh` C (curseur en mouvement, panneau déployé) | todo | 0 |
 | T11 | Taille et position dérivées du slot mesuré (`PillLayout`, RFC-002) | **done** | **100** |
 

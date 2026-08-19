@@ -26,16 +26,8 @@ struct PanelContentView: View {
     var onSettings: () -> Void
     var onQuit: () -> Void
 
-    @State private var filter = ""
 
-    private var visible: [AgentSession] {
-        guard !filter.isEmpty else { return sessions }
-        let needle = filter.lowercased()
-        return sessions.filter {
-            $0.projectName.lowercased().contains(needle)
-                || $0.model.lowercased().contains(needle)
-        }
-    }
+    private var visible: [SessionGroup] { SessionGroup.group(sessions) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -45,11 +37,15 @@ struct PanelContentView: View {
                 onSettings: onSettings, onQuit: onQuit
             )
 
-            if sessions.count > 3 { filterField }
+            identityLine
 
+            // The list scrolls; the header above and the usage below do not.
+            //
+            // Without this the list simply grew and pushed both off the panel —
+            // an afternoon of runs in one directory was enough to lose the very
+            // readings the panel exists for.
             sessionsSection
-
-            Spacer(minLength: 8)
+                .frame(maxHeight: .infinity, alignment: .top)
 
             Divider().overlay(.white.opacity(0.08))
             UsageSection(state: usage, l10n: l10n, locale: locale)
@@ -59,21 +55,29 @@ struct PanelContentView: View {
         .padding(.bottom, 14)
     }
 
-    /// Only shown once the list is long enough to need it. A search box above
-    /// two rows is furniture.
-    private var filterField: some View {
+    /// Who this is, and which build.
+    ///
+    /// This replaces the filter field that used to sit here. Grouping by
+    /// directory removed the clutter the filter existed to cut through — six
+    /// rows of one project became one — so a search box over three or four rows
+    /// was furniture standing in for a feature.
+    ///
+    /// The version earns its place: buddies and settings are files on disk that
+    /// outlive a build, and knowing which build is reading them is the first
+    /// thing anyone needs when one behaves oddly.
+    private var identityLine: some View {
         HStack(spacing: 7) {
-            Image(systemName: "magnifyingglass")
-                .font(.system(size: 11))
-                .foregroundStyle(.white.opacity(0.35))
-            TextField(l10n.filterPlaceholder, text: $filter)
-                .textFieldStyle(.plain)
-                .font(.system(size: 12))
-                .foregroundStyle(.white)
+            Text("notch-buddy")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.9))
+            Text(AppVersion.short)
+                .font(.system(size: 12, weight: .medium, design: .monospaced))
+                .foregroundStyle(.blue.opacity(0.8))
+            Spacer()
         }
         .padding(.horizontal, 11)
-        .padding(.vertical, 8)
-        .background(RoundedRectangle(cornerRadius: 8).fill(.white.opacity(0.06)))
+        .padding(.vertical, 7)
+        .background(RoundedRectangle(cornerRadius: 8).fill(.white.opacity(0.05)))
     }
 
     private var sessionsSection: some View {
@@ -83,11 +87,17 @@ struct PanelContentView: View {
             if visible.isEmpty {
                 emptyState
             } else {
-                // Live first, then most recently active. A finished session
-                // sinking below a running one is the ordering people expect.
-                ForEach(visible.sorted(by: Self.byRelevance)) { session in
-                    SessionRow(session: session, l10n: l10n).equatable()
+                ScrollView(.vertical, showsIndicators: true) {
+                    VStack(spacing: 8) {
+                        // Already ordered live-first, then by recency —
+                        // `SessionGroup.group` owns that rule so the view and
+                        // the tests cannot disagree about it.
+                        ForEach(visible) { group in
+                            SessionRow(group: group, l10n: l10n).equatable()
+                        }
+                    }
                 }
+                .scrollBounceBehavior(.basedOnSize)
             }
         }
     }
@@ -95,24 +105,20 @@ struct PanelContentView: View {
     private func sectionTitle(_ text: String, count: Int) -> some View {
         HStack(spacing: 7) {
             Text(text)
-                .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(.white.opacity(0.4))
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.45))
                 .tracking(0.8)
             Text("\(count)")
-                .font(.system(size: 10, weight: .medium, design: .monospaced))
-                .foregroundStyle(.white.opacity(0.28))
+                .font(.system(size: 11, weight: .medium, design: .monospaced))
+                .foregroundStyle(.white.opacity(0.32))
         }
     }
 
     private var emptyState: some View {
-        Text(filter.isEmpty ? l10n.emptyHint : l10n.noMatch(filter))
-            .font(.system(size: 12))
+        Text(l10n.emptyHint)
+            .font(.system(size: 13))
             .foregroundStyle(.white.opacity(0.4))
             .padding(.vertical, 10)
     }
 
-    nonisolated static func byRelevance(_ a: AgentSession, _ b: AgentSession) -> Bool {
-        if a.isLive != b.isLive { return a.isLive }
-        return a.lastActivity > b.lastActivity
-    }
 }

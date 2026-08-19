@@ -31,6 +31,16 @@ public struct BuddyManifest: Sendable, Equatable, Decodable {
     public let colour: String
     /// Point size at which the face is drawn.
     public let fontSize: CGFloat
+    /// Frames shown per second, for every expression that does not say
+    /// otherwise.
+    ///
+    /// Expressed as a rate rather than as a delay so that bigger means faster,
+    /// which is what someone writing `speed: 4` in a text file expects. The
+    /// renderer wants the reciprocal and computes it in one place.
+    ///
+    /// One per second is the historical default and the value every buddy
+    /// written before this option keeps.
+    public let framesPerSecond: Double
     /// Font family, or nil for the system font.
     ///
     /// Per buddy rather than global, because the right answer differs by
@@ -58,9 +68,28 @@ public struct BuddyManifest: Sendable, Equatable, Decodable {
         public let motion: MotionKind
         /// Overrides the manifest colour for this state.
         public let colour: String?
+        /// Overrides the manifest frame rate for this state.
+        ///
+        /// Worth having for the same reason the size override is: a three-frame
+        /// blink and a six-frame typing loop are not the same animation, and a
+        /// single rate makes one of them wrong. A `zzz` drifting away wants to
+        /// be slower than the buddy it belongs to, not just shorter.
+        public let framesPerSecond: Double?
+        /// Overrides the manifest size for this state.
+        ///
+        /// Worth having because these faces differ enormously in density: a
+        /// sleeping cat trailing `zzz` and a four-glyph blink want different
+        /// point sizes to read as the same weight on screen.
+        public let fontSize: CGFloat?
 
-        public init(frames: [String], motion: MotionKind, colour: String?) {
-            self.frames = frames; self.motion = motion; self.colour = colour
+        public init(
+            frames: [String], motion: MotionKind,
+            colour: String?, fontSize: CGFloat? = nil,
+            framesPerSecond: Double? = nil
+        ) {
+            self.frames = frames; self.motion = motion
+            self.colour = colour; self.fontSize = fontSize
+            self.framesPerSecond = framesPerSecond
         }
 
         /// Frame for a moment in time.
@@ -88,6 +117,7 @@ public struct BuddyManifest: Sendable, Equatable, Decodable {
         case emptyFace(String)
         case badColour(String)
         case badFontSize(CGFloat)
+        case badFrameRate(Double)
         case inconsistentWidth(expression: String, expected: Int, found: Int)
 
         public var description: String {
@@ -98,6 +128,8 @@ public struct BuddyManifest: Sendable, Equatable, Decodable {
             case let .emptyFace(n): return "« \(n) » : visage vide"
             case let .badColour(c): return "couleur « \(c) » invalide"
             case let .badFontSize(s): return "corps de police invalide : \(s)"
+            case let .badFrameRate(r):
+                return "vitesse invalide : \(r) (attendu \(BuddyManifest.minimumFrameRate) à \(BuddyManifest.maximumFrameRate) images/s)"
             case let .inconsistentWidth(e, expected, found):
                 return "« \(e) » fait \(found) caractères, les autres \(expected)"
             }
@@ -119,6 +151,9 @@ public struct BuddyManifest: Sendable, Equatable, Decodable {
         guard fontSize >= 4, fontSize <= 64 else {
             throw ValidationError.badFontSize(fontSize)
         }
+        guard Self.isValidFrameRate(framesPerSecond) else {
+            throw ValidationError.badFrameRate(framesPerSecond)
+        }
         guard Self.isValidColour(colour) else { throw ValidationError.badColour(colour) }
         guard expressions["idle"] != nil else {
             throw ValidationError.missingExpression("idle")
@@ -130,14 +165,34 @@ public struct BuddyManifest: Sendable, Equatable, Decodable {
             if let override = expression.colour, !Self.isValidColour(override) {
                 throw ValidationError.badColour(override)
             }
+            if let rate = expression.framesPerSecond, !Self.isValidFrameRate(rate) {
+                throw ValidationError.badFrameRate(rate)
+            }
         }
     }
 
-    /// Widest frame anywhere in the buddy, which is what the slot must fit.
-    public var widestFrame: String {
-        expressions.values
-            .map(\.widestFrame)
-            .max { $0.count < $1.count } ?? ""
+    /// Every frame that could be widest, with the size it will be drawn at.
+    ///
+    /// Returned as pairs rather than as a single "widest" string, because with
+    /// per-expression sizes the longest frame is no longer necessarily the
+    /// widest one — a short face at 20 pt beats a long one at 11. Only
+    /// measurement can decide, so the layout gets everything it needs to try.
+    public var candidateFrames: [(text: String, size: CGFloat)] {
+        expressions.values.map { ($0.widestFrame, size(for: $0)) }
+    }
+
+    /// Slowest and fastest a buddy may cycle.
+    ///
+    /// The floor is one frame every twenty seconds — below that an animation is
+    /// indistinguishable from a still face and only costs a clock. The ceiling
+    /// is the `lively` tier: asking for more would be a rate the budget refuses
+    /// to draw, so the file would promise something the renderer silently
+    /// ignores.
+    public static let minimumFrameRate: Double = 0.05
+    public static let maximumFrameRate: Double = 30
+
+    public static func isValidFrameRate(_ rate: Double) -> Bool {
+        rate >= minimumFrameRate && rate <= maximumFrameRate
     }
 
     static func isValidColour(_ hex: String) -> Bool {
@@ -151,8 +206,24 @@ public struct BuddyManifest: Sendable, Equatable, Decodable {
         expressions[name.rawValue] ?? expressions["idle"]
     }
 
-    /// Seconds between frames. One, as the format specifies.
-    public static let secondsPerFrame: Double = 1
+    /// Point size an expression draws at.
+    public func size(for expression: Expression?) -> CGFloat {
+        expression?.fontSize ?? fontSize
+    }
+
+    /// Seconds between frames for an expression, its own rate first.
+    public func secondsPerFrame(for expression: Expression?) -> Double {
+        1 / rate(for: expression)
+    }
+
+    /// Frames per second an expression draws at.
+    public func rate(for expression: Expression?) -> Double {
+        expression?.framesPerSecond ?? framesPerSecond
+    }
+
+    /// The rate a buddy runs at when the file says nothing — one frame per
+    /// second, which is what every buddy written before `speed:` existed does.
+    public static let defaultFrameRate: Double = 1
 }
 
 /// What the buddy is showing.

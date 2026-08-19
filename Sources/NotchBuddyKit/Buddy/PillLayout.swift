@@ -69,12 +69,20 @@ public struct PillLayout: Sendable, Equatable {
         counterFontSize: CGFloat = 11
     ) -> PillLayout {
         let notch = geometry.notchSize
-        // Measured from the widest frame of *every* expression, not from the
-        // current one. Sizing to what is on screen would resize the pill each
-        // second as the animation cycles, and again on every state change —
-        // which reads as the interface twitching rather than the buddy moving.
-        let left = buddy.map { measure($0.widestFrame, size: $0.fontSize, weight: .medium, family: $0.font) }
-            .map { $0 + slotPadding * 2 } ?? emptySlotWidth
+        // Measured across *every* expression, not from the current one. Sizing
+        // to what is on screen would resize the pill each second as the
+        // animation cycles, and again on every state change — which reads as
+        // the interface twitching rather than the buddy moving.
+        //
+        // Each candidate is measured at its own point size, because an
+        // expression may override it: the longest frame is not necessarily the
+        // widest once a short face is drawn larger than a long one.
+        let left = buddy.map { manifest in
+            let widest = manifest.candidateFrames
+                .map { measure($0.text, size: $0.size, weight: .medium, family: manifest.font) }
+                .max() ?? 0
+            return widest + slotPadding * 2
+        } ?? emptySlotWidth
 
         // An alert takes the right ear over from the counter: they say the same
         // kind of thing, and stacking them would make the pill grow twice.
@@ -101,7 +109,7 @@ public struct PillLayout: Sendable, Equatable {
     /// monospaced face still has per-font advance widths, and guessing produces
     /// a slot that is either clipped or padded by a few points on every machine
     /// with a different default.
-    static func measure(
+    public static func measure(
         _ text: String, size: CGFloat, weight: NSFont.Weight, family: String? = nil
     ) -> CGFloat {
         guard !text.isEmpty else { return 0 }

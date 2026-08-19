@@ -175,17 +175,27 @@ enum Diagnostics {
         }
 
         print("\n── buddies ──")
+        // `3.0 img/s` reads as a measurement; `3` reads as what was written.
+        func rate(_ value: Double) -> String {
+            value == value.rounded() ? String(Int(value)) : String(value)
+        }
         let installed = BuddyLoader.available()
         let active = UserDefaults.standard.string(forKey: "notchbuddy.buddy") ?? "emoji"
         for manifest in installed {
             let mark = manifest.id == active ? "●" : "○"
             let frames = manifest.expressions.values.map(\.frames.count).reduce(0, +)
-            print("  \(mark) \(manifest.id)  \(manifest.expressions.count) expressions · \(frames) images")
+            print("  \(mark) \(manifest.id)  \(manifest.expressions.count) expressions · "
+                  + "\(frames) images · \(rate(manifest.framesPerSecond)) img/s")
             for name in BuddyExpression.allCases {
                 guard let e = manifest.expression(name) else { continue }
-                print(String(format: "      %-9@ %@  %@",
+                // The rate is printed per expression, overridden or not: the
+                // question this section answers is "what is it actually doing",
+                // and an override that silently failed to parse looks exactly
+                // like an inherited value unless both are shown.
+                print(String(format: "      %-9@ %@  %-5@ %@",
                              name.rawValue as NSString,
                              (e.colour ?? manifest.colour) as NSString,
+                             (rate(manifest.rate(for: e)) + " img/s") as NSString,
                              (e.frames.first ?? "") as NSString))
             }
         }

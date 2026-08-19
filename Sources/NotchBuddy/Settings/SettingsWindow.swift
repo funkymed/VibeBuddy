@@ -90,6 +90,15 @@ private struct SettingsView: View {
     @AppStorage("notchbuddy.buddy") private var buddyID: String = "emoji"
     @State private var available: [BuddyManifest] = BuddyLoader.available()
 
+    /// Left at `.still` on purpose.
+    ///
+    /// The preview goes through `BuddyView` so that what is shown here is the
+    /// same renderer as the pill — pixel grid, bloom and all. A still budget
+    /// gives that renderer no clock, so six faces on screen cost six static
+    /// bitmaps rather than six timelines. The style is what the preview is for;
+    /// the motion is visible in the notch itself.
+    @State private var previewBudget = AnimationBudget()
+
     var body: some View {
         Form {
             Section {
@@ -116,27 +125,42 @@ private struct SettingsView: View {
                     get: { buddyID },
                     set: { buddyID = $0; onBuddyChange($0) }
                 )) {
+                    // The name alone. A raw frame inlined in the menu was a
+                    // second way of drawing a buddy — unpixellated, unlit, and
+                    // therefore a preview of something the app never shows.
+                    // The real renderer sits right below.
                     ForEach(available, id: \.id) { manifest in
-                        Text("\(manifest.name)  \(manifest.expressions["idle"]?.frames.first ?? "")")
-                            .tag(manifest.id)
+                        Text(manifest.name).tag(manifest.id)
                     }
                 } label: {
                     Text(l10n.strings.settingsBuddy)
                 }
-                // Live preview: the first frame of each expression, in its own
-                // colour. Choosing a buddy from a name alone is a guess.
+                // Live preview, through the one renderer. Choosing a buddy
+                // from a name alone is a guess.
+                //
+                // Only expressions the manifest actually declares: asking for a
+                // missing one falls back to `idle`, so listing all six would
+                // show the same face several times and read as a buddy with no
+                // states.
+                //
+                // On black, because that is the pill's background. The bloom is
+                // built to sit on it, and a preview on the form's own grey
+                // would misrepresent every colour in the file.
                 if let manifest = available.first(where: { $0.id == buddyID }) {
-                    HStack(spacing: 14) {
-                        ForEach(BuddyExpression.allCases, id: \.self) { expression in
-                            if let e = manifest.expression(expression) {
-                                Text(e.frames.first ?? "")
-                                    .font(.system(size: 13))
-                                    .foregroundStyle(Color(hex: e.colour ?? manifest.colour) ?? .primary)
-                            }
+                    HStack(spacing: 16) {
+                        ForEach(declared(in: manifest), id: \.self) { expression in
+                            BuddyView(
+                                manifest: manifest,
+                                expression: expression,
+                                budget: previewBudget
+                            )
+                            .fixedSize()
                         }
                     }
-                    .lineLimit(1)
-                    .padding(.vertical, 2)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 10)
+                    .background(RoundedRectangle(cornerRadius: 8).fill(.black))
                 }
 
                 HStack {
@@ -155,5 +179,12 @@ private struct SettingsView: View {
         }
         .formStyle(.grouped)
         .frame(minWidth: 460, minHeight: 300)
+    }
+
+    /// The expressions this manifest really defines, in declaration order of
+    /// the enum rather than of the dictionary — a dictionary has none, and the
+    /// preview would reshuffle on every appearance.
+    private func declared(in manifest: BuddyManifest) -> [BuddyExpression] {
+        BuddyExpression.allCases.filter { manifest.expressions[$0.rawValue] != nil }
     }
 }

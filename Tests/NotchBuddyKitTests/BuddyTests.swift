@@ -166,8 +166,8 @@ struct FrameTests {
         #expect(e.widestFrame == "abcdef")
     }
 
-    @Test("the widest frame across the whole buddy wins")
-    func widestAcrossExpressions() throws {
+    @Test("every expression offers a candidate for the layout to measure")
+    func candidatesAcrossExpressions() throws {
         let m = try #require(BuddyFile.parse("""
         idle (x #FFFFFF)
         ab
@@ -175,7 +175,118 @@ struct FrameTests {
         sleeping (x #FFFFFF)
         abcdefghij
         """, id: "t", name: "T").manifest)
-        #expect(m.widestFrame == "abcdefghij")
+        let texts = Set(m.candidateFrames.map(\.text))
+        #expect(texts == ["ab", "abcdefghij"])
+    }
+
+    // With per-expression sizes the longest frame is no longer necessarily the
+    // widest: a short face at 20 pt beats a long one at 11. The layout has to
+    // measure each candidate at its own size, so the manifest must hand over
+    // both — not a single pre-chosen "widest" string.
+    @Test("a candidate carries the size it will be drawn at")
+    func candidateCarriesItsSize() throws {
+        let m = try #require(BuddyFile.parse("""
+        idle (x #FFFFFF) 11
+        aaaaaaaaaa
+
+        working (x #FFFFFF) 22
+        oo
+        """, id: "t", name: "T").manifest)
+        let sizes = Dictionary(uniqueKeysWithValues: m.candidateFrames.map { ($0.text, $0.size) })
+        #expect(sizes["aaaaaaaaaa"] == 11)
+        #expect(sizes["oo"] == 22)
+    }
+
+    @Test("speed is read as images per second and inverted for the renderer")
+    func speedDirective() throws {
+        let m = try #require(BuddyFile.parse("""
+        size: 14
+        speed: 4
+        idle (x #FFFFFF)
+        ab
+        cd
+        """, id: "t", name: "T").manifest)
+        #expect(m.framesPerSecond == 4)
+        #expect(m.secondsPerFrame(for: m.expressions["idle"]) == 0.25)
+        // Faster means the frames actually come sooner, not just a stored number.
+        #expect(m.expressions["idle"]?.frame(at: 0.3, secondsPerFrame: 0.25) == "cd")
+    }
+
+    @Test("a file that says nothing keeps one frame per second")
+    func speedDefaults() throws {
+        let m = try #require(BuddyFile.parse("""
+        idle (x #FFFFFF)
+        ab
+        """, id: "t", name: "T").manifest)
+        #expect(m.framesPerSecond == BuddyManifest.defaultFrameRate)
+        #expect(m.secondsPerFrame(for: m.expressions["idle"]) == 1)
+    }
+
+    @Test("an expression overrides the file's speed, size first")
+    func perExpressionSpeed() throws {
+        let m = try #require(BuddyFile.parse("""
+        size: 14
+        speed: 2
+        idle (x #FFFFFF)
+        ab
+
+        working (x #FFFFFF) 20 8
+        cd
+
+        sleeping (x #FFFFFF) 0.5
+        ef
+        """, id: "t", name: "T").manifest)
+        #expect(m.rate(for: m.expressions["idle"]) == 2)
+        #expect(m.size(for: m.expressions["working"]) == 20)
+        #expect(m.rate(for: m.expressions["working"]) == 8)
+        // `0.5` cannot be a size — sizes are whole — so it lands on the speed.
+        #expect(m.rate(for: m.expressions["sleeping"]) == 0.5)
+        #expect(m.size(for: m.expressions["sleeping"]) == 14)
+    }
+
+    // Clamping would hide the mistake: a file asking for 200 images per second
+    // would draw at 30 and its author would never learn why.
+    @Test("an out-of-range speed is refused, not clamped")
+    func speedOutOfRangeIsReported() throws {
+        let result = BuddyFile.parse("""
+        speed: 200
+        idle (x #FFFFFF)
+        ab
+        """, id: "t", name: "T")
+        let m = try #require(result.manifest)
+        #expect(m.framesPerSecond == BuddyManifest.defaultFrameRate)
+        #expect(result.problems.count == 1)
+
+        let perExpression = BuddyFile.parse("""
+        idle (x #FFFFFF) 14 0.001
+        ab
+        """, id: "t", name: "T")
+        #expect(perExpression.manifest?.expressions["idle"]?.framesPerSecond == nil)
+        #expect(perExpression.problems.count == 1)
+    }
+
+    @Test("validation rejects a rate outside the bounds")
+    func validationRejectsBadRate() throws {
+        let m = BuddyManifest(
+            schema: BuddyManifest.supportedSchema, kind: .ascii, id: "t", name: "T",
+            colour: "#FFFFFF", fontSize: 13, framesPerSecond: 999, font: nil,
+            expressions: ["idle": BuddyManifest.Expression(
+                frames: ["ab"], motion: .none, colour: nil)])
+        #expect(throws: BuddyManifest.ValidationError.badFrameRate(999)) { try m.validate() }
+    }
+
+    @Test("an expression without a size falls back to the file's")
+    func sizeFallsBack() throws {
+        let m = try #require(BuddyFile.parse("""
+        size: 14
+        idle (x #FFFFFF)
+        ab
+
+        working (x #FFFFFF) 20
+        cd
+        """, id: "t", name: "T").manifest)
+        #expect(m.size(for: m.expressions["idle"]) == 14)
+        #expect(m.size(for: m.expressions["working"]) == 20)
     }
 }
 

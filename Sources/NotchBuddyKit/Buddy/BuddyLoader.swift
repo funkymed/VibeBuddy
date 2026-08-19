@@ -153,7 +153,8 @@ extension BuddyManifest {
     /// Last resort: renders nothing, crashes nowhere.
     static let empty = BuddyManifest(
         schema: supportedSchema, kind: .ascii, id: "empty", name: "—",
-        colour: "#FFFFFF", fontSize: 12, font: nil,
+        colour: "#FFFFFF", fontSize: 12,
+        framesPerSecond: BuddyManifest.defaultFrameRate, font: nil,
         expressions: ["idle": Expression(frames: ["( . )"], motion: .none, colour: nil)]
     )
 }

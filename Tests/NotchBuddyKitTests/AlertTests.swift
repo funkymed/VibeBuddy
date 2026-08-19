@@ -153,3 +153,74 @@ struct AlertTrackerTests {
         #expect(bus.delivered.count == AlertBus.historyLimit)
     }
 }
+
+@Suite("Session grouping")
+struct SessionGroupTests {
+
+    private func session(
+        _ id: String, cwd: String, live: Bool = true, ago: TimeInterval = 0
+    ) -> AgentSession {
+        AgentSession(
+            id: id, cwd: cwd, projectName: (cwd as NSString).lastPathComponent,
+            model: "claude-opus-5", startedAt: Date(),
+            lastActivity: Date().addingTimeInterval(-ago),
+            status: "", action: .none, permissionMode: "auto",
+            contextTokens: 0, contextWindow: 200_000, pid: nil, isLive: live
+        )
+    }
+
+    // Five runs in one directory is an ordinary afternoon. Shown flat, the
+    // session actually running is buried under its own history.
+    @Test("runs in one directory collapse to one row")
+    func collapsesHistory() {
+        let groups = SessionGroup.group([
+            session("a", cwd: "/p/notch", live: true),
+            session("b", cwd: "/p/notch", live: false, ago: 600),
+            session("c", cwd: "/p/notch", live: false, ago: 900),
+        ])
+        #expect(groups.count == 1)
+        #expect(groups[0].count == 3)
+        #expect(groups[0].hasHistory)
+    }
+
+    // The failure that matters: a finished run must never mask a running one.
+    @Test("the live session is the one shown, whatever its age")
+    func livePrimaryWins() {
+        let groups = SessionGroup.group([
+            session("old-live", cwd: "/p/notch", live: true, ago: 3600),
+            session("recent-dead", cwd: "/p/notch", live: false, ago: 10),
+        ])
+        #expect(groups[0].primary.id == "old-live")
+        #expect(groups[0].liveCount == 1)
+    }
+
+    @Test("separate directories stay separate")
+    func distinctProjects() {
+        let groups = SessionGroup.group([
+            session("a", cwd: "/p/notch"),
+            session("b", cwd: "/p/hykaro"),
+        ])
+        #expect(groups.count == 2)
+    }
+
+    @Test("groups are ordered live first, then by recency")
+    func ordering() {
+        let groups = SessionGroup.group([
+            session("dead", cwd: "/p/a", live: false, ago: 5),
+            session("live", cwd: "/p/b", live: true, ago: 5000),
+        ])
+        #expect(groups[0].cwd == "/p/b")
+    }
+
+    @Test("a single session still forms a group, without history")
+    func singleSession() {
+        let groups = SessionGroup.group([session("a", cwd: "/p/notch")])
+        #expect(groups.count == 1)
+        #expect(!groups[0].hasHistory)
+    }
+
+    @Test("no sessions yields no groups")
+    func empty() {
+        #expect(SessionGroup.group([]).isEmpty)
+    }
+}

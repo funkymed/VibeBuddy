@@ -8,14 +8,16 @@ import NotchBuddyKit
 /// reference implementation's row is inlined in a 3 738-line view, which is why
 /// its whole panel invalidates on any update.
 struct SessionRow: View, Equatable {
-    let session: AgentSession
+    let group: SessionGroup
     let l10n: Strings
+
+    private var session: AgentSession { group.primary }
 
     // nonisolated: a View is MainActor-isolated, and an Equatable conformance
     // that crosses that boundary is a data race under Swift 6. The comparison
     // touches only the value, so it needs no isolation.
     nonisolated static func == (a: SessionRow, b: SessionRow) -> Bool {
-        a.session == b.session
+        a.group == b.group
     }
 
     var body: some View {
@@ -25,21 +27,24 @@ struct SessionRow: View, Equatable {
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 6) {
                     Text(session.projectName)
-                        .font(.system(size: 13, weight: .semibold))
+                        .font(.system(size: 14, weight: .semibold))
                         .foregroundStyle(.white.opacity(session.isLive ? 1 : 0.45))
                         .lineLimit(1)
                     if !session.effort.isEmpty { effortBadge }
+                    // Only when there is history to hint at. A `×1` on every
+                    // row would be noise standing in for information.
+                    if group.hasHistory { historyBadge }
                 }
                 Text(subtitle)
-                    .font(.system(size: 11))
-                    .foregroundStyle(.white.opacity(0.45))
+                    .font(.system(size: 12))
+                    .foregroundStyle(.white.opacity(0.5))
                     .lineLimit(1)
                 // The full path, truncated from the head: the tail is what
                 // distinguishes two projects, the leading `/Users/name/Sites`
                 // is the same for all of them.
                 Text(session.cwd)
-                    .font(.system(size: 10, design: .monospaced))
-                    .foregroundStyle(.white.opacity(0.28))
+                    .font(.system(size: 11, design: .monospaced))
+                    .foregroundStyle(.white.opacity(0.32))
                     .lineLimit(1)
                     .truncationMode(.head)
             }
@@ -48,8 +53,8 @@ struct SessionRow: View, Equatable {
 
             contextGauge
             Text(relativeActivity)
-                .font(.system(size: 11, design: .monospaced))
-                .foregroundStyle(.white.opacity(0.4))
+                .font(.system(size: 12, design: .monospaced))
+                .foregroundStyle(.white.opacity(0.45))
             if !session.permissionMode.isEmpty { modeBadge }
         }
         .padding(.horizontal, 12)
@@ -61,7 +66,7 @@ struct SessionRow: View, Equatable {
     private var statusDot: some View {
         Circle()
             .fill(dotColour)
-            .frame(width: 7, height: 7)
+            .frame(width: 9, height: 9)
     }
 
     private var dotColour: Color {
@@ -105,9 +110,9 @@ struct SessionRow: View, Equatable {
                     .stroke(gaugeColour, style: StrokeStyle(lineWidth: 2, lineCap: .round))
                     .rotationEffect(.degrees(-90))
             }
-            .frame(width: 14, height: 14)
+            .frame(width: 17, height: 17)
             Text("\(Int((session.contextFraction * 100).rounded()))%")
-                .font(.system(size: 10, weight: .medium, design: .monospaced))
+                .font(.system(size: 12, weight: .medium, design: .monospaced))
                 .foregroundStyle(gaugeColour.opacity(0.9))
         }
         .help(l10n.contextTooltip(session.contextTokens, session.contextWindow))
@@ -125,7 +130,7 @@ struct SessionRow: View, Equatable {
     /// common case does not shout.
     private var effortBadge: some View {
         Text(session.effort)
-            .font(.system(size: 9, weight: .semibold))
+            .font(.system(size: 10, weight: .semibold))
             .foregroundStyle(session.effort == "high" ? .purple.opacity(0.95) : .white.opacity(0.5))
             .padding(.horizontal, 5)
             .padding(.vertical, 2)
@@ -133,9 +138,20 @@ struct SessionRow: View, Equatable {
                 session.effort == "high" ? .purple.opacity(0.18) : .white.opacity(0.07)))
     }
 
+    /// How many runs this directory has accumulated, live ones marked.
+    private var historyBadge: some View {
+        Text(group.liveCount > 1 ? "×\(group.liveCount)/\(group.count)" : "×\(group.count)")
+            .font(.system(size: 10, weight: .medium, design: .monospaced))
+            .foregroundStyle(.white.opacity(0.45))
+            .padding(.horizontal, 5)
+            .padding(.vertical, 2)
+            .background(Capsule().fill(.white.opacity(0.07)))
+            .help(l10n.sessionHistory(group.count))
+    }
+
     private var modeBadge: some View {
         Text(session.permissionMode)
-            .font(.system(size: 10, weight: .medium))
+            .font(.system(size: 11, weight: .medium))
             .foregroundStyle(.white.opacity(0.6))
             .padding(.horizontal, 7)
             .padding(.vertical, 3)

@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | in-progress (45 %) — liste et filtre livrés, saut terminal non écrit |
+| **Status** | in-progress (60 %) — liste, groupement et scroll livrés ; saut terminal non écrit |
 | **Author** | Cyril Pereira |
 | **Created** | 2026-08-19 |
 | **Updated** | 2026-08-19 |
@@ -107,6 +107,7 @@ c'est précisément le cas simple qui n'existe plus.
 |---|---|---|---|
 | T1 | `SessionListView` + `SessionRowView` `Equatable` | **done** | **100** |
 | T2 | Filtre texte | **done** | **100** |
+| T9 | Groupement par répertoire + défilement de la liste | **done** | **100** |
 | T3 | `SessionTimelineLoader` (actor + cache), hors `body` | todo | 0 |
 | T4 | `SessionDetailView` | todo | 0 |
 | T5 | `TerminalJumper` : chaîne parent + repli bundle ID | todo | 0 |
@@ -117,6 +118,32 @@ c'est précisément le cas simple qui n'existe plus.
 **Critère de sortie.** Avec **deux** sessions Claude dans le **même** répertoire,
 cliquer sur chaque ligne active le bon volet tmux — **cinq fois de suite sans
 erreur**. Le panneau fermé ne coûte rien.
+
+### Le groupement, trouvé à l'usage
+
+Claude Code ne supprime jamais un transcript, et un projet en accumule : cinq
+exécutions dans le même dossier produisent cinq lignes, quatre terminées.
+Affichées à plat, **la session qui tourne se retrouve enterrée sous son propre
+historique** — l'inverse de ce à quoi sert un tableau de bord. Constaté sur une
+capture après une après-midi de travail.
+
+Le regroupement se fait par **répertoire de travail**, pas par identifiant de
+session : ce que l'utilisateur appelle « ma session notch » est le dossier, et
+les identifiants changent à chaque relance.
+
+Un badge `×5` n'apparaît que s'il y a de l'historique — un `×1` sur chaque ligne
+serait du bruit déguisé en information.
+
+La règle verrouillée par un test : **une session terminée ne masque jamais une
+session vivante**, même plus récente qu'elle.
+
+La liste défile, l'en-tête et la consommation restent fixes. Sans ça la liste
+poussait les deux hors du panneau, et une après-midi suffisait à perdre les
+lectures pour lesquelles le panneau existe.
+
+Effet de bord corrigé au passage : la règle d'ordonnancement était écrite **deux
+fois**, dans la vue et dans le tri. Elle vit désormais uniquement dans
+`SessionGroup`.
 
 ### Livré en avance, avec le panneau déployé
 

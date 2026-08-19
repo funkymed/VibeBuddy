@@ -28,6 +28,7 @@ public struct Strings: Sendable {
     public let emptyHint: String
     public let noMatch: @Sendable (String) -> String
     public let since: @Sendable (String) -> String
+    public let sessionHistory: @Sendable (Int) -> String
     public let contextTooltip: @Sendable (Int, Int) -> String
 
     // Usage
@@ -61,6 +62,7 @@ public struct Strings: Sendable {
         emptyHint: "Aucune session. Lancez un agent dans un projet.",
         noMatch: { "Aucune session ne correspond à « \($0) »." },
         since: { "depuis \($0)" },
+        sessionHistory: { "\($0) sessions dans ce dossier" },
         contextTooltip: { "\($0) / \($1) jetons" },
         usageTitle: "CONSOMMATION",
         usageSession: "session",
@@ -89,6 +91,7 @@ public struct Strings: Sendable {
         emptyHint: "No sessions. Start an agent in a project.",
         noMatch: { "No session matches “\($0)”." },
         since: { "up \($0)" },
+        sessionHistory: { "\($0) sessions in this folder" },
         contextTooltip: { "\($0) / \($1) tokens" },
         usageTitle: "USAGE",
         usageSession: "session",
