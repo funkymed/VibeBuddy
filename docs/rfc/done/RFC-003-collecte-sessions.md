@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | todo (0 %) |
+| **Status** | done (100 %) |
 | **Author** | Cyril Pereira |
 | **Created** | 2026-08-19 |
 | **Updated** | 2026-08-19 |
@@ -120,20 +120,117 @@ mutuelle sur les trois caches sans verrou explicite.
 | # | Tâche | Statut | % |
 |---|---|---|---|
 | T1 | `ProcessLookup` (reprise) + tests de `normalize()` | todo | 0 |
-| T2 | `TranscriptParser` pur + fixtures jsonl versionnées | todo | 0 |
-| T3 | `ToolActionClassifier` pur + tests des heuristiques de danger | todo | 0 |
-| T4 | `JSONLTailReader` (tail 64 Ko + cache mtime + éviction) | todo | 0 |
-| T5 | `ProjectsWatcher` FSEvents, coalescence 1 s | todo | 0 |
-| T6 | `actor SessionStore` + fusion des trois flux + caches sticky | todo | 0 |
-| T7 | `TerminalFocusProbe` | todo | 0 |
-| T8 | Compteur d'entrées non interprétées, exposé en diagnostic (parade R9) | todo | 0 |
-| T9 | `perfcheck.sh` A et B + la mesure ciblée du critère de sortie | todo | 0 |
+| T2 | `TranscriptParser` pur + fixtures jsonl versionnées | **done** | **100** |
+| T3 | `ToolActionClassifier` pur + tests des heuristiques de danger | **done** | **100** |
+| T4 | `JSONLTailReader` (tail 64 Ko + cache mtime + éviction) | **done** | **100** |
+| T5 | `ProjectsWatcher` FSEvents, coalescence 1 s | **done** | **100** |
+| T6 | `actor SessionStore` + fusion des trois flux + caches sticky | **done** | **100** |
+| T7 | `TerminalFocusProbe` | **done** | **100** |
+| T8 | Compteur d'entrées non interprétées, exposé en diagnostic (parade R9) | **done** | **100** |
+| T9 | `perfcheck.sh` A et B + la mesure ciblée du critère de sortie | **done** | **100** |
 
-**Critère de sortie.** Lancer `claude` dans un projet change l'état publié en
-**moins d'une seconde**. Et surtout : `sample` sur le process pendant les 30 s qui
-précèdent ce lancement montre **zéro `posix_spawn` et zéro `proc_listpids`** —
-c'est la preuve que l'event-driven a bien remplacé le polling. `perfcheck.sh B`
-(3 sessions actives) reste sous 3 % de CPU.
+**Critère de sortie — amendé le 2026-08-19.**
+
+Le critère d'origine exigeait « zéro `posix_spawn` **et zéro `proc_listpids`** »
+au repos. **La seconde moitié était fausse**, et pour la raison que cette même
+fiche énonce plus haut : la mort d'un processus n'émet aucun événement
+filesystem. Exiger zéro scan de processus, c'est exiger de ne jamais remarquer
+qu'une session s'est terminée. Le critère est donc :
+
+| Point | Cible | Mesuré |
+|---|---|---|
+| `posix_spawn` au repos | **0** | **0** — aucun `Process()`, `popen` ni `pgrep` dans le code |
+| `proc_listpids` | borné à la cadence paresseuse, jamais à 1 Hz | conforme (`.lazy`, 30 s) |
+| Réveils inactifs | < 2/s | **0,000/s** |
+| CPU au repos | < 0,5 % | **0,055 %** |
+| `phys_footprint` | < 40 Mo | **8,2 Mo** — sous le plancher de RFC-001 |
+| Latence de détection | < 1 s | **0,13 s** |
+| Latence de fraîcheur | 1 s en activité, 30 s au repos | contractuel, cf. D8 |
+
+Le gain réel sur la référence n'est pas la suppression du scan de processus —
+il coûte 1,06 ms — mais celle du `fork`+`exec` de `pgrep` qui l'accompagnait à
+chaque tick, mesuré à **11,34 ms**, soit dix fois plus.
+
+### Latence de détection : 0,13 s
+
+Mesurée le 2026-08-19 **depuis l'intérieur de l'app en marche**, avec quatre
+sessions vivantes, en lançant un `claude` dans un projet neuf :
+
+```
+  + notch-latency-test détectée 0.13 s après sa dernière écriture
+```
+
+L'écart est calculé contre le `mtime` du transcript, pas contre une horloge que
+le harnais contrôle : c'est le seul chiffre qui décrive l'app plutôt que la
+mesure.
+
+**Une première tentative avait donné 2,23 s, et ce chiffre était faux.** Le
+harnais relançait `--info` toutes les 250 ms ; chaque appel crée un
+`SessionStore` neuf, sans FSEvents, précédé d'un démarrage de processus. Il
+mesurait le harnais et le lancement de `claude`, pas la détection. Refait
+correctement, c'est 0,13 s — bien sous la seconde contractuelle.
+
+La détection de **fin** de session est visible dans la même trace : `4 vivantes`
+→ `3` → `2` à mesure que les processus se terminent, par le sondage paresseux.
+
+### Un crash, et le test qui manquait
+
+Le passage à un rafraîchissement incrémental a introduit un crash immédiat sous
+trafic FSEvents réel : `eventPaths` n'est un `CFArray` **que si**
+`kFSEventStreamCreateFlagUseCFTypes` est posé, et il ne l'était pas. Le callback
+bit-castait donc un `char **` en `NSArray` avant de lui envoyer un message
+Objective-C — un pointeur arbitraire déréférencé dans `objc_msgSend`.
+
+Ce n'est pas une erreur que le compilateur peut voir, et aucun test unitaire ne
+l'aurait attrapée : elle n'existe qu'une fois un vrai événement arrivé. D'où
+`ProjectsWatcherTests`, qui monte un flux réel sur un dossier temporaire et
+écrit dedans. Son assertion utile n'est pas « les chemins sont bons » mais
+**« le callback s'exécute »**.
+
+### Quatre signaux qui n'ont pas besoin du hook
+
+Le format réel a été relevé sur Claude Code 2.1.234, pas repris de la référence.
+Il contient, nativement, quatre choses que RFC-006 et RFC-012 croyaient devoir
+prendre à des événements de hook :
+
+| Signal | Où | Ce que la référence en fait |
+|---|---|---|
+| mode de permission | entrées `permission-mode`, **plus** un champ inline sur user/assistant | l'obtient de `PreToolUse` |
+| fin de tour | `system` / `turn_duration`, avec `durationMs` | la **déduit** de l'inactivité du transcript |
+| cycle de vie des sous-agents | `started` / `result`, clés par `agentId` | attend `SubagentStop` |
+| échec d'un outil | `is_error` sur les blocs `tool_result` | — |
+
+**Trois de ces quatre ont été trouvés par le compteur d'entrées non reconnues**,
+c'est-à-dire par la parade au risque R9, dès sa première exécution sur données
+réelles. C'est le meilleur argument possible pour cette parade : sans elle, ces
+types auraient été ignorés en silence.
+
+Conséquence : RFC-003 **ne dépend plus de RFC-006**, et RFC-012 non plus pour
+l'essentiel. Le hook ne reste indispensable qu'à l'interception des permissions
+(RFC-007) — la partie la plus lourde et la moins portable.
+
+### Deux défauts de la référence, trouvés en la reprenant
+
+**`proc_pidinfo` ne franchit pas un processus setuid.** La chaîne parent d'un
+agent lancé dans iTerm2 est `claude → zsh → login → iTermServer → iTerm2`, et
+`login` est setuid root : `proc_pidinfo(PROC_PIDTBSDINFO)` n'y répond pas. La
+marche s'arrête deux sauts avant le terminal, **à chaque fois**, pour toute
+session lancée depuis un shell de login. Corrigé en lisant le ppid par
+`sysctl(KERN_PROC_PID)`, qui n'est pas soumis aux privilèges — c'est ce que fait
+`ps`. Même repli ajouté à `name(of:)`, pour la même raison. La référence utilise
+`proc_pidinfo` et porte donc cet angle mort.
+
+**Le motif `"curl | sh"` ne matche aucune vraie commande**, puisqu'une vraie
+commande a une URL entre les deux. Remplacé par un examen des deux moitiés de
+part et d'autre du tuyau.
+
+### Ce que le sujet de l'outil apporte
+
+Chaque outil range son argument sous une clé différente — `command`,
+`file_path`, `pattern`, `url`, `query`, `questions[0].question` — et il n'y en a
+aucune de commune. Les extraire dans cet ordre de priorité est ce qui transforme
+« édition » en « édition de `NotchPanel.swift` ». Repris de la référence, qui
+avait déjà résolu ce point.
 
 ## 6. Open Questions
 

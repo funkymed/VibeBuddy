@@ -1,0 +1,42 @@
+# emoji — jeu de kaomoji animés pour notch-buddy
+#
+# Une image par ligne, une seconde par image.
+# Une ligne vide termine une section.
+# Le mot de couleur avant le code hexadécimal est décoratif : seul le #RRGGBB compte.
+
+sleeping (blue #00BBFF)
+ᓚ₍⑅^- .-^₎ -ᶻ 𝗓 𐰁
+ᓚ₍⑅^- .-^₎ -𐰁 ᶻ 𝗓
+ᓚ₍⑅^- .-^₎ -𝗓 𐰁 ᶻ
+
+idle (yellow #FFBB00)
+(ᵕ • ᴗ •)
+(„• ֊ •„)
+(• ᴗ •ᵕ )
+( ─ ‿ ─ )
+
+working (green #55FF55)
+૮₍´｡ᵔ ꈊ ᵔ｡`₎ა
+૮₍  ˶•⤙•˶ ₎ა 
+૮₍｡´ᴖ ˔ ᴖ`｡₎ა
+ε(´｡•᎑•`)っ  
+૮₍ ˶ᵔ ᵕ ᵔ˶ ₎ა
+
+awaiting (blue #00BBFF)
+ ≽^•⩊•^≼  
+ (=^◡^=)  
+(=^ ◡ ^=) 
+̣ (˶^▾^˶ ) ̣
+ (｡^‿^♡)  
+
+finished (blue #00BBFF)
+٩(ˊᗜˋ*)و  ♡
+ദ്ദി(ᵔᗜᵔ)    ♡
+( ๑ ˃̵ᴗ˂̵)و ♡
+
+failed (red #FF5555)
+(⊙ ω ⊙)
+(˶˃ᆺ˂˶)
+(╥ ω ╥)
+( ◞‸◟ )
+(∩˃o˂∩)

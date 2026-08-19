@@ -73,13 +73,154 @@ enum Diagnostics {
                                  flush as NSString))
                 }
             }
-            print("\n── aimants ──")
+            print("\n── disposition de la pastille ──")
+        if let g = NotchGeometry.resolve() {
+            var loader = BuddyLoader()
+            let buddy = loader.load(id: UserDefaults.standard.string(forKey: "notchbuddy.buddy") ?? "emoji").manifest
+            for (label, count, alert) in [("repos", 0, String?.none), ("2 sessions", 2, nil),
+                                          ("10 sessions", 10, nil),
+                                          ("alerte", 2, "notch terminé")] {
+                let l = PillLayout.resolve(geometry: g, buddy: buddy,
+                                           sessionCount: count, alertText: alert)
+                print(String(format: "  %-12@ gauche %5.1f · encoche %5.1f · droite %5.1f = %6.1f pt · décalage %+.1f",
+                             label as NSString, l.leftWidth, l.notchWidth, l.rightWidth,
+                             l.totalWidth, l.notchAlignmentOffset))
+            }
+        }
+
+        print("\n── aimants ──")
             for f in [0.02, 0.28, 0.48, 0.97] {
                 let snapped = NotchFrameSolver.snap(fraction: CGFloat(f), size: pill, geometry: g)
                 let caught = abs(snapped - CGFloat(f)) > 0.0001
                 print(String(format: "  %.2f → %.2f  %@", f, snapped,
                              (caught ? "capté" : "laissé libre") as NSString))
             }
+        }
+
+        print("\n── transcripts (parseur contre données réelles) ──")
+        let root = (NSHomeDirectory() as NSString).appendingPathComponent(".claude/projects")
+        let fm = FileManager.default
+        var files: [(String, Date)] = []
+        if let walker = fm.enumerator(atPath: root) {
+            for case let rel as String in walker where rel.hasSuffix(".jsonl") {
+                let full = "\(root)/\(rel)"
+                if let a = try? fm.attributesOfItem(atPath: full),
+                   let m = a[.modificationDate] as? Date { files.append((full, m)) }
+            }
+        }
+        files.sort { $0.1 > $1.1 }
+        var unrecognised: [String: Int] = [:]
+        let started = Date()
+        for (path, _) in files.prefix(10) {
+            guard let data = JSONLTailReader.tail(of: path, bytes: 64 * 1024) else { continue }
+            let t = TranscriptParser.parse(data)
+            for (k, v) in t.unrecognised { unrecognised[k, default: 0] += v }
+            let what = t.turnEnded
+                ? "tour terminé"
+                : (t.status.isEmpty ? "—" : t.status + (t.subject.map { " · \($0)" } ?? ""))
+            print(String(format: "  %-16@ ctx=%7d %@%@ %@",
+                ((t.cwd ?? "—") as NSString).lastPathComponent as NSString,
+                t.contextTokens,
+                (t.permissionMode.map { "mode=\($0) " } ?? "") as NSString,
+                (t.lastResultWasError ? "ERREUR " : "") as NSString,
+                String(what.prefix(60)) as NSString))
+        }
+        let ms = Date().timeIntervalSince(started) * 1000
+        print(String(format: "  %d transcripts au total · %.1f ms pour 10 queues", files.count, ms))
+        // Parade R9 : ce que le parseur n'a pas su lire est compté, pas ignoré.
+        print("  types non reconnus : \(unrecognised.isEmpty ? "aucun" : String(describing: unrecognised))")
+
+        print("\n── sessions vivantes (processus + transcript) ──")
+        let store = SessionStore()
+        let sem = DispatchSemaphore(value: 0)
+        nonisolated(unsafe) var live: [AgentSession] = []
+        let t0 = Date()
+        // Detached: a plain Task starts on the current actor, and the main
+        // thread is about to block on the semaphore — it would never run.
+        Task.detached { live = await store.refresh(); sem.signal() }
+        _ = sem.wait(timeout: .now() + 5)
+        let refreshMs = Date().timeIntervalSince(t0) * 1000
+
+        if live.isEmpty {
+            print("  aucune session")
+        }
+        for session in live.prefix(8) {
+            let term = session.pid.map { TerminalFocusProbe.hostingTerminal(of: $0) } ?? nil
+            print(String(format: "  %@ %-14@ pid=%-7@ ctx=%3.0f%%  term=%-10@ %@",
+                (session.isLive ? "●" : "○") as NSString,
+                (session.projectName as NSString),
+                (session.pid.map(String.init) ?? "—") as NSString,
+                session.contextFraction * 100,
+                (term.flatMap { ProcessLookup.name(of: $0) } ?? "tmux/?") as NSString,
+                (session.status.isEmpty ? "—" : session.status) as NSString))
+        }
+        print(String(format: "  %d sessions · refresh en %.1f ms", live.count, refreshMs))
+        print("  un terminal est au premier plan : \(TerminalFocusProbe.isAnyTerminalFrontmost())")
+        if let front = NSWorkspace.shared.frontmostApplication {
+            print("  premier plan : \(front.localizedName ?? "?") · \(front.bundleIdentifier ?? "?")")
+        }
+        // La chaîne parent telle que libproc la voit — c'est elle qui décide si
+        // le terminal hôte est identifiable, et son échec est muet sans ça.
+        if let pid = live.first(where: { $0.pid != nil })?.pid {
+            print("  chaîne parent depuis \(pid) :")
+            var cur = pid
+            for hop in 1...TerminalFocusProbe.maxHops {
+                guard let parent = ProcessLookup.parent(of: cur), parent > 1 else { break }
+                let name = ProcessLookup.name(of: parent) ?? "?"
+                let isTerm = TerminalFocusProbe.terminalNames.contains(name)
+                print(String(format: "    %d. pid=%-7d %-20@ %@", hop, parent,
+                             name as NSString, (isTerm ? "← terminal" : "") as NSString))
+                cur = parent
+            }
+        }
+
+        print("\n── buddies ──")
+        let installed = BuddyLoader.available()
+        let active = UserDefaults.standard.string(forKey: "notchbuddy.buddy") ?? "emoji"
+        for manifest in installed {
+            let mark = manifest.id == active ? "●" : "○"
+            let frames = manifest.expressions.values.map(\.frames.count).reduce(0, +)
+            print("  \(mark) \(manifest.id)  \(manifest.expressions.count) expressions · \(frames) images")
+            for name in BuddyExpression.allCases {
+                guard let e = manifest.expression(name) else { continue }
+                print(String(format: "      %-9@ %@  %@",
+                             name.rawValue as NSString,
+                             (e.colour ?? manifest.colour) as NSString,
+                             (e.frames.first ?? "") as NSString))
+            }
+        }
+        print("  dossier : \(BuddyLoader.searchPath)")
+
+        print("\n── langue ──")
+        let l10n = Localisation()
+        print("  réglage        \(l10n.language.rawValue) (\(l10n.language.displayName))")
+        print("  résolue        \(l10n.effective.rawValue)")
+        print("  macOS préfère  \(Locale.preferredLanguages.prefix(3).joined(separator: ", "))")
+        print("  locale dates   \(l10n.locale.identifier)")
+        for lang in AppLanguage.allCases where lang != .system {
+            let s = Strings.for(lang)
+            print("  \(lang.rawValue) → \(s.usageTitle) · \(s.emptyHint)")
+        }
+
+        print("\n── consommation Claude ──")
+        let usageSem = DispatchSemaphore(value: 0)
+        nonisolated(unsafe) var outcome: UsageOutcome = .failed("timeout")
+        Task.detached { outcome = await UsageClient().fetch(); usageSem.signal() }
+        _ = usageSem.wait(timeout: .now() + 10)
+        switch outcome {
+        case let .success(u):
+            for (label, w) in [("session (5 h)", u.fiveHour), ("semaine (7 j)", u.sevenDay)] {
+                if let w {
+                    print(String(format: "  %-14@ %5.1f %%  reset %@", label as NSString,
+                                 w.utilisation,
+                                 (w.resetsAt.map { UsageBarPreview.reset($0) } ?? "—") as NSString))
+                } else {
+                    print("  \(label)  indisponible")
+                }
+            }
+        case .noCredentials: print("  pas de jeton lisible")
+        case let .rateLimited(after): print(String(format: "  limité, réessai dans %.0f s", after))
+        case let .failed(reason): print("  échec : \(reason)")
         }
 
         let s = PerfProbe.sample()

@@ -1,0 +1,103 @@
+import Testing
+import CoreGraphics
+@testable import NotchBuddyKit
+
+private let notched = NotchGeometry(
+    screenID: 1,
+    screenFrame: CGRect(x: 0, y: 0, width: 1800, height: 1169),
+    notchSize: CGSize(width: 220, height: 38)
+)
+private let plain = NotchGeometry(
+    screenID: 2,
+    screenFrame: CGRect(x: 0, y: 0, width: 2560, height: 1440),
+    notchSize: nil
+)
+
+@Suite("Pill layout")
+struct PillLayoutTests {
+
+    @Test("the pill always overhangs the cutout on both sides")
+    func overhangsNotch() {
+        let layout = PillLayout.resolve(geometry: notched, buddy: BuiltInBuddy.manifest, sessionCount: 2)
+        #expect(layout.totalWidth > layout.notchWidth)
+        #expect(layout.leftWidth >= PillLayout.emptySlotWidth)
+        #expect(layout.rightWidth >= PillLayout.emptySlotWidth)
+    }
+
+    @Test("the pill matches the notch height so it reads as one shape")
+    func matchesNotchHeight() {
+        let layout = PillLayout.resolve(geometry: notched, buddy: BuiltInBuddy.manifest, sessionCount: 1)
+        #expect(layout.height == 38)
+    }
+
+    // The rule that is easy to forget because it is invisible in the common
+    // case: the pill and the notch are both centred, so equal ears align by
+    // accident and unequal ones do not.
+    @Test("equal ears need no shift")
+    func symmetricNeedsNoOffset() {
+        let layout = PillLayout(leftWidth: 60, rightWidth: 60, notchWidth: 220, height: 38)
+        #expect(layout.notchAlignmentOffset == 0)
+    }
+
+    @Test("unequal ears shift by half the difference")
+    func asymmetricShifts() {
+        let layout = PillLayout(leftWidth: 40, rightWidth: 100, notchWidth: 220, height: 38)
+        #expect(layout.notchAlignmentOffset == 30)
+        // Check it actually lands: the middle slot's left edge must sit at
+        // -notchWidth/2 once the shift is applied.
+        let leftEdgeOfGap = -layout.totalWidth / 2 + layout.leftWidth + layout.notchAlignmentOffset
+        #expect(abs(leftEdgeOfGap - (-layout.notchWidth / 2)) < 0.001)
+    }
+
+    // Hard-coded slot widths work until a buddy has a longer face or a manifest
+    // changes its font size, at which point the content overflows a slot sized
+    // for something else.
+    @Test("a longer face widens its own ear")
+    func longerFaceWidensSlot() {
+        let short = PillLayout.measure("=^^=", size: 13, weight: .bold)
+        let long = PillLayout.measure("=^^^^^^=", size: 13, weight: .bold)
+        #expect(long > short)
+    }
+
+    @Test("a bigger font widens its own ear")
+    func biggerFontWidensSlot() {
+        let small = PillLayout.measure("=^^=", size: 10, weight: .bold)
+        let big = PillLayout.measure("=^^=", size: 20, weight: .bold)
+        #expect(big > small)
+    }
+
+    @Test("the counter widens as it reaches two digits")
+    func counterGrows() {
+        let one = PillLayout.resolve(geometry: notched, buddy: nil, sessionCount: 1)
+        let twelve = PillLayout.resolve(geometry: notched, buddy: nil, sessionCount: 12)
+        #expect(twelve.rightWidth > one.rightWidth)
+    }
+
+    @Test("no sessions leaves a minimum ear rather than collapsing onto the notch")
+    func zeroSessionsKeepsShape() {
+        let layout = PillLayout.resolve(geometry: notched, buddy: nil, sessionCount: 0)
+        #expect(layout.rightWidth == PillLayout.emptySlotWidth)
+    }
+
+    // An alert and the counter say the same kind of thing; stacking them would
+    // make the pill grow twice for one event.
+    @Test("an alert takes the right ear over from the counter")
+    func alertReplacesCounter() {
+        let counter = PillLayout.resolve(geometry: notched, buddy: nil, sessionCount: 3)
+        let alert = PillLayout.resolve(
+            geometry: notched, buddy: nil, sessionCount: 3, alertText: "notch terminé")
+        #expect(alert.rightWidth > counter.rightWidth)
+    }
+
+    @Test("a display without a cutout still produces a usable pill")
+    func plainScreen() {
+        let layout = PillLayout.resolve(geometry: plain, buddy: BuiltInBuddy.manifest, sessionCount: 1)
+        #expect(layout.totalWidth > 0)
+        #expect(layout.height == NotchFrameSolver.floatingPillHeight)
+    }
+
+    @Test("measuring an empty string costs nothing")
+    func emptyMeasure() {
+        #expect(PillLayout.measure("", size: 13, weight: .bold) == 0)
+    }
+}

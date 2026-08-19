@@ -19,10 +19,19 @@ final class AppCoordinator: NSObject, NSApplicationDelegate {
     let animation = AnimationBudget()
     private(set) var geometry: NotchGeometry?
     private var panel: NotchPanel?
+    private var sessions: SessionCoordinator?
+    let usage = UsageState()
+    let l10n = Localisation()
+    private var settings: SettingsWindow?
+    private var buddyWatchers: [ProjectsWatcher] = []
+    /// Fired on every hot reload. Used by the bench to prove it happens.
+    var onBuddyReload: ((String) -> Void)?
 
     /// Until RFC-003 drives visibility from live sessions, the pill is shown on
     /// launch so RFC-002 can be exercised at all.
     var showPillOnLaunch = true
+    /// Which buddy to load. Nil means the built-in one.
+    var buddyID: String? = "emoji"
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
@@ -32,6 +41,72 @@ final class AppCoordinator: NSObject, NSApplicationDelegate {
         let panel = NotchPanel(wake: wake, budget: animation)
         self.panel = panel
         if showPillOnLaunch { panel.show() }
+
+        let settings = SettingsWindow(
+            l10n: l10n,
+            onBuddyChange: { [weak self] id in self?.loadBuddy(id) },
+            onLanguageChange: { [weak self] in
+                guard let self else { return }
+                self.panel?.setLanguage(self.l10n.strings, locale: self.l10n.locale)
+            }
+        )
+        settings.onVisibilityChange = { [weak panel] open in
+            panel?.suppressesHover = open
+        }
+        self.settings = settings
+        panel.onSettings = { settings.show() }
+
+        panel.setLanguage(l10n.strings, locale: l10n.locale)
+        PerfProbe.log.info("langue : \(self.l10n.effective.rawValue, privacy: .public)")
+
+        panel.onPanelVisibilityChange = { [weak self] open in
+            guard let self else { return }
+            usage.isPanelOpen = open
+            if open { Task { @MainActor in
+                await self.usage.refresh()
+                self.panel?.setUsage(self.usage.status)
+            } }
+        }
+
+        loadBuddy(UserDefaults.standard.string(forKey: "notchbuddy.buddy") ?? buddyID)
+        watchBuddies()
+
+        let sessions = SessionCoordinator(wake: wake)
+        sessions.onAlert = { [weak panel] alert in
+            PerfProbe.log.info(
+                "alerte: \(alert.projectName, privacy: .public) \(alert.kind.rawValue, privacy: .public)")
+            panel?.present(alert)
+        }
+        sessions.onChange = { [weak panel] list in
+            let live = list.filter(\.isLive)
+            let activity: SessionActivity? = live.contains { $0.action != .none } ? .working
+                : (live.contains { $0.turnEnded } ? .finished : (live.isEmpty ? nil : .idle))
+            panel?.setExpression(BuddyExpression.from(
+                activity: activity, hasLiveSession: !live.isEmpty, isVisible: true))
+            panel?.setSessionCount(live.count)
+            panel?.setSessions(list)
+        }
+        sessions.onChangeLog = { list in
+            let live = list.filter(\.isLive).count
+            PerfProbe.log.info("sessions: \(live, privacy: .public) live / \(list.count, privacy: .public)")
+        }
+        sessions.start()
+        self.sessions = sessions
+
+        // The only unconditional periodic wake in the app — RFC-001, D3. The
+        // coordinator ticks at `.lazy`; `UsageState` decides from there whether
+        // enough time has passed, so the cadence adapts without a second timer.
+        wake.register(id: "usage", cadence: .lazy) { [weak self] in
+            guard let self else { return }
+            Task { @MainActor in
+                await self.usage.refresh()
+                self.panel?.setUsage(self.usage.status)
+            }
+        }
+        Task { @MainActor in
+            await usage.refresh()
+            panel.setUsage(usage.status)
+        }
 
         PerfProbe.log.info("launched · notch=\(self.geometry?.hasNotch ?? false, privacy: .public)")
     }
@@ -91,16 +166,83 @@ final class AppCoordinator: NSObject, NSApplicationDelegate {
         }
     }
 
+    /// Reload the active buddy whenever its folder changes.
+    ///
+    /// A `.buddy` file is something a person edits by hand, in a text editor,
+    /// while watching the notch. Without this the loop is "edit, quit, relaunch"
+    /// — and worse, the obvious guess is that recompiling would help, which it
+    /// never does: the files live outside the binary entirely.
+    ///
+    /// Reuses `ProjectsWatcher` rather than adding a second FSEvents
+    /// implementation; it was written for transcripts but knows nothing about
+    /// them.
+    private func watchBuddies() {
+        buddyWatchers.forEach { $0.stop() }
+        buddyWatchers = []
+
+        let root = BuddyLoader.searchPath
+        try? FileManager.default.createDirectory(
+            atPath: root, withIntermediateDirectories: true)
+
+        // Watch where the files *really* are, not only where they appear.
+        //
+        // A buddy in the search path is often a symlink into a working copy —
+        // that is how anyone edits one seriously. FSEvents reports writes to the
+        // directory holding the actual bytes, so watching the link's folder sees
+        // nothing at all when the target changes. Resolving first is the whole
+        // difference between hot reload working and appearing to work.
+        var directories = Set([root])
+        if let entries = try? FileManager.default.contentsOfDirectory(atPath: root) {
+            for entry in entries where entry.hasSuffix(".buddy") {
+                let resolved = URL(fileURLWithPath: "\(root)/\(entry)").resolvingSymlinksInPath()
+                directories.insert(resolved.deletingLastPathComponent().path)
+            }
+        }
+
+        for directory in directories {
+            let watcher = ProjectsWatcher { [weak self] changed in
+                guard changed.contains(where: { $0.hasSuffix(".buddy") }) else { return }
+                Task { @MainActor in
+                    guard let self else { return }
+                    self.loadBuddy(
+                        UserDefaults.standard.string(forKey: "notchbuddy.buddy") ?? self.buddyID)
+                    PerfProbe.log.info("buddy rechargé")
+                    self.onBuddyReload?(self.panel?.currentBuddyID ?? "?")
+                }
+            }
+            watcher.start(path: directory)
+            buddyWatchers.append(watcher)
+        }
+    }
+
+    /// Load a buddy by id, falling back to the built-in one.
+    ///
+    /// Swapping is just a redraw: the renderer holds no state, so there is
+    /// nothing to tear down between manifests.
+    private func loadBuddy(_ id: String?) {
+        var loader = BuddyLoader()
+        let loaded = loader.load(id: id)
+        panel?.setBuddy(loaded.manifest)
+        for problem in loader.problems {
+            PerfProbe.log.error("buddy: \(problem, privacy: .public)")
+        }
+    }
+
     private func enterLowPower(_ reason: String) {
         wake.suspend()
         animation.set(.still)
         panel?.hide()
+        sessions?.stop()
+        buddyWatchers.forEach { $0.stop() }
+        buddyWatchers = []
         PerfProbe.log.info("suspended (\(reason, privacy: .public))")
     }
 
     private func leaveLowPower(_ reason: String) {
         wake.resume()
         if showPillOnLaunch { panel?.show() }
+        sessions?.start()
+        watchBuddies()
         PerfProbe.log.info("resumed (\(reason, privacy: .public))")
     }
 }

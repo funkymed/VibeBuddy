@@ -2,11 +2,11 @@
 
 | | |
 |---|---|
-| **Status** | todo (0 %) |
+| **Status** | in-progress (45 %) — liste et filtre livrés, saut terminal non écrit |
 | **Author** | Cyril Pereira |
 | **Created** | 2026-08-19 |
 | **Updated** | 2026-08-19 |
-| **Phase** | 5 — Confort |
+| **Phase** | 5 — Confort · la liste est arrivée avec le panneau de RFC-002 |
 | **Depends on** | RFC-002, RFC-003 |
 | **Related** | RFC-006 (mapping PID) · R8 |
 | **Blocks** | — |
@@ -105,8 +105,8 @@ c'est précisément le cas simple qui n'existe plus.
 
 | # | Tâche | Statut | % |
 |---|---|---|---|
-| T1 | `SessionListView` + `SessionRowView` `Equatable` | todo | 0 |
-| T2 | Filtre texte | todo | 0 |
+| T1 | `SessionListView` + `SessionRowView` `Equatable` | **done** | **100** |
+| T2 | Filtre texte | **done** | **100** |
 | T3 | `SessionTimelineLoader` (actor + cache), hors `body` | todo | 0 |
 | T4 | `SessionDetailView` | todo | 0 |
 | T5 | `TerminalJumper` : chaîne parent + repli bundle ID | todo | 0 |
@@ -117,6 +117,32 @@ c'est précisément le cas simple qui n'existe plus.
 **Critère de sortie.** Avec **deux** sessions Claude dans le **même** répertoire,
 cliquer sur chaque ligne active le bon volet tmux — **cinq fois de suite sans
 erreur**. Le panneau fermé ne coûte rien.
+
+### Livré en avance, avec le panneau déployé
+
+La liste est arrivée en construisant le contenu du panneau de RFC-002 : les
+données de RFC-003 étaient déjà là, et un panneau vide n'avait pas d'intérêt.
+
+Trois écarts avec la référence, mesurés ou raisonnés :
+
+- **`SessionRow` est `Equatable`.** Le panneau se redessine à chaque instantané
+  de session ; sans ça les six lignes se reconstruisent quand une seule change.
+  Leur ligne est inlinée dans une vue de 3 738 lignes, ce qui invalide tout le
+  panneau à la moindre mise à jour.
+- **Un anneau de contexte plutôt qu'un pourcentage.** Un nombre demande une
+  unité et un dénominateur ; un anneau n'en demande aucun. Orange à 70 %, rouge
+  à 90 %.
+- **Le champ de filtre n'apparaît qu'au-delà de trois sessions.** Une boîte de
+  recherche au-dessus de deux lignes est du mobilier.
+
+**Ce qui est absent est absent, pas maquetté.** Le pourcentage de consommation
+(RFC-004), la heatmap (RFC-009) et la liste des outils toujours autorisés
+(RFC-007) ne figurent pas dans le panneau. Un chiffre de remplacement dans un
+produit dont l'argument est de montrer le *vrai* nombre serait la pire chose à
+livrer — et une fois posé, on oublie qu'il est faux.
+
+Coût mesuré du panneau construit : **8,3 Mo, 0,038 % de CPU, 0,000 réveil
+inactif/s.**
 
 ## 6. Open Questions
 

@@ -29,6 +29,20 @@ public final class PanelMetrics {
 /// A sequential version (widen, then drop) was tried and dropped: it read well
 /// but took 0.34 s against 0.26 s, and the panel opens on every hover.
 public enum PanelTiming {
+    /// Fraction of the opening animation that must elapse before the panel's
+    /// contents are revealed.
+    ///
+    /// Inserting them at the start looks wrong for a reason worth naming: the
+    /// shape is still pill-height, so a full-size layout appears inside
+    /// something far too small for it and then the frame catches up. Waiting
+    /// until the growth is mostly done means the contents arrive into a space
+    /// that already fits them.
+    ///
+    /// On the way out they are removed *first*, before the frame shrinks —
+    /// letting a laid-out panel be squeezed into a pill reads as a collapse
+    /// rather than a close.
+    public static let contentRevealFraction: Double = 0.62
+
     /// Opening is a request to see something, so it gets room to unfold.
     public static let expand: TimeInterval = 0.26
     /// Closing is a dismissal — dragging it out leaves the panel covering the

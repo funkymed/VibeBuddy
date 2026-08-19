@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | todo (0 %) |
+| **Status** | in-progress (35 %) — fenêtre native et i18n livrées |
 | **Author** | Cyril Pereira |
 | **Created** | 2026-08-19 |
 | **Updated** | 2026-08-19 |
@@ -113,7 +113,8 @@ elle-même. Gardée parce qu'elle coûte 43 lignes une fois le reste en place.
 | T2 | Écritures coalescées (vérifier : aucune écriture par frame de drag) | todo | 0 |
 | T3 | Cadre de migration généralisé | todo | 0 |
 | T4 | `applyStartAtLogin` + réconciliation au premier lancement | todo | 0 |
-| T5 | `SettingsView` + sous-vues (< 200 l. chacune) | todo | 0 |
+| T5 | `SettingsView` + sous-vues (< 200 l. chacune) | **done** | **100** |
+| T9 | **Internationalisation** — hors périmètre initial, voir ci-dessous | **done** | **100** |
 | T6 | `SpeechPresenter` + pop-out de fin de session + dédup à la minute | todo | 0 |
 | T7 | `VoiceAnnouncer` paresseux + debounce | todo | 0 |
 | T8 | Retour haptique | todo | 0 |
@@ -123,7 +124,82 @@ notification — pas deux, pas zéro — sur dix essais. Un drag complet de la
 fenêtre ne produit **aucune** écriture `UserDefaults` avant le relâchement.
 Changer la couleur du buddy ne provoque **aucun** recalcul de frame de fenêtre.
 
+### Décidé le 2026-08-19 : une fenêtre de préférences native
+
+Les réglages vivent dans **une fenêtre macOS standard**, pas dans le panneau de
+la notch.
+
+La référence fait l'inverse : son sélecteur d'apparence occupe
+`NotchContentView.swift:2778-3470`, soit ~700 lignes à l'intérieur de la vue du
+panneau. Trois raisons de ne pas la suivre :
+
+- **Le panneau se replie dès que le curseur s'en va.** Une surface de réglages
+  qui disparaît quand on va chercher sa souris est hostile.
+- **La notch est étroite et le panneau est éphémère.** Les réglages sont
+  parcourus, comparés, revisités — ils veulent une fenêtre qu'on redimensionne et
+  qu'on laisse ouverte.
+- **C'est 700 lignes de moins dans la vue du panneau**, qui est précisément ce
+  qui a fait de `NotchContentView` un fichier de 3 738 lignes.
+
+Contrainte à traiter : l'app est en `.accessory`, sans menu ni Dock, donc **`⌘,`
+n'est atteignable nulle part**. L'ouverture se fait depuis le panneau de la
+notch — un bouton d'engrenage — et la fenêtre, elle, est une `NSWindow`
+ordinaire : redimensionnable, déplaçable, listée dans le sélecteur de fenêtres,
+et qui **peut** devenir clé (contrairement au panneau, cf. RFC-002), donc les
+champs de saisie et les raccourcis y fonctionnent.
+
+### Ajout hors périmètre : l'internationalisation
+
+Demandée après la rédaction de la fiche. Français et anglais, réglable, détectée
+au premier lancement.
+
+**Le catalogue est une `struct` Swift, pas des fichiers `.strings`.** Une clé
+manquante dans un `.strings` est un raté à l'exécution : l'app affiche la clé
+brute ou retombe silencieusement sur une autre langue, et personne ne le voit
+avant qu'un utilisateur le signale. Ici chaque langue est une instance de la même
+structure, donc **ajouter une chaîne sans la traduire ne compile pas**.
+
+Le prix est réel : ce n'est pas un format qu'un traducteur peut éditer. À deux
+langues dans un outil personnel le compromis est dans le bon sens, et le jour où
+une troisième arrive avec quelqu'un d'autre pour l'écrire, le catalogue peut
+passer en `.strings` sans toucher aux sites d'appel.
+
+Trois points de conception :
+
+- **`.system` reste un cas distinct**, jamais résolu une fois pour toutes.
+  Quelqu'un qui change la langue de macOS s'attend à ce que l'app suive ; stocker
+  la valeur résolue la figerait.
+- **Une langue absente retombe entièrement en anglais**, pas à moitié. Un
+  utilisateur portugais obtient une langue qu'il lit, pas une interface à demi
+  traduite.
+- **La locale des dates suit l'interface**, sinon un panneau français affiche
+  « August 23 » sous « semaine ».
+
+Un test vérifie que les deux catalogues **diffèrent réellement**, pour attraper
+un copier-coller non traduit.
+
+### La fenêtre est native, et le panneau reste ouvert derrière
+
+`⌘,` n'atteint rien — l'app est en `.accessory`, sans barre de menus. L'engrenage
+du panneau est l'unique porte d'entrée.
+
+**Défaut trouvé à l'usage :** cliquer l'engrenage repliait le panneau. Le suivi
+de survol faisait son travail au pire moment — le curseur quitte la pastille pour
+aller vers la fenêtre qui vient de s'ouvrir. Corrigé par un état d'épinglage qui
+court-circuite les deux sources de survol tant que les réglages sont ouverts, et
+qui **revérifie la réalité** au désépinglage plutôt que de la supposer.
+
+La fenêtre est au niveau `.floating` : elle est ouverte depuis une pastille qui
+flotte au-dessus de tout, et retomber sous l'éditeur donnerait l'impression
+d'avoir disparu.
+
 ## 6. Open Questions
+
+**Q1bis — La fenêtre de préférences doit-elle apparaître dans le Dock quand elle
+est ouverte ?** Une app `.accessory` n'a pas d'icône ; certains utilitaires
+basculent temporairement en `.regular` tant qu'une fenêtre est ouverte, pour
+qu'elle soit atteignable au `⌘Tab`. Le prix est une icône qui apparaît et
+disparaît.
 
 **Q1 — Combien de préférences exposer ?**
 La référence en a vingt, dont six styles × six couleurs. Chaque réglage est du

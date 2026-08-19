@@ -48,6 +48,7 @@ détection plein-écran par AX — décision prise avec RFC-011 (signature auto-
 |---|---|
 | `NotchPanel` | La `NSPanel`. Ne contient **aucun** calcul de frame. |
 | `NotchFrameSolver` | **Pur et testable** : (fraction, écran, taille souhaitée) → `NSRect`. Contient les aimants. |
+| `PillLayout` | **Pur.** Les trois slots — oreille, encoche, oreille — avec leurs largeurs **mesurées** et le décalage d'alignement. |
 | `ClickThroughHostView` | Hit-test sélectif au-dessus de l'hôte SwiftUI. |
 | `SnapPreviewPanel` | Aperçu translucide de la zone d'accroche pendant un drag. |
 | `HoverProbe` | Remplace `MouseMonitor`. Cadencé par `WakeCoordinator`, **arrêté quand invisible**. |
@@ -98,6 +99,7 @@ qui est précisément ce qui a produit les deux rustines citées.
 | # | Tâche | Statut | % |
 |---|---|---|---|
 | T1 | `NotchFrameSolver` pur + tests (mono-écran, écran externe, fraction hors bornes) | **done** | **100** |
+| T9 | `PillLayout` : trois slots, largeurs mesurées, décalage d'alignement | **done** | **100** |
 | T2 | `NotchPanel` + `collectionBehavior` + `canBecomeKey = false` | **done** | **100** |
 | T3 | `ClickThroughHostView` + test manuel « cliquer à travers les marges » | **done** | **100** — vérifié à la main, un défaut de drag trouvé et corrigé |
 | T4 | `PanelState` + transitions pastille ↔ panneau | **done** | **100** |
@@ -159,6 +161,21 @@ sa transition par défaut, un fondu ; et le panneau était rempli en
 unique**, toujours la même identité, dont seules les dimensions changent. Rien ne
 s'estompe parce que rien n'est jamais inséré ni retiré.
 
+**Le contenu suit le cadre, il ne le précède pas.** Les vues du panneau
+apparaissent à **62 % de la croissance** (0,16 s sur 0,26), avec un fondu
+explicite de 0,12 s ; au repli elles sont retirées **avant** que le cadre ne se
+referme.
+
+Les insérer au début était doublement faux. La forme fait encore 38 pt de haut,
+donc une mise en page grandeur nature apparaissait dans une pastille et le cadre
+la rattrapait ensuite. Et le fondu observé n'était pas voulu : c'était la
+**transition d'insertion par défaut de SwiftUI**, dont je ne contrôlais ni le
+moment ni la durée puisque je ne l'avais pas demandée.
+
+L'asymétrie au repli est délibérée : laisser une mise en page déjà calculée se
+faire écraser dans une pastille se lit comme un effondrement, pas comme une
+fermeture.
+
 Trois points de conception :
 
 - **`easeOut`, pas `easeInOut`** — un départ en *ease-in* se lit comme de la
@@ -194,6 +211,44 @@ Trois options ont été examinées :
   permissions apparaissent accordées **uniquement parce que le terminal les
   possède** et que le binaire de test en hérite ; une `.app` distribuée ne les
   aurait pas.
+### Le système de slots, et le décalage qu'on oublie
+
+La pastille est un `HStack` de trois slots : une oreille, le trou matériel, une
+oreille. Le slot central est laissé **vide** — c'est un trou, tout ce qu'on y
+dessine est invisible par construction.
+
+**La pastille et l'encoche sont toutes deux centrées.** Le slot central ne
+retombe donc sur le trou que si les deux oreilles ont exactement la même
+largeur ; sinon il dérive de la moitié de l'écart. La correction est un décalage
+de `(droite − gauche) / 2`, et elle est facile à oublier parce qu'elle est
+**invisible dans le cas symétrique**.
+
+Mesuré sur cette machine, le décalage n'est jamais nul :
+
+| Cas | Gauche | Encoche | Droite | Total | Décalage |
+|---|---|---|---|---|---|
+| repos | 53 | 220 | 18 | 291 | **−17,5** |
+| 2 sessions | 53 | 220 | 34 | 307 | **−9,5** |
+| 10 sessions | 53 | 220 | 41 | 314 | **−6,0** |
+| alerte | 53 | 220 | 109 | 382 | **+28,0** |
+
+La première version posait chaque élément en `overlay` avec un décalage constant
+depuis le centre de l'encoche. C'était faux dans les quatre cas, et chaque
+overlay devait connaître la demi-largeur du trou et sa propre marge — deux
+constantes qui n'avaient aucune raison de se connaître.
+
+**Divergence assumée avec la référence : les largeurs sont mesurées, pas
+déclarées.** Notch-Pilot code 56 pt pour son buddy et 84 pour sa consommation
+(`NotchContentView.swift:292-293`). Ça tient jusqu'à ce qu'un buddy ait un visage
+plus long ou qu'un manifeste change son corps de police, et le contenu déborde
+alors d'un slot dimensionné pour autre chose. Ici chaque slot est mesuré via
+`NSAttributedString`, donc un compteur qui passe de `×9` à `×10` gagne ses 7 pt
+tout seul.
+
+Le cadre de la fenêtre et le contenu tirent du **même** `PillLayout` : les
+dimensionner séparément est exactement comme un slot finit rogné par une
+pastille mesurée pour autre chose.
+
 ### Ce que j'avais mal jugé
 
 J'ai écarté `NSTrackingArea` en affirmant qu'il suit la *fenêtre*, bien plus large

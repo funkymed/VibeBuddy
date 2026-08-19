@@ -2,12 +2,12 @@
 
 | | |
 |---|---|
-| **Status** | todo (0 %) |
+| **Status** | in-progress (90 %) — chemin complet vérifié en réel, surface complétée |
 | **Author** | Cyril Pereira |
 | **Created** | 2026-08-19 |
 | **Updated** | 2026-08-19 |
 | **Phase** | 4 — Intégration |
-| **Depends on** | RFC-003, RFC-006 |
+| **Depends on** | RFC-003 · ~~RFC-006~~ — voir §3 |
 | **Related** | RFC-005 (expression du buddy) · RFC-010 (préférences) · R11 |
 | **Blocks** | — |
 
@@ -150,21 +150,106 @@ site d'appel. Le bus coûte ~40 lignes maintenant.
 
 | # | Tâche | Statut | % |
 |---|---|---|---|
-| T1 | Étendre RFC-006 aux événements `Stop`, `StopFailure`, `Notification`, `SessionStart`, `SessionEnd`, `SubagentStop` | todo | 0 |
-| T2 | `SessionStateMachine` pure + tests de toutes les transitions | todo | 0 |
-| T3 | Test explicite : `SubagentStop` ne déclenche aucune alerte | todo | 0 |
-| T4 | `AlertBus` (`AsyncStream`) | todo | 0 |
-| T5 | `AlertPolicy` : dédup, débit, silence si terminal au premier plan | todo | 0 |
-| T6 | `AlertPresenter` : pop-out de la notch | todo | 0 |
-| T7 | Suivi simultané de N sessions, chacune son état | todo | 0 |
-| T8 | `perfcheck.sh` B — vérifier que rien n'ajoute de réveil | todo | 0 |
+| T1 | ~~Étendre RFC-006 aux événements de hook~~ — **annulée**, les signaux sont dans le transcript | **n/a** | — |
+| T2 | `SessionStateMachine` pure + tests de toutes les transitions | **done** | **100** |
+| T3 | Test explicite : `SubagentStop` ne déclenche aucune alerte | **done** | **100** |
+| T4 | `AlertBus` (`AsyncStream`) | **done** | **100** |
+| T5 | `AlertPolicy` : dédup, débit, silence si terminal au premier plan | **done** | **100** |
+| T6 | `AlertPresenter` : pop-out de la notch | **done** | **100** |
+| T9 | Compteur de sessions vivantes dans la pastille | **done** | **100** |
+| T7 | Suivi simultané de N sessions, chacune son état | **done** | **100** |
+| T8 | `perfcheck.sh` B — vérifier que rien n'ajoute de réveil | **done** | **100** |
 
-**Critère de sortie.** Sur **trois** sessions Claude simultanées dans trois
-projets : chaque fin de tour produit **exactement une** alerte, attribuée à la
-bonne session, sur dix essais. Une demande de permission produit une alerte
-`awaiting` distincte de l'alerte de fin. Un `SubagentStop` n'en produit aucune.
-Aucune alerte quand le terminal concerné est déjà au premier plan.
-`perfcheck.sh B` inchangé par rapport à RFC-003.
+**Critère de sortie — atteint le 2026-08-19, sauf l'alerte d'attente.**
+
+| Point | État |
+|---|---|
+| Une fin de tour produit exactement une alerte attribuée | **PASS** — vérifié en réel : `★ ALERTE notch finished` |
+| Trois sessions simultanées → trois états reconnus, une interruption | **PASS** — test d'intégration |
+| Un sous-agent qui finit n'alerte pas | **PASS** — test dédié |
+| Silence si le terminal concerné est au premier plan | **PASS** — test dédié |
+| Aucun réveil ajouté | **PASS** — 0,000 réveil inactif/s, CPU 0,000 %, 8,0 Mo |
+| Alerte `needsAttention` sur permission en attente | **reporté à RFC-007** — voir ci-dessous |
+
+### Ce que le transcript donne, et ce qu'il ne donne pas
+
+RFC-003 a établi que la fin de tour (`system/turn_duration`), l'échec d'outil
+(`is_error`), le cycle de vie des sous-agents (`started`/`result`) et le mode de
+permission sont **tous dans le transcript**. Cette RFC ne dépend donc plus de
+RFC-006, et l'objectif n°1 du produit est atteint sans écrire une ligne dans
+`~/.claude/settings.json`.
+
+**Une chose n'y est pas** : « bloqué sur une demande de permission ». Le prompt
+est interactif et résolu avant que quoi que ce soit ne s'écrive. `needsAttention`
+est déclaré dans le type et n'est jamais produit — il arrivera avec RFC-007.
+
+Cela dit, la fin de tour *est* déjà « il attend ton retour » : après un
+`turn_duration`, l'entrée suivante est un `user` dans la majorité des cas
+observés. Les deux objectifs énoncés — « a terminé » et « attend une réponse » —
+sont donc couverts pour le cas courant.
+
+### Le bug que seul un test d'intégration pouvait trouver
+
+Le premier test bout en bout a échoué immédiatement, et pour une bonne raison.
+
+Le parseur scanne du plus récent au plus ancien. Il rencontrait donc
+`turn_duration`, **puis** le `tool_use` du tour qui venait de s'achever — lequel
+remettait `action = .shell`. La machine à états concluait « en cours » sur une
+session terminée : **l'alerte ne pouvait jamais partir.** Une fois la frontière
+de tour franchie en remontant, tout ce qui est plus ancien est de l'histoire.
+
+Ce défaut est invérifiable à la main, et pas par manque de rigueur : la
+vérification manuelle échoue deux fois d'affilée **pour de bonnes raisons**. La
+session qui observe est elle-même occupée à exécuter le test, donc jamais
+terminée ; et son terminal est au premier plan, donc la politique supprime
+correctement ce qui aurait pu partir. Les deux comportements sont justes, et
+ensemble ils rendent l'observation impossible.
+
+D'où deux coutures introduites délibérément : une racine de projet temporaire, et
+une **source de liveness injectable** dans `SessionStore`. Ce n'est pas de la
+souplesse gratuite — sans elles, ce chemin n'aurait pu être exercé qu'à la main,
+c'est-à-dire jamais.
+
+### La surface : trois éléments, trois poids
+
+La pastille porte désormais l'état sous trois formes, hiérarchisées
+délibérément :
+
+| Élément | Place | Poids visuel |
+|---|---|---|
+| **Le buddy** | oreille gauche | couleur pleine, halo vif — il porte l'état et doit accrocher l'œil |
+| **Le compteur `×N`** | oreille droite | blanc à 72 %, halo léger — une information qu'on va chercher |
+| **L'alerte** | oreille droite, **à la place** du compteur, 4 s | pastille de couleur + nom du projet |
+
+Les trois occupent les slots de `PillLayout` (RFC-002), pas des `overlay`
+décalés à la main. **L'alerte remplace le compteur au lieu de s'y ajouter** :
+les deux disent la même sorte de chose, et les empiler ferait grandir la
+pastille deux fois pour un seul événement.
+
+Le milieu reste vide : c'est le trou matériel, et tout ce qu'on y dessine est
+invisible par construction.
+
+Le compteur est **caché à zéro** plutôt qu'affiché `×0` — une absence se dit
+mieux par le silence, et une pastille vide est déjà l'information. Il ne
+déclenche un redessin que si le nombre change, pas à chaque instantané : avec un
+rafraîchissement toutes les 2 s en activité, reconstruire la vue pour un chiffre
+identique serait du gaspillage pur.
+
+La couleur porte le sens avant la forme : `=**=` en vert, `=xx=` en rouge. Au
+coin de l'œil, la teinte arrive avant qu'on ait lu le visage.
+
+### La règle qui structure la conception
+
+**Une alerte appartient à une transition, jamais à un état.** Un test vérifie que
+dix rafraîchissements d'une session terminée produisent exactement une alerte.
+Sans cette règle, chaque relecture du transcript renotifierait — et l'app en relit
+un à chaque événement FSEvents.
+
+Cinq tests ne vérifient que des **silences**, parce que ce sont les défauts qui
+font désinstaller ce genre d'outil : sous-agent en vol, outil encore actif,
+session morte, terminal au premier plan, rafale simultanée. Et les alertes
+supprimées sont conservées **avec leur motif** : un système de notification qui
+jette des choses en silence est impossible à auditer.
 
 ## 6. Open Questions
 

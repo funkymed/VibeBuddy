@@ -36,6 +36,12 @@ enum BenchHarness {
         /// went event-driven this is the same shape as `.pill`; it stays as a
         /// separate label so the CSVs keep their scenario names.
         case interaction
+        /// The session pipeline alone: FSEvents plus the lazy liveness poll.
+        /// What RFC-003 costs on top of the window.
+        case sessions
+        /// The whole app, coordinator included — the only mode that exercises
+        /// buddy hot reload, the settings window and the alert path together.
+        case app
     }
 
     static func run(mode: Mode, seconds: Double, label: String) -> Never {
@@ -44,6 +50,8 @@ enum BenchHarness {
 
         var panel: NSPanel?
         var notch: NotchPanel?
+        var sessionCoordinator: SessionCoordinator?
+        var appCoordinator: AppCoordinator?
         switch mode {
         case .shell:
             break
@@ -54,6 +62,61 @@ enum BenchHarness {
             let n = NotchPanel(wake: wake, budget: AnimationBudget())
             if mode != .hidden { n.show() }
             notch = n
+        case .app:
+            let coordinator = AppCoordinator()
+            NSApp.delegate = coordinator
+            coordinator.applicationDidFinishLaunching(
+                Notification(name: NSApplication.didFinishLaunchingNotification))
+            coordinator.onBuddyReload = { id in
+                FileHandle.standardError.write(Data("  ↻ buddy rechargé : \(id)\n".utf8))
+            }
+            appCoordinator = coordinator
+        case .sessions:
+            let wake = WakeCoordinator()
+            let coordinator = SessionCoordinator(wake: wake)
+            // Detection latency, measured against the transcript's own mtime
+            // rather than against a wall clock the harness controls: the gap
+            // between "the agent wrote something" and "the app reacted" is the
+            // only number that describes this app rather than the measurement.
+            nonisolated(unsafe) var seen = Set<String>()
+            coordinator.onChange = { list in
+                let now = Date()
+                for session in list where session.isLive && !seen.contains(session.id) {
+                    seen.insert(session.id)
+                    let lag = now.timeIntervalSince(session.lastActivity)
+                    FileHandle.standardError.write(Data(String(
+                        format: "  + %@ détectée %.2f s après sa dernière écriture\n",
+                        session.projectName, lag).utf8))
+                }
+                let live = list.filter(\.isLive).count
+                FileHandle.standardError.write(Data(
+                    "  sessions: \(live) vivantes / \(list.count)\n".utf8))
+            }
+            coordinator.onAlert = { alert in
+                FileHandle.standardError.write(Data(String(
+                    format: "  ★ ALERTE  %@  %@\n",
+                    alert.projectName, alert.kind.rawValue).utf8))
+            }
+            coordinator.start()
+            sessionCoordinator = coordinator
+            // Report suppressions too: without them, "no alert" is
+            // indistinguishable from "the policy did its job".
+            nonisolated(unsafe) var reported = 0
+            let suppressionTimer = DispatchSource.makeTimerSource(queue: .main)
+            suppressionTimer.schedule(deadline: .now() + 3, repeating: 3)
+            suppressionTimer.setEventHandler { [weak coordinator] in
+                MainActor.assumeIsolated {
+                    guard let list = coordinator?.suppressedAlerts, list.count > reported else { return }
+                    for entry in list[reported...] {
+                        FileHandle.standardError.write(Data(String(
+                            format: "  ✕ supprimée  %@  %@  (%@)\n",
+                            entry.alert.projectName, entry.alert.kind.rawValue,
+                            entry.reason).utf8))
+                    }
+                    reported = list.count
+                }
+            }
+            suppressionTimer.resume()
         }
 
         FileHandle.standardError.write(Data(
@@ -84,8 +147,10 @@ enum BenchHarness {
             MainActor.assumeIsolated {
                 timer.cancel()
                 summarise(samples, mode: mode, seconds: seconds)
-                _ = panel   // keep both alive for the whole run
+                _ = panel   // keep everything alive for the whole run
                 _ = notch
+                _ = sessionCoordinator
+                _ = appCoordinator
                 exit(0)
             }
         }

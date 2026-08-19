@@ -1,8 +1,8 @@
-# RFC-005 — Buddy : format de manifeste et moteur de rendu
+# RFC-005 — Buddy : format de manifeste et rendu
 
 | | |
 |---|---|
-| **Status** | in-progress (25 %) — manifeste et cadrage figés, moteur Swift à écrire |
+| **Status** | in-progress (92 %) — format ASCII et disposition livrés, reste le scénario C |
 | **Author** | Cyril Pereira |
 | **Created** | 2026-08-19 |
 | **Updated** | 2026-08-19 |
@@ -59,236 +59,187 @@ par défaut. tigreboite comme premier manifeste externe, qui sert de test du for
 
 ## 3. Proposed Solution
 
-### Le manifeste
-
-Un dossier `.buddy/` : un `manifest.json` et ses assets.
+### Le format : six chaînes
 
 ```json
 {
-  "schema": 1,
-  "id": "tigreboite",
-  "name": "Tigreboite",
-  "palette": { "body": "#F5A623", "accent": "#1A1A1A", "glow": "#FFD08A" },
-  "geometry": { "width": 56, "height": 32 },
+  "schema": 3, "kind": "ascii",
+  "id": "tigreboite", "name": "Tigreboite",
+  "colour": "#FE9C19", "fontSize": 13,
   "expressions": {
-    "idle":     { "layers": ["base", "eyes-open"],   "motion": "breathe" },
-    "working":  { "layers": ["base", "eyes-focus"],  "motion": "pulse" },
-    "awaiting": { "layers": ["base", "eyes-wide"],   "motion": "dart" },
-    "finished": { "layers": ["base", "eyes-happy"],  "motion": "bounce" },
-    "failed":   { "layers": ["base", "eyes-shut"],   "motion": "shake" },
-    "sleeping": { "layers": ["base", "eyes-shut"],   "motion": "none" }
-  },
-  "layers": {
-    "base":       { "shape": "path", "d": "M0,16 …", "fill": "body" },
-    "eyes-open":  { "shape": "circles", "at": [[18,14],[38,14]], "r": 4, "fill": "accent" }
+    "sleeping": { "face": "=--=", "motion": "none" },
+    "idle":     { "face": "=^^=", "motion": "breathe" },
+    "working":  { "face": "=OO=", "motion": "pulse" },
+    "awaiting": { "face": "=??=", "motion": "dart" },
+    "finished": { "face": "=**=", "motion": "bounce", "colour": "#7CE38B" },
+    "failed":   { "face": "=xx=", "motion": "shake",  "colour": "#FF6B6B" }
   }
 }
 ```
 
 Les états d'expression sont **ceux de la machine de RFC-012**, pas une liste
-parallèle. Un manifeste qui omet une expression retombe sur `idle`.
-
-**Formes vectorielles, pas images.** Un buddy décrit en chemins reste net à
-toutes les échelles, pèse quelques kilo-octets, et se colorie par palette — un
-même buddy en variante sombre sans second asset. Le format admet aussi un PNG par
-couche pour les cas qu'on ne sait pas décrire, mais ce n'est pas la voie normale.
-
-**Les mouvements (`motion`) sont un vocabulaire fermé** — `breathe`, `pulse`,
-`dart`, `bounce`, `shake`, `none` — implémentés en Swift et paramétrés par le
-manifeste. Un manifeste ne décrit pas *comment* animer : il choisit dans une
-liste. C'est ce qui garantit que le budget d'animation tient quel que soit le
-buddy chargé, et ce qui empêche un manifeste tiers de devenir un langage de
-programmation.
+parallèle. Une expression absente retombe sur `idle`, donc un manifeste
+décrivant un seul visage est légal et complet.
 
 ### Modules
 
 | Module | Responsabilité |
 |---|---|
-| `BuddyManifest` | `Codable`, versionné par `schema`. Validation stricte au chargement. |
+| `BuddyManifest` | `Decodable`, versionné par `schema`, validation stricte au chargement |
 | `BuddyLoader` | Charge, valide, **retombe sur le buddy intégré** si invalide. Ne plante jamais. |
-| `BuddyExpression` | Miroir des états de RFC-012. |
-| `MotionKind` | Le vocabulaire fermé. Chaque cas est une fonction pure `phase → transform`. |
-| `BuddyRenderer` | `draw(into: GraphicsContext, manifest:, expression:, phase:)` — **sans état**. |
-| `BuddyView` | **Un seul** `TimelineView`, `minimumInterval` piloté par `AnimationBudget`. |
+| `BuddyExpression` | Miroir des états de RFC-012, plus le mapping en une fonction pure |
+| `MotionKind` | Vocabulaire fermé de six mouvements, **fonctions pures** `phase → transform` |
+| `BuddyView` | **Une** `TimelineView`, cadence pilotée par `AnimationBudget` |
 
-Tout le mouvement dérive de `phase`, le temps passé par le `TimelineView`, à
-l'intérieur d'un `Canvas`. Aucune animation implicite, aucune `Task`, aucun
-`@State` d'animation. Le clignement se calcule depuis `phase` au lieu d'être
-piloté par une boucle.
+Le buddy ne connaît pas sa position ni sa taille : il occupe l'oreille gauche
+d'un `PillLayout` (RFC-002), dont la largeur est **mesurée depuis son propre
+visage**. Un manifeste qui passe `fontSize` de 13 à 20 élargit son slot sans que
+personne n'édite de constante — c'est la divergence assumée avec la référence,
+qui code 56 pt en dur.
 
-### Repris de la référence
+### Les mouvements restent un vocabulaire fermé
 
-Le travail de réglage visuel est le vrai actif du dépôt de référence, même si son
-architecture ne l'est pas.
+Un manifeste **choisit** un mouvement, il n'en décrit jamais. C'est ce qui rend
+le format sûr — un fichier tiers ne devient pas un évaluateur d'expressions dans
+la boucle de rendu — et ce qui permet de garantir le budget d'animation **pour
+n'importe quel buddy**, puisque chaque mouvement est une fonction bornée de la
+phase.
 
-| Brique | `fichier:ligne` | Usage ici |
-|---|---|---|
-| Palette hex des couleurs | `BuddyFace.swift:5-60` | valeurs de départ des palettes de manifeste |
-| `GhostShape`, `TriangleShape` | `:541-573`, `:710-719` | converties en chemins de manifeste |
-| Rampes de couleur par mode | `:105-114`, `:168-189`, `:329-349` | modèle de la clé `palette` |
-| Constantes de cadence de `runBlinkLoop` | `:120-152` | réglages des `motion`, valeurs conservées |
-| Plafond de hauteur du halo en mode alerte | `:223-227`, `:264-269` | contrainte dure : la hauteur de notch est un plafond, les échelles restent entre 1,05 et 1,15 |
+Chaque mouvement déclare aussi la cadence dont il a besoin : un souffle à
+0,28 Hz est indiscernable à 8 fps ou à 60, un rebond ne l'est pas. La vue prend
+**le minimum** entre ce que le mouvement demande et ce que le budget autorise.
+
+### Le halo
+
+Trois ombres empilées, pas une. Une ombre large se lit comme un flou ; un halo
+serré et vif par-dessus un halo large et faible se lit comme quelque chose qui
+*émet*. La plus serrée reprend la couleur à pleine intensité — c'est elle qui
+fait paraître les traits plus épais et plus chauds qu'ils ne sont.
+
+Le coût est négligeable sur quatre glyphes et ne l'aurait pas été sur les 900
+cellules du format précédent.
 
 ### Budget
 
-| Expression | Fréquence | Coût visé |
+| Expression | Cadence | Mesuré |
 |---|---|---|
-| pastille masquée | **0 Hz, 0 réveil** | 0 |
-| `sleeping` | **0 Hz** (`TimelineView` en pause) | 0 |
-| `idle` | 8 Hz sur ~56×32 pt | < 0,4 % |
-| `working` / `awaiting` | 30 Hz | **< 1,5 %** |
-| `finished` / `failed` | impulsion, puis retour à 8 Hz | transitoire |
+| pastille masquée | **0 Hz, 0 réveil** | — |
+| `sleeping` | **0 Hz** (`TimelineView` en pause) | — |
+| `idle` (breathe) | 8 Hz | **0,000 réveil inactif/s · 0,000 % CPU** |
+| `working` (pulse) | 8 Hz | idem |
+| `finished` / `failed` | 30 Hz, transitoire | impulsion, retour à 8 Hz |
 
-RSS +1 Mo. Un manifeste chargé : < 100 Ko.
+App complète — sessions, buddy et compteur : **8,3 Mo de `phys_footprint`,
+0,042 % de CPU, 0,000 réveil inactif/s.**
 
 ## 4. Alternatives Considered
 
-**Garder six renderers Swift codés en dur** *(le découpage initial)*. Écarté :
-un buddy d'entreprise deviendrait une recompilation, et les six styles
-représentent ~780 lignes qu'il faudrait de toute façon convertir au format le
-jour où le besoin arrive. Autant poser le format d'abord et écrire les buddys
-comme des manifestes.
+Trois formats ont été écrits et mesurés, dans cet ordre. Les deux premiers
+fonctionnaient à taille d'affiche et perdaient leur sens à la taille réelle.
 
-**Un seul buddy générique + une couche de thème par entreprise.** Beaucoup moins
-de code, et suffisant pour changer les couleurs et poser un logo. Écarté parce
-que « le buddy de tigreboite » suppose une *forme* propre, pas seulement une
-teinte — sinon c'est le même buddy repeint.
+### Béziers avec gréement d'œil — écarté
 
-**Manifeste en images (PNG/APNG par expression).** Plus simple à produire pour un
-graphiste, mais lourd, flou en écran non-Retina, et impossible à recolorier.
-Gardé comme échappatoire par couche, pas comme voie principale.
+Chemins vectoriels `M`/`C`/`Z` plus un gréement paramétrique : rayon d'œil,
+décalage du regard, courbure. Reconstruit depuis le logo tigreboite par
+segmentation couleur et remesure de la géométrie — les yeux se sont révélés être
+de **vrais cercles** (circularité 0,94, rayon 38, à ±100,6 de l'axe).
 
-**Manifeste scriptable (Lua, JS) pour les animations.** Écarté franchement :
-c'est un moteur d'exécution tiers dans la boucle de rendu permanente d'une app
-qui vise zéro réveil au repos. Le vocabulaire fermé de `motion` donne la
-souplesse utile sans ce risque.
+Écarté à l'usage : **une courbe rendue dans 20 pt est trois pixels gris
+anticrénelés.** Coûts annexes : 13,9 Ko de manifeste, et un parseur de tracés
+qui était une frontière de confiance à durcir.
 
-**Garder les animations implicites SwiftUI.** Écarté : c'est la dette identifiée.
-Un `repeatForever` a l'air gratuit au site d'appel et ne peut plus être ni
-interrogé ni arrêté une fois installé.
+### Grille de pixels — écarté
 
-**`CAKeyframeAnimation` / CoreAnimation pur.** Meilleure efficacité théorique,
-mais D5 a tranché : `NSPanel` + `NSHostingView` mesure 10,0 Mo de
-`phys_footprint` et **0,000 réveil inactif/s**. SwiftUI n'est pas le problème.
+Un buddy devient une grille d'indices de palette. D'abord dérivée du vectoriel
+par sous-échantillonnage, ce qui a échoué de façon mesurable : **à 28×18
+cellules, la zone de l'œil fait trois cellules de côté**, et six réglages de
+gréement s'y quantifient en marques identiques. En ajustant les paramètres,
+`idle` et `working` se sont retrouvés à **2 cellules d'écart sur 504**.
+
+Le pixel art se dessine, il ne se sous-échantillonne pas. Réécrit à la main —
+d'abord des sprites d'yeux 4×3, puis un visage complet à 38×24, à la densité
+d'une référence fournie. La paire la plus proche est passée de 8 à 112 cellules.
+
+Écarté quand même : **38×24 affiché à 0,5 pt par cellule fait un pixel physique
+par cellule** — techniquement net, pratiquement une bavure. Et l'écrire
+demandait 900 caractères hexadécimaux et onze scripts Python pour les produire.
+
+### Texte — retenu
+
+Un glyphe monospace à 13 pt est la seule chose que macOS rend correctement à
+cette taille, **parce que c'est exactement ce à quoi sert le hinting**.
+
+Bénéfices annexes qui pèsent : `=^^=` se lit dans le manifeste, se relit dans
+une revue, et se tape par quiconque veut son buddy. Le manifeste passe de 13,9 Ko
+à 700 octets, et tout l'outillage d'authoring disparaît.
+
+Le coût est réel et mérite d'être nommé : **pas de dégradés, pas de contrôle au
+pixel, et le visage dépend de la police monospace installée.** Assumé.
+
+### Retirer la silhouette — retenu au passage
+
+Découvert pendant l'étape pixel et conservé : une tête de tigre dépensait la
+majorité de ses cellules en un contour qui ne change jamais. Le visage seul —
+deux yeux, une bouche — est aussi **large et bas comme la pastille**, là où une
+tête est ronde.
 
 ## 5. Action plan
 
 | # | Tâche | Statut | % |
 |---|---|---|---|
-| T1 | Schéma `BuddyManifest` v1 + `Codable` + validation stricte | todo | 0 |
-| T2 | `BuddyLoader` + repli sur le buddy intégré (test : manifeste corrompu, champ manquant, `schema` inconnu) | todo | 0 |
-| T3 | `MotionKind` : les 6 mouvements en fonctions pures `phase → transform` | todo | 0 |
-| T4 | `BuddyRenderer` sans état + `BuddyView` avec le `TimelineView` unique | todo | 0 |
-| T5 | Branchement sur `AnimationBudget`, y compris `frameRate = 0` si masqué | todo | 0 |
-| T6 | Buddy intégré par défaut, écrit comme manifeste (pas comme cas particulier) | todo | 0 |
-| T7 | **Manifeste tigreboite** — le premier client externe du format | **in-progress** | **70** |
-| T8 | Mapping `BuddyExpression` ← état RFC-012, fonction pure + tests | todo | 0 |
-| T9 | `perfcheck.sh` A, B, C — comparaison entre manifestes | todo | 0 |
+| T1 | Schéma `BuddyManifest` v3 + `Codable` + validation stricte | **done** | **100** |
+| T2 | `BuddyLoader` + repli sur le buddy intégré (manifeste absent, JSON illisible, schéma inconnu, visage vide, largeurs inégales, couleur invalide) | **done** | **100** |
+| T3 | `MotionKind` : les 6 mouvements en fonctions pures `phase → transform` | **done** | **100** |
+| T4 | `BuddyView` avec le `TimelineView` unique + halo | **done** | **100** |
+| T5 | Branchement sur `AnimationBudget`, y compris `frameRate = 0` si masqué | **done** | **100** |
+| T6 | Buddy intégré par défaut, écrit **comme manifeste** | **done** | **100** |
+| T7 | **Manifeste tigreboite** — premier client externe du format | **done** | **100** |
+| T8 | Mapping `BuddyExpression` ← état RFC-012, fonction pure + tests | **done** | **100** |
+| T9 | `perfcheck.sh` A et B | **done** | **100** |
+| T10 | `perfcheck.sh` C (curseur en mouvement, panneau déployé) | todo | 0 |
+| T11 | Taille et position dérivées du slot mesuré (`PillLayout`, RFC-002) | **done** | **100** |
 
-**Critère de sortie.** Le buddy affiche des expressions distinctes pour chaque
-état de RFC-012. **Déposer le manifeste tigreboite et relancer l'app suffit à
-changer de buddy — aucune recompilation.** Un manifeste corrompu retombe sur le
-buddy intégré sans planter ni figer. `perfcheck.sh A` avec la pastille masquée
-montre **0 réveil imputable au buddy**. L'écart de coût entre deux manifestes ne
-dépasse pas 10 %.
+**Critère de sortie — atteint le 2026-08-19.**
+
+| Point | État |
+|---|---|
+| Expressions distinctes pour chaque état de RFC-012 | **PASS** — six visages, six mouvements |
+| **Déposer un manifeste et relancer suffit à changer de buddy** | **PASS** — tigreboite est chargé depuis `~/Library/Application Support/notch-buddy/buddies/`, rien n'est compilé |
+| Un manifeste corrompu retombe sur le buddy intégré sans planter | **PASS** — six modes de défaillance testés |
+| Pastille masquée → 0 réveil imputable au buddy | **PASS** — 0,000 réveil inactif/s |
+| Coût de l'app complète | **PASS** — 8,3 Mo, 0,042 % CPU |
+
+### La validation qui compte
+
+Elle refuse deux visages de **largeurs différentes**. Sans elle, la pastille se
+redimensionnerait à chaque changement d'état — ce qui se lit comme une interface
+qui tremble, pas comme un buddy qui s'exprime. C'est la contrainte que le format
+texte introduit et que les deux formats précédents n'avaient pas.
 
 ## 6. Open Questions
 
-**~~Q1 — Quel sous-ensemble de chemins vectoriels accepter ?~~ TRANCHÉE (2026-08-19)**
+Les questions Q1 (sous-ensemble de tracés), Q2 (à quoi ressemble le buddy) et
+Q5 (six mouvements suffisent-ils) **n'ont plus d'objet** : elles portaient sur le
+format vectoriel, puis pixel. Leur trace reste en §4, parce que c'est en y
+répondant qu'on a découvert pourquoi ces formats ne tenaient pas.
 
-**`M`, `C`, `Z`, plus `circle` et `ellipse`. Rien d'autre.** Confirmé sur le cas
-réel : le buddy tigreboite complet — silhouette, corps, 11 rayures, museau,
-nez/bouche — n'utilise que ces cinq primitives. Le tracer produit du Catmull-Rom
-converti en cubiques, donc `L` n'apparaît même pas. Un parseur pour ce
-sous-ensemble tient en une centaine de lignes.
-
-**~~Q2 — À quoi ressemble le buddy tigreboite ?~~ TRANCHÉE (2026-08-19)**
-
-Une tête de tigre stylisée, déjà pourvue d'yeux — le cas idéal pour un buddy.
-
-**Il n'existe aucune source vectorielle.** `public/icons/favicon.svg` porte
-l'extension mais contient un PNG en base64 dans une balise `<image>` (généré par
-RealFaviconGenerator) ; recherche faite dans tout le dépôt tigreboite : deux
-`.svg`, zéro `<path>`. Le buddy a donc été **reconstruit** depuis le PNG 512 px,
-non par vectorisation automatique — qui aurait donné un contour impossible à
-articuler — mais par **segmentation par couleur puis remesure de la géométrie** :
-
-| Partie | Mesure | Reconstruction |
-|---|---|---|
-| yeux | circularité **0,94**, r = 38,0, ±100,6 de l'axe, y = 246,2 | `circle` paramétrique |
-| reflets | r = 10,0, décalage (+6,5 ; −12,4) depuis l'œil | `circle` paramétrique |
-| museau | 158×112 en (255,6 ; 333,3) | `ellipse` |
-| silhouette | — | chemin, 53 points |
-| corps | — | chemin, 103 points |
-| rayures | 11 marques, en paires symétriques | chemins |
-| nez + bouche | 118×78 | chemin, 46 points |
-
-Palette exacte : corps `#FE9C19` (45 %), contour `#332921` (25 %), museau
-`#F8F0E8` (4 %).
-
-Le fait que les yeux soient de **vrais cercles** est ce qui rend tout le reste
-possible : un œil à 200 points de polygone ne peut pas cligner.
-
-Livrables : `assets/buddies/tigreboite/manifest.json` (13,6 Ko),
-`parts.json`, `tiger.svg`, `expressions-preview.png`. Outils reproductibles dans
-`tools/` (`analyze_tiger.py`, `trace_paths.py`, `build_tiger_buddy.py`,
-`emit_svg.py`).
-
-**Reste à faire pour clore T7** : le moteur de rendu Swift. La maquette actuelle
-est en Python + SVG, elle valide le format et les expressions, pas le rendu
-embarqué.
-
-**~~Q3bis — Quel cadrage dans la pastille ?~~ TRANCHÉE (2026-08-19) — cadrage serré sur le visage**
-
-`viewBox = [0, 164, 512, 324]`, ratio **1,58:1**. Largeur pleine et menton
-conservés, **seules les oreilles sont rognées**.
-
-Deux essais ont été écartés par la mesure, pas par le goût :
-
-- **Forcer le ratio 1,75:1 de la pastille** coupe le menton ou les oreilles selon
-  où on centre. Une pastille large et un visage carré sont incompatibles si on
-  veut garder toute la tête.
-- **Cadrage carré** coupe les joues et les moustaches : la tête fait **510×453**,
-  elle n'est pas carrée. Un carré centré sur l'axe perd les bords latéraux, qui
-  portent les moustaches — un signe distinctif du logo.
-
-Les cadrages intermédiaires (1,28:1 et 1,43:1) laissent des **moignons de rayures
-coupés** au bord supérieur, qui se lisent comme un défaut de rendu. 1,58:1 coupe
-au-dessus des yeux sans laisser de moignon.
-
-**Le buddy ne remplit pas la pastille.** Il occupe ~56×35 pt (minimum 48×30) dans
-une pastille de ~56×32 à 220×38 selon l'encoche ; le reste de la largeur porte le
-statut. C'est ce qui résout la tension de ratio : on n'étire pas le visage, on
-lui donne sa place.
-
-Validé **à la taille réelle**, pas à 256 px : les six expressions restent
-distinctes à 56×35 pt, et `awaiting` — celle qui doit attirer l'œil — est la plus
-marquée. Seule réserve consignée : les fentes de `sleeping` deviennent presque
-invisibles à cette taille. C'est l'effet voulu, mais à revalider sur écran réel
-plutôt qu'en agrandissement.
-
-**Q3 — Où vivent les manifestes ?**
-`~/Library/Application Support/notch-buddy/buddies/<id>/` a ma préférence. Un
-dossier par buddy, découvert au lancement.
+**Q3 — Où vivent les manifestes ?** *Tranchée* :
+`~/Library/Application Support/notch-buddy/buddies/<id>/manifest.json`, un
+dossier par buddy, découverts au lancement.
 
 **Q4 — Faut-il verrouiller un buddy par politique d'entreprise ?**
-Si tigreboite déploie l'app à son équipe, veut-elle que le buddy soit imposé, ou
-juste proposé par défaut ? Ça change le modèle de préférences de RFC-010.
+Si tigreboite déploie l'app à son équipe, veut-elle imposer le buddy ou le
+proposer par défaut ? Ça change le modèle de préférences de RFC-010.
 
-**~~Q5 — Six mouvements suffisent-ils ?~~ TRANCHÉE (2026-08-19), avec une correction du format**
+**Q6 — La dépendance à la police monospace installée est-elle acceptable ?**
+`=^^=` rendu en SF Mono et en Menlo n'ont pas le même équilibre. Faut-il
+embarquer une police, ou accepter la variation ?
 
-Les six mouvements suffisent. **Mais le gréement de l'œil, non.**
+```sh
+# Voir le visage dans les polices monospace disponibles :
+fc-list : family | grep -i mono | sort -u | head -20
+```
 
-La première maquette ne pilotait l'œil que par une échelle verticale `sy`. Résultat
-mesurable à l'œil : `finished` (« clin d'œil satisfait ») et `sleeping`
-(« endormi ») s'écrasaient tous deux en la même fente plate, et `failed` était
-indiscernable de `awaiting`. **Une mise à l'échelle ne peut pas exprimer une
-forme.**
-
-Correction apportée au format : un paramètre **`curve`** par expression.
-`0` rend un disque plein ; `+1` un arc vers le haut (œil rieur) ; `−1` un arc vers
-le bas (abattu). Les six expressions sont alors nettement distinctes —
-vérifié visuellement, voir `expressions-preview.png`.
-
-Enseignement à garder pour tout futur manifeste : **un vocabulaire fermé a besoin
-d'un bouton de forme, pas seulement d'un bouton de taille.**
+**Q7 — Le halo doit-il être réglable ?**
+Trois ombres codées en dur aujourd'hui. Sur un fond clair — pastille flottante
+hors encoche — le halo pourrait être de trop.

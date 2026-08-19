@@ -83,22 +83,24 @@ bas niveau en créditant MIT. La carte de réemprunt `fichier:ligne` est dans
 
 | RFC | Titre | Statut | % | Jalon | Charge |
 |---|---|---|---|---|---|
-| — | [Spikes](docs/rfc/DECOUPAGE.md) — keychain / oauth-usage / contrat de hook | todo | 0 % | v1 | 1 j |
+| — | [Spike](docs/rfc/DECOUPAGE.md) keychain + oauth-usage — bloque RFC-004 | todo | 0 % | v1 | 0,5 j |
+| — | [Spike](docs/rfc/DECOUPAGE.md) contrat de hook — bloque RFC-007 **seulement** | todo | 0 % | v1 | 0,5 j |
 | [001](docs/rfc/done/RFC-001-socle-applicatif.md) | Socle applicatif, cycle de vie, budget de performance | **done** | **100 %** | v1 | ✔ |
 | [002](docs/rfc/RFC-002-fenetre-notch.md) | Fenêtre notch : NSPanel, click-through, multi-écran | **in-progress** | **95 %** | v1 | 4-6 j |
-| [003](docs/rfc/RFC-003-collecte-sessions.md) | Collecte de sessions : source de vérité unique | todo | 0 % | v1 | 5-7 j |
-| [004](docs/rfc/RFC-004-usage-live.md) | Utilisation live : Keychain + endpoint OAuth | todo | 0 % | v1 | 3-4 j |
-| [005](docs/rfc/RFC-005-rendu-buddy.md) | Buddy : format de manifeste et moteur de rendu | **in-progress** | **25 %** | v1 | 4-6 j |
+| [003](docs/rfc/done/RFC-003-collecte-sessions.md) | Collecte de sessions : source de vérité unique | **done** | **100 %** | v1 | ✔ |
+| [004](docs/rfc/RFC-004-usage-live.md) | Utilisation live : Keychain + endpoint OAuth | **in-progress** | **90 %** | v1 | 0,5 j |
+| [005](docs/rfc/RFC-005-rendu-buddy.md) | Buddy : manifeste ASCII et rendu | **in-progress** | **92 %** | v1 | 0,5 j |
 | [006](docs/rfc/RFC-006-pont-hook.md) | Pont hook Claude Code : binaire dédié + socket Unix | todo | 0 % | v1 | 3-5 j |
 | [007](docs/rfc/RFC-007-interception-permissions.md) | Interception des permissions : file, rendu, décisions | todo | 0 % | v1 | 5-7 j |
-| [008](docs/rfc/RFC-008-vue-sessions.md) | Vue sessions et saut vers le terminal hôte | todo | 0 % | v1.1 | 5-7 j |
+| [008](docs/rfc/RFC-008-vue-sessions.md) | Vue sessions et saut vers le terminal hôte | **in-progress** | **45 %** | v1.1 | 3-4 j |
 | [009](docs/rfc/RFC-009-index-activite.md) | Index d'activité persistant (heatmap et historique) | todo | 0 % | v1.2 | 3-4 j |
-| [010](docs/rfc/RFC-010-preferences-apparence.md) | Préférences, apparence et surfaces expressives | todo | 0 % | v1 | 3-5 j |
+| [010](docs/rfc/RFC-010-preferences-apparence.md) | Préférences (fenêtre native), i18n et apparence | **in-progress** | **35 %** | v1 | 2-3 j |
 | [011](docs/rfc/RFC-011-build-distribution.md) | Build, empaquetage, signature, distribution | todo | 0 % | v1 | 2-4 j |
-| [012](docs/rfc/RFC-012-detection-etat-alertes.md) | **Détection d'état et alertes** (Stop / Notification) | todo | 0 % | v1 | 3-4 j |
+| [012](docs/rfc/RFC-012-detection-etat-alertes.md) | **Détection d'état et alertes** — depuis le transcript, sans hook | **in-progress** | **90 %** | v1 | 0,5 j |
 
-**v1 : 33-49 j-h** (RFC-001 faite) · plan complet : 41-60 j-h. Dev solo en parallèle d'autres
-projets → tabler sur un facteur calendaire ×2 à ×3.
+**Reste pour le v1 : 11-19 j-h** (001 et 003 faites ; 002, 004, 005 et 012 à 90-95 % ;
+spike keychain fait) · plan complet restant : 19-30 j-h. Dev solo en parallèle d'autres projets →
+tabler sur un facteur calendaire ×2 à ×3.
 
 ## Gantt
 
@@ -107,43 +109,52 @@ Ordre = ordre de réalisation, pas ordre de numérotation.
 
 ```
 ── EN COURS ──
-#   RFC      Titre                                          Avancement            %    Charge  Jalon
-0   —        Spikes (keychain / oauth-usage / hook)          ░░░░░░░░░░░░░░░░░░░░   0 %   1 j    v1
-2   RFC-002  Fenêtre notch (NSPanel, click-through)          ███████████████████░  95 %   4-6 j  v1
-3   RFC-003  Collecte de sessions (source de vérité unique)  ░░░░░░░░░░░░░░░░░░░░   0 %   5-7 j  v1
-4   RFC-006  Pont hook + socket Unix                         ░░░░░░░░░░░░░░░░░░░░   0 %   3-5 j  v1
-5   RFC-012  Détection d'état et alertes  ← objectif n°1     ░░░░░░░░░░░░░░░░░░░░   0 %   3-4 j  v1
-6   RFC-005  Buddy : manifeste + moteur de rendu             █████░░░░░░░░░░░░░░░  25 %   4-6 j  v1
-7   RFC-004  Utilisation live (Keychain + OAuth)             ░░░░░░░░░░░░░░░░░░░░   0 %   3-4 j  v1
+#   RFC      Titre                                          Avancement            %    Reste   Jalon
+1   RFC-002  Fenêtre notch (NSPanel, click-through)          ███████████████████░  95 %   0,5 j  v1
+2   RFC-012  Détection d'état et alertes  ← objectif n°1     ██████████████████░░  90 %   0,5 j  v1
+3   RFC-005  Buddy : manifeste ASCII et rendu                ██████████████████░░  92 %   0,5 j  v1
+4   —        Spike keychain + oauth-usage                    ████████████████████ 100 %   ✔     v1
+5   RFC-004  Utilisation live (Keychain + OAuth)             ██████████████████░░  90 %   0,5 j  v1
+6   —        Spike contrat de hook                           ░░░░░░░░░░░░░░░░░░░░   0 %   0,5 j  v1
+7   RFC-006  Pont hook + socket Unix                         ░░░░░░░░░░░░░░░░░░░░   0 %   3-5 j  v1
 8   RFC-007  Interception des permissions                    ░░░░░░░░░░░░░░░░░░░░   0 %   5-7 j  v1
-9   RFC-010  Préférences et apparence                        ░░░░░░░░░░░░░░░░░░░░   0 %   3-5 j  v1
+9   RFC-010  Préférences (fenêtre native) + i18n             ███████░░░░░░░░░░░░░  35 %   2-3 j  v1
 10  RFC-011  Build, signature, distribution                  ░░░░░░░░░░░░░░░░░░░░   0 %   2-4 j  v1
-11  RFC-008  Vue sessions + saut terminal/tmux               ░░░░░░░░░░░░░░░░░░░░   0 %   5-7 j  v1.1
+11  RFC-008  Vue sessions + saut terminal/tmux               █████████░░░░░░░░░░░  45 %   3-4 j  v1.1
 12  RFC-009  Index d'activité (heatmap + historique)         ░░░░░░░░░░░░░░░░░░░░   0 %   3-4 j  v1.2
 
 ── DONE ──
-1   RFC-001  Socle applicatif, budget de performance         ████████████████████ 100 %   —      v1
+—   RFC-001  Socle applicatif, budget de performance         ████████████████████ 100 %   —      v1
+—   RFC-003  Collecte de sessions (source de vérité unique)  ████████████████████ 100 %   —      v1
 ```
 
-**Chemin critique : 002 → 003 → 006 → 012.** C'est le trajet le plus court
-jusqu'à l'objectif n°1 — être alerté. RFC-007 (interception des permissions)
-reste dans le v1 par arbitrage, mais **après** RFC-012 : c'est le poste le plus
-lourd et le moins portable vers d'autres agents, il ne doit pas retarder le cœur
-du produit. RFC-004 est une feuille du graphe, parallélisable à tout moment.
+**Chemin critique : 002 → 012.** Il vient de raccourcir de deux RFC.
 
-**RFC-006 et RFC-007 sont indissociables** — RFC-006 seule ne produit rien
-d'observable. RFC-006 alimente en revanche RFC-012 dès qu'elle existe.
+RFC-003 a établi que **quatre des signaux que RFC-012 devait prendre au hook sont
+déjà dans le transcript** : mode de permission, fin de tour, cycle de vie des
+sous-agents, échec d'outil. L'objectif n°1 du produit — alerter — est donc
+atteignable **sans écrire une seule ligne dans `~/.claude/settings.json`**.
 
-**RFC-006 et RFC-007 sont indissociables** — RFC-006 seule ne produit rien
-d'observable. Jamais livrées séparément.
+Conséquences sur l'ordre :
+
+- **RFC-012 passe devant RFC-006.** Alerter est l'objectif ; le hook n'en est
+  plus le moyen.
+- **Le spike « contrat de hook » se déplace avec RFC-007**, seule chose qui en
+  dépende encore. S'il échoue, l'interception des permissions tombe — plus le
+  cœur du produit.
+- **RFC-006 et RFC-007 restent indissociables** (RFC-006 seule ne produit rien
+  d'observable), mais forment désormais un bloc *optionnel* plutôt qu'un passage
+  obligé.
+
+RFC-004 reste une feuille du graphe, parallélisable à tout moment.
 
 ## Phases
 
 | Phase | RFC | Critère de sortie |
 |---|---|---|
-| 0 — Preuves | spikes | Les 3 scripts jetables archivés dans `docs/spikes/` **avec leur sortie brute** et la date. Si le spike hook échoue, RFC-006/007 sont annulées. |
+| 0 — Preuves | spikes | Scripts jetables archivés dans `docs/spikes/` **avec leur sortie brute** et la date. Le spike hook ne conditionne plus que RFC-006/007 — s'il échoue, le cœur du produit tient quand même. |
 | 1 — Fondations | 001, 002 | Panneau qui se déploie au survol ; un clic dans la zone transparente atteint l'horloge de la barre de menus ; `perfcheck A` : 0 `posix_spawn`, < 2 réveils/s. |
-| 2 — Données | 003, 004 | Lancer `claude` change l'état publié en < 1 s, et `sample` sur les 30 s précédentes montre **0 `posix_spawn` et 0 `proc_listpids`**. Le % 5 h est identique à la page de facturation. |
+| 2 — Données | 003 ✔, 004 | **003 : atteint** — détection en 0,13 s, 0 `posix_spawn`, 0,055 % CPU, 8,2 Mo. Le critère « 0 `proc_listpids` » a été amendé : la mort d'un processus n'émet aucun événement filesystem, l'exiger revenait à exiger de ne jamais la remarquer. **004 :** le % 5 h identique à la page de facturation. |
 | 3 — Surface visible | 005 | Modes distincts pour édition / shell / lecture / danger. Pastille masquée → 0 réveil imputable au buddy. |
 | 4 — Intégration | 006, 007 | Bash, Edit et AskUserQuestion autorisés **et** refusés depuis la notch (6 cas). Tuer l'app pendant une attente ne bloque pas Claude > 120 s. Test golden-file en CI. |
 | 5 — Confort | 010, puis 008, 009 | Une fin de session → **exactement une** notification sur 10 essais. Deux sessions dans le même cwd → le bon volet tmux, 5 fois de suite. |

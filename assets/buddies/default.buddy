@@ -1,0 +1,48 @@
+# default — jeu ASCII sobre pour notch-buddy
+#
+# Une image par ligne, une seconde par image.
+# Une ligne vide termine la section.
+# Le mot de couleur avant le code hexadécimal est décoratif : seul le #RRGGBB compte.
+#
+# Ce buddy est en ASCII pur, il peut donc imposer une police à chasse fixe.
+# Le buddy emoji ne le peut pas : aucune police installée ne couvre ses glyphes.
+font: Menlo
+size: 13
+
+sleeping (blue #00BBFF)
+=--=
+=--=  z
+=--= z
+=--=
+
+idle (yellow #FFBB00)
+=^^=
+=^^=
+=--=
+=^^=
+=^-=
+
+working (green #55FF55)
+=OO=
+=Oo=
+=oO=
+=OO=
+=oo=
+
+awaiting (blue #00BBFF)
+=??=
+=?.=
+=.?=
+=??=
+
+finished (blue #00BBFF)
+=**=
+=*^=
+=^*=
+=**=
+
+failed (red #FF5555)
+=xx=
+=x-=
+=-x=
+=xx=

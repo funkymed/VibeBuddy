@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | todo (0 %) |
+| **Status** | in-progress (90 %) — spike réussi, module livré et vérifié en réel |
 | **Author** | Cyril Pereira |
 | **Created** | 2026-08-19 |
 | **Updated** | 2026-08-19 |
@@ -103,16 +103,35 @@ la contient par un parseur tout-optionnel et un état « indisponible » explici
 
 | # | Tâche | Statut | % |
 |---|---|---|---|
-| T1 | Spike : le jeton est-il lisible sans invite sur cette machine ? (cf. Q1) | todo | 0 |
-| T2 | `KeychainCredentialReader` + cache jusqu'à `expiresAt` + repli de compte | todo | 0 |
-| T3 | `UsageClient` + parsing tout-optionnel + les deux formateurs ISO8601 | todo | 0 |
-| T4 | Backoff 429 honorant `Retry-After` | todo | 0 |
-| T5 | `UsageState` + états d'erreur typés (refusé / absent / expiré / réseau / throttlé) | todo | 0 |
-| T6 | Cadence adaptative branchée sur le `WakeCoordinator` | todo | 0 |
-| T7 | `protocol CredentialSource` à implémentation unique (parade R4) | todo | 0 |
+| T1 | Spike : le jeton est-il lisible sans invite sur cette machine ? (cf. Q1) | **done** | **100** |
+| T2 | `KeychainCredentialReader` + cache jusqu'à `expiresAt` + repli de compte | **done** | **100** |
+| T3 | `UsageClient` + parsing tout-optionnel + les deux formateurs ISO8601 | **done** | **100** |
+| T4 | Backoff 429 honorant `Retry-After` | **done** | **100** |
+| T5 | `UsageState` + états d'erreur typés (refusé / absent / expiré / réseau / throttlé) | **done** | **100** |
+| T6 | Cadence adaptative branchée sur le `WakeCoordinator` | **done** | **100** |
+| T7 | `protocol CredentialSource` à implémentation unique (parade R4) | **done** | **100** |
 | T8 | `perfcheck.sh` A — vérifier le réveil unique à 180 s | todo | 0 |
 
-**Critère de sortie.** Le pourcentage 5 h affiché est **identique au chiffre de la
+**Critère de sortie — atteint sauf la comparaison visuelle.**
+
+| Point | État |
+|---|---|
+| Jeton lu sans invite | **PASS** |
+| Endpoint répond 200 | **PASS** — 0,32 s |
+| Parseur tolérant aux fenêtres inconnues | **PASS** — vérifié sur la réponse réelle |
+| Une fenêtre absente affiche « indisponible », jamais 0 % | **PASS** — test dédié |
+| Backoff honorant `Retry-After` | **PASS** — code + test |
+| Cadence adaptative, un seul réveil périodique | **PASS** — 180/30/10 s |
+| Chiffre identique à la page de facturation | **non vérifié** — demande une capture côte à côte |
+
+**Rendu ajouté hors périmètre initial** : la section consommation au pied du
+panneau, deux jauges en points plutôt qu'en barres. À cette largeur, le
+remplissage d'une barre entre 15 % et 25 % fait quelques pixels ; un point rempli
+se compte d'un coup d'œil. L'arrondi est au supérieur — 4 % rendrait une jauge
+vide, ce qui se lit « pas commencé » plutôt que « à peine commencé ».
+
+### Ancien critère
+Le pourcentage 5 h affiché est **identique au chiffre de la
 page de facturation Claude**, vérifié par capture d'écran côte à côte. Couper le
 réseau affiche un état « indisponible » explicite, **jamais un chiffre périmé
 sans marque**. Vingt requêtes forcées déclenchent un back-off qui honore
@@ -120,8 +139,27 @@ sans marque**. Vingt requêtes forcées déclenchent un back-off qui honore
 
 ## 6. Open Questions
 
-**Q1 — Le jeton est-il lisible sans invite ? (spike, à faire en premier)**
-C'est l'hypothèse qui peut annuler cette RFC à elle seule (risque R4).
+**~~Q1 — Le jeton est-il lisible sans invite ?~~ TRANCHÉE (2026-08-19)**
+
+**Oui.** `security find-generic-password -s "Claude Code-credentials" -a $USER -w`
+rend le jeton **sans aucune invite de trousseau**, et le champ `expiresAt` est
+bien en millisecondes. Le mécanisme décrit dans la référence tient.
+
+**~~Q2 — L'endpoint répond-il encore, et avec quel schéma ?~~ TRANCHÉE**
+
+**HTTP 200 en 0,32 s.** Relevé le 2026-08-19 : session 5 h à 16 %, semaine à 5 %.
+
+Et le schéma **a déjà changé** depuis la référence. La réponse contient des
+fenêtres sous des noms de code que ce code n'a jamais vus — `tangelo`,
+`nimbus_quill`, `omelette_promotional`, `cinder_cove`, `iguana_necktie` — la
+plupart nulles. C'est la confirmation directe du risque R5 : le parseur
+tout-optionnel n'est pas une précaution théorique, il est **déjà nécessaire**.
+
+Les valeurs réelles sont conservées dans les fixtures de test, y compris les clés
+inconnues, pour que la tolérance soit vérifiée et pas seulement affirmée.
+
+### Ancienne Q1, pour mémoire
+C'était l'hypothèse qui pouvait annuler cette RFC à elle seule (risque R4).
 
 ```sh
 /usr/bin/security find-generic-password -s "Claude Code-credentials" -a "$USER" -w \
