@@ -126,12 +126,14 @@ final class NotchPanel: NSPanel {
         // generates no enter event.
         host.onHoverChange = { [weak self] hovering in
             guard let self, !self.suppressesHover else { return }
+            self.logHover(source: "zone", hovering: hovering)
             if hovering, state == .pill { state = .panel }
             else if !hovering, state == .panel { state = .pill }
         }
 
         hover.onChange = { [weak self] hovering in
             guard let self, !self.suppressesHover else { return }
+            self.logHover(source: "sonde", hovering: hovering)
             if hovering, state == .pill { state = .panel }
             else if !hovering, state == .panel { state = .pill }
         }
@@ -179,18 +181,55 @@ final class NotchPanel: NSPanel {
         return CGSize(width: layout.totalWidth, height: layout.height)
     }
 
+    /// Bumped on every state change, so a completion handler can tell whether
+    /// it belongs to the frame change still on screen.
+    private var frameGeneration = 0
+
+    /// The region that absorbs clicks and arms the hover, per state.
+    ///
+    /// Recomputed from `pillSize` each time rather than remembered: the pill's
+    /// width follows the buddy and the counter, so a region captured once goes
+    /// stale the first time a session appears.
+    private func hitRegion(for state: PanelState) -> ClickThroughHostView<AnyView>.HitRegion {
+        switch state {
+        case .hidden: return .none
+        case .panel: return .full
+        case .pill, .speech: return .strip(width: pillSize.width, offsetX: 0)
+        }
+    }
+
+    /// Where the window should sit for a given state.
+    private func targetFrame(for state: PanelState) -> CGRect? {
+        let size = state == .panel ? Self.panelSize : pillSize
+        let carrier = CGSize(width: Self.carrierWidth, height: size.height)
+        return geometry.map {
+            NotchFrameSolver.frame(size: carrier, geometry: $0, fraction: anchorFraction)
+        }
+    }
+
+    /// Set the frame **now**, superseding whatever animation is running.
+    ///
+    /// A plain `setFrame(_:display:animate:false)` does not do that: it moves
+    /// the window, and the in-flight `animator()` keeps driving it afterwards,
+    /// so the window ends up wherever the *old* animation was going. A
+    /// zero-duration animation replaces the running one instead.
+    private func setFrameImmediately(_ target: CGRect) {
+        NSAnimationContext.runAnimationGroup { ctx in
+            ctx.duration = 0
+            animator().setFrame(target, display: true)
+        }
+    }
+
     private func applyState(animated: Bool = true) {
+        frameGeneration += 1
+        let generation = frameGeneration
         let size = state == .panel ? Self.panelSize : pillSize
         let carrier = CGSize(width: Self.carrierWidth, height: size.height)
 
         // Set the hit region to the destination up front. Interpolating it would
         // make the pointer fall out of the panel mid-grow and immediately
         // trigger a collapse — the panel would flicker instead of opening.
-        host.hitRegion = switch state {
-        case .hidden: .none
-        case .panel:  .full
-        case .pill, .speech: .strip(width: size.width, offsetX: 0)
-        }
+        host.hitRegion = hitRegion(for: state)
 
         if state.isVisible { orderFrontRegardless() }
 
@@ -219,26 +258,36 @@ final class NotchPanel: NSPanel {
         // the window instead of snapping at the end of the animation.
         rebuildContent()
 
-        let target = geometry.map {
-            NotchFrameSolver.frame(size: carrier, geometry: $0, fraction: anchorFraction)
-        }
+        let target = targetFrame(for: state)
 
         // Respect the system setting. Someone who asked for less motion did not
         // ask for it only in other people's apps.
         let reduceMotion = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
-        guard animated, !reduceMotion, state != .hidden, frame.size != carrier else {
-            if let target { setFrame(target, display: true, animate: false) }
+        // `frame.size == carrier` is **not** a reason to skip the frame change.
+        //
+        // Mid-animation the window is momentarily whatever size the running
+        // animation has reached, and one of those sizes is the size we are
+        // heading back to. Treating that as "already there" was the bug: a
+        // collapse asked for while the expansion was still growing took the
+        // shortcut, the expansion kept running underneath, and the window
+        // finished at panel size while the state said pill. The hover regions
+        // are read from the window, so a 38 pt strip became a 460 pt column —
+        // which arms the panel long before the pointer reaches the black, and
+        // only ever after it has been opened once.
+        guard animated, !reduceMotion, state != .hidden else {
+            if let target { setFrameImmediately(target) }
             metrics.drawnWidth = size.width
             alphaValue = state.isVisible ? 1 : 0
             if !state.isVisible { orderOut(nil) }
-            finishStateChange()
+            finishStateChange(generation: generation)
             return
         }
 
         growTogether(
             to: target,
             drawnWidth: size.width,
-            growing: carrier.height > frame.height
+            growing: carrier.height > frame.height,
+            generation: generation
         )
     }
 
@@ -248,7 +297,9 @@ final class NotchPanel: NSPanel {
     /// two animation engines that have to land together: same duration, same
     /// curve, started in the same turn of the run loop. Any drift between them
     /// shows up as the shape stretching before it settles.
-    private func growTogether(to target: CGRect?, drawnWidth: CGFloat, growing: Bool) {
+    private func growTogether(
+        to target: CGRect?, drawnWidth: CGFloat, growing: Bool, generation: Int
+    ) {
         let duration = growing ? PanelTiming.expand : PanelTiming.collapse
 
         withAnimation(.easeOut(duration: duration)) {
@@ -256,13 +307,13 @@ final class NotchPanel: NSPanel {
         }
         alphaValue = 1
 
-        guard let target else { finishStateChange(); return }
+        guard let target else { finishStateChange(generation: generation); return }
         NSAnimationContext.runAnimationGroup { ctx in
             ctx.duration = duration
             ctx.timingFunction = Self.expandCurve
             animator().setFrame(target, display: true)
         } completionHandler: { [weak self] in
-            MainActor.assumeIsolated { self?.finishStateChange() }
+            MainActor.assumeIsolated { self?.finishStateChange(generation: generation) }
         }
     }
 
@@ -272,12 +323,61 @@ final class NotchPanel: NSPanel {
     /// someone is actually reading it.
     var onPanelVisibilityChange: ((Bool) -> Void)?
 
-    private func finishStateChange() {
+    private func finishStateChange(generation: Int? = nil) {
+        // A completion from a superseded animation must not publish anything:
+        // it would describe a frame the window has already left.
+        if let generation, generation != frameGeneration { return }
+
+        // The window is where the state says, or it is corrected here. This is
+        // the last line of defence for the mid-animation races: everything
+        // downstream — both hover regions — is read from the frame.
+        if state != .hidden, let target = targetFrame(for: state), frame != target {
+            setFrameImmediately(target)
+        }
+
+        // Re-assert the region on the settled frame. `applyState` sets it to
+        // the destination up front — deliberately, so the pointer does not fall
+        // out of a growing panel — and "up front" is by definition before the
+        // window has the size the region describes.
+        host.hitRegion = hitRegion(for: state)
+        host.refreshTrackingNow()
+
         onPanelVisibilityChange?(state == .panel)
         hover.pillRect = pillScreenRect
         hover.setActive(state.isVisible)
         budget.update(isVisible: state.isVisible, isBusy: state == .panel)
     }
+
+    /// Who armed the hover, where the pointer was, and what the regions were.
+    ///
+    /// Logged rather than reasoned about: two readings of the source produced
+    /// two plausible causes and one fix that fixed nothing. The pointer against
+    /// both regions, at the instant one of them fires, is what settles it.
+    ///
+    /// `log stream --predicate 'subsystem == "com.notchbuddy"' --info`
+    private func logHover(source: String, hovering: Bool) {
+        let mouse = NSEvent.mouseLocation
+        let polled = hover.pillRect
+        let tracking = host.absorbingRect
+        let line = String(
+            format: "hover %@ %@ état=%@ souris=(%.0f,%.0f) sondé=[%.0f…%.0f × %.0f…%.0f] suivi=%.0f×%.0f fenêtre=[%.0f…%.0f × %.0f…%.0f]",
+            source, hovering ? "entrée" : "sortie", String(describing: state),
+            mouse.x, mouse.y,
+            polled.minX, polled.maxX, polled.minY, polled.maxY,
+            tracking.width, tracking.height,
+            frame.minX, frame.maxX, frame.minY, frame.maxY)
+        PerfProbe.log.info("\(line, privacy: .public)")
+    }
+
+    // MARK: - Diagnostics
+
+    /// The three rects that decide when the panel opens, for `--hover`.
+    var debugTrackingRect: CGRect { host.absorbingRect }
+    /// What the view really paints, scanned from its own bitmap.
+    var debugPaintedRect: CGRect { HoverDiagnostics.paintedRect(of: host) }
+    var debugPolledRect: CGRect { hover.pillRect }
+    func debugSetState(_ next: PanelState) { state = next }
+    var debugState: String { String(describing: state) }
 
     /// Screen-space rect of the visible pill, which is narrower than the window.
     private var pillScreenRect: CGRect {

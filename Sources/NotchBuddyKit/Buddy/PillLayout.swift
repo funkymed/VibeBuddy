@@ -45,6 +45,18 @@ public struct PillLayout: Sendable, Equatable {
     /// as a shape rather than collapsing onto the notch.
     public static let emptySlotWidth: CGFloat = 18
 
+    /// Widest an ear may get, whatever the buddy asks for.
+    ///
+    /// Without a ceiling the pill is defined by its content: a manifest with a
+    /// long face at 40 pt — which the expression editor now makes trivial to
+    /// produce — grows a pill wider than the screen's own notch and turns the
+    /// dashboard into a banner. Past this the *buddy* gives way instead, scaled
+    /// down to the slot it was given (`BuddyView`, `fit:`).
+    ///
+    /// 96 pt is roughly the widest face measured on the shipped buddies plus
+    /// their padding, so nothing that ships is affected by the cap.
+    public static let maxSlotWidth: CGFloat = 96
+
     public let leftWidth: CGFloat
     public let rightWidth: CGFloat
     public let notchWidth: CGFloat
@@ -96,7 +108,7 @@ public struct PillLayout: Sendable, Equatable {
             measure($0, size: counterFontSize, weight: .semibold) + slotPadding * 2
         } ?? emptySlotWidth
 
-        // Both ears get the width of the wider one.
+        // Both ears get the width of the wider one, and neither exceeds the cap.
         //
         // Measuring each ear from its own contents made the pill lopsided — a
         // four-glyph buddy on the left, `×2` on the right — and the fix for that
@@ -108,7 +120,7 @@ public struct PillLayout: Sendable, Equatable {
         // Equal ears cost a few points of width on the narrower side and buy a
         // shape that is symmetric about the cutout by construction — the offset
         // is then zero, not corrected.
-        let slot = max(left, right, emptySlotWidth)
+        let slot = min(max(left, right, emptySlotWidth), maxSlotWidth)
 
         return PillLayout(
             leftWidth: slot,
@@ -121,6 +133,25 @@ public struct PillLayout: Sendable, Equatable {
     }
 
     public static func counterText(_ count: Int) -> String { "×\(count)" }
+
+    /// Box a slot actually offers its content, padding removed.
+    ///
+    /// The buddy is scaled to this rather than clipped to it: a face cut in half
+    /// reads as a rendering fault, a face drawn slightly smaller reads as a
+    /// face.
+    public func contentBox(vertical inset: CGFloat = 4) -> CGSize {
+        CGSize(
+            width: max(0, leftWidth - PillLayout.slotPadding * 2),
+            height: max(0, height - inset * 2))
+    }
+
+    /// Line height of a face at a given point size, in the font that will draw
+    /// it — the vertical half of the fit calculation.
+    public static func lineHeight(size: CGFloat, family: String?) -> CGFloat {
+        let font = family.flatMap { NSFont(name: $0, size: size) }
+            ?? NSFont.systemFont(ofSize: size, weight: .medium)
+        return ceil(font.ascender - font.descender + font.leading)
+    }
 
     /// Rendered width of a string, in points.
     ///

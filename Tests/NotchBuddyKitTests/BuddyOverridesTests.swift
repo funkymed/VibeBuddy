@@ -193,3 +193,38 @@ struct UngroupedSessionsTests {
         #expect(rows.allSatisfy { $0.hasHistory == false })
     }
 }
+
+/// The model label on a row.
+@Suite("Model names")
+struct ModelNameTests {
+
+    // The version is the half that distinguishes two sessions. Cutting at the
+    // first dash — the first implementation — kept only the half that cannot.
+    @Test("the family keeps its version")
+    func keepsVersion() {
+        #expect(ModelName.short("claude-opus-5") == "opus 5")
+        #expect(ModelName.short("claude-sonnet-5") == "sonnet 5")
+        #expect(ModelName.short("claude-opus-4-8") == "opus 4.8")
+        #expect(ModelName.short("claude-haiku-4-5") == "haiku 4.5")
+    }
+
+    @Test("a build date is not a model")
+    func dropsDateStamp() {
+        #expect(ModelName.short("claude-haiku-4-5-20251001") == "haiku 4.5")
+    }
+
+    // `[1m]` selects the context window, which the panel already shows as a
+    // gauge. It is configuration, not identity.
+    @Test("the window marker is not part of the name")
+    func dropsWindowMarker() {
+        #expect(ModelName.short("claude-opus-5[1m]") == "opus 5")
+        #expect(ModelName.short("opus[1m]") == "opus")
+    }
+
+    @Test("an unknown shape is shown as it came")
+    func unknownIsUntouched() {
+        #expect(ModelName.short("gpt-5") == "gpt 5")
+        #expect(ModelName.short("mistral") == "mistral")
+        #expect(ModelName.short("") == "")
+    }
+}

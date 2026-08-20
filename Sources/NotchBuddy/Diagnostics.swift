@@ -237,7 +237,20 @@ enum Diagnostics {
                 }
             }
         case .noCredentials: print("  pas de jeton lisible")
-        case let .rateLimited(after): print(String(format: "  limité, réessai dans %.0f s", after))
+        case let .rateLimited(after):
+            // The header is a floor, not a schedule: measured on 2026-08-20 the
+            // endpoint refuses with `retry-after: 0`, so what the app will
+            // actually wait is its own backoff.
+            print(String(format: "  limité (retry-after %.0f s) → attente réelle %.0f s min",
+                         after, UsageState.backoffFloor))
+            if let cached = UsageCache().load() {
+                let age = Int(Date().timeIntervalSince(cached.fetchedAt) / 60)
+                print(String(format: "  dernière lecture en cache : %.0f %% / %.0f %% il y a %d min",
+                             cached.fiveHour?.utilisation ?? -1,
+                             cached.sevenDay?.utilisation ?? -1, age))
+            } else {
+                print("  aucune lecture en cache")
+            }
         case let .failed(reason): print("  échec : \(reason)")
         }
 

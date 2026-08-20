@@ -125,3 +125,50 @@ struct PillLayoutTests {
         #expect(PillLayout.measure("", size: 13, weight: .bold) == 0)
     }
 }
+
+/// A manifest can now ask for anything — the expression editor makes a 40 pt
+/// face two clicks away — so the pill has a ceiling and the buddy gives way.
+@Suite("Oversized buddies")
+@MainActor
+struct OversizedBuddyTests {
+
+    private func giant() -> BuddyManifest {
+        BuddyFile.parse("""
+        size: 40
+
+        idle (x #FFFFFF)
+        (⊙▂⊙)(⊙▂⊙)(⊙▂⊙)
+        """, id: "giant", name: "Giant").manifest!
+    }
+
+    @Test("an ear never grows past the cap, whatever the buddy asks")
+    func slotIsCapped() {
+        let layout = PillLayout.resolve(geometry: notched, buddy: giant(), sessionCount: 1)
+        #expect(layout.leftWidth == PillLayout.maxSlotWidth)
+        #expect(layout.rightWidth == PillLayout.maxSlotWidth)
+    }
+
+    @Test("the content box is the slot minus its padding")
+    func contentBox() {
+        let layout = PillLayout.resolve(geometry: notched, buddy: giant(), sessionCount: 1)
+        let box = layout.contentBox()
+        #expect(box.width == PillLayout.maxSlotWidth - PillLayout.slotPadding * 2)
+        #expect(box.height < layout.height)
+        #expect(box.height > 0)
+    }
+
+    // The vertical half of the fit: a 40 pt face is taller than a 38 pt notch,
+    // so the scale has to come from the height even when the width fits.
+    @Test("a line is taller than its point size")
+    func lineHeightExceedsPointSize() {
+        #expect(PillLayout.lineHeight(size: 40, family: nil) > 40)
+        #expect(PillLayout.lineHeight(size: 12, family: nil) > 12)
+    }
+
+    @Test("the shipped buddies are unaffected by the cap")
+    func shippedBuddiesFit() {
+        let layout = PillLayout.resolve(
+            geometry: notched, buddy: BuiltInBuddy.manifest, sessionCount: 2)
+        #expect(layout.leftWidth < PillLayout.maxSlotWidth)
+    }
+}

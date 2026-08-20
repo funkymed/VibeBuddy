@@ -127,9 +127,12 @@ struct NotchShellView: View {
 
     @ViewBuilder
     private var buddyContent: some View {
-        if let buddy {
+        if let buddy, let layout {
+            // The slot is capped, the notch's height is the hardware's. Handing
+            // the box to `BuddyView` is what lets an oversized manifest shrink
+            // to fit instead of overflowing the pill it lives in.
             BuddyView(manifest: buddy, expression: expression, budget: budget,
-                      pixelSize: pixelSize)
+                      pixelSize: pixelSize, fit: layout.contentBox())
         }
     }
 

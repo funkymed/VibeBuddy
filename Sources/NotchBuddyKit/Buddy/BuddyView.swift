@@ -29,6 +29,14 @@ public struct BuddyView: View {
     /// constant since RFC-010: it changes how coarse the face looks, never how
     /// large it is drawn.
     private let pixelSize: CGFloat
+    /// Box the face must stay inside, when the caller knows one.
+    ///
+    /// The pill's ear is capped (`PillLayout.maxSlotWidth`) and the notch's
+    /// height is fixed by the hardware, so a manifest asking for 40 pt has to
+    /// give way somewhere. Scaling is the only option that keeps the face a
+    /// face: clipping cuts a kaomoji in half, and a half kaomoji reads as a
+    /// rendering fault rather than as an expression.
+    private let fit: CGSize?
 
     /// When the current expression began, so transient motions play from their
     /// start rather than from wherever a shared clock happened to be.
@@ -38,12 +46,14 @@ public struct BuddyView: View {
         manifest: BuddyManifest,
         expression: BuddyExpression,
         budget: AnimationBudget,
-        pixelSize: Double = Double(BuddyView.defaultPixelSize)
+        pixelSize: Double = Double(BuddyView.defaultPixelSize),
+        fit: CGSize? = nil
     ) {
         self.manifest = manifest
         self.expression = expression
         self.budget = budget
         self.pixelSize = CGFloat(pixelSize)
+        self.fit = fit
     }
 
     private var settings: BuddyManifest.Expression? {
@@ -93,14 +103,36 @@ public struct BuddyView: View {
             .max() ?? 0
     }
 
+    /// How much the face has to shrink to sit inside `fit`.
+    ///
+    /// Never above 1: a face smaller than its box is drawn at its own size. The
+    /// widest frame of the *current* expression decides, so the scale holds for
+    /// a whole animation instead of pulsing once a second.
+    private var fitScale: CGFloat {
+        guard let fit, fit.width > 0, fit.height > 0, let settings else { return 1 }
+        let size = manifest.size(for: settings)
+        let naturalWidth = reservedWidth
+        let naturalHeight = PillLayout.lineHeight(size: size, family: manifest.font)
+        guard naturalWidth > 0, naturalHeight > 0 else { return 1 }
+        return min(1, fit.width / naturalWidth, fit.height / naturalHeight)
+    }
+
     public var body: some View {
         TimelineView(.animation(minimumInterval: interval, paused: tier == .still)) { timeline in
             let phase = tier == .still ? 0 : timeline.date.timeIntervalSince(startedAt)
             let motion = (settings?.motion ?? .none).transform(at: phase)
 
+            let fitted = fitScale
+
             face(phase: phase)
                 .modifier(PixelGrid(colour: colour, pitch: pixelSize))
                 .frame(width: reservedWidth > 0 ? reservedWidth : nil, alignment: .leading)
+                // Fit first, then motion. The other order would make a bouncing
+                // buddy grow past the box it was just fitted into.
+                .scaleEffect(fitted, anchor: .leading)
+                .frame(
+                    width: reservedWidth > 0 ? reservedWidth * fitted : nil,
+                    alignment: .leading)
                 .scaleEffect(motion.scale)
                 .offset(x: motion.offset.width + motion.gaze.width * 0.4,
                         y: motion.offset.height)

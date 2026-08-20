@@ -27,6 +27,10 @@ if let benchIndex = args.firstIndex(of: "--bench") {
     }
 }
 
+if args.contains("--hover") {
+    MainActor.assumeIsolated { HoverDiagnostics.run() }
+}
+
 if args.contains("--info") {
     MainActor.assumeIsolated { Diagnostics.run() }
 }

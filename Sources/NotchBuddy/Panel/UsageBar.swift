@@ -99,6 +99,16 @@ struct UsageSection: View {
     let l10n: Strings
     let locale: Locale
 
+    /// How old the reading is, taken from the reading itself.
+    ///
+    /// Computed here rather than plumbed down from `UsageState`: the timestamp
+    /// travels inside `ClaudeUsage`, so passing it separately would be a second
+    /// copy of the same fact — and the one that goes stale.
+    private var age: TimeInterval? {
+        guard case let .ready(usage) = state else { return nil }
+        return Date().timeIntervalSince(usage.fetchedAt)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 9) {
             HStack(spacing: 7) {
@@ -110,6 +120,14 @@ struct UsageSection: View {
                     Text(reason)
                         .font(.system(size: 11))
                         .foregroundStyle(.orange.opacity(0.8))
+                }
+                // Said only once it matters. A reading a few seconds old is
+                // current; one from twenty minutes ago is worth knowing about,
+                // because the endpoint refuses far more often than it answers.
+                if let age, age > 120, case let .ready(usage) = state {
+                    Text(l10n.usageAge(SessionRow.duration(since: usage.fetchedAt)))
+                        .font(.system(size: 11))
+                        .foregroundStyle(.white.opacity(0.35))
                 }
             }
 

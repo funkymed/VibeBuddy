@@ -23,6 +23,12 @@ public struct Strings: Sendable {
     /// Bare state word, for the header's compact fraction — the count is the
     /// fraction itself, so the label must not carry one of its own.
     public let stateWorking: String
+    public let stateIdle: String
+    public let stateAwaiting: String
+    public let stateFinished: String
+    public let stateFailed: String
+    /// A session whose process is gone. History, not a state to act on.
+    public let stateEnded: String
     public let quit: String
 
     // Sessions
@@ -49,6 +55,8 @@ public struct Strings: Sendable {
     public let usageWeek: String
     public let usageLoading: String
     public let usageRateLimited: String
+    /// How old the reading on screen is. Shown only past a couple of minutes.
+    public let usageAge: @Sendable (String) -> String
     public let usageSignedOut: String
 
     // Settings
@@ -64,8 +72,6 @@ public struct Strings: Sendable {
     public let alertFailed: String
     /// Right ear of the pill when the agent is waiting on an answer.
     public let alertWaiting: String
-    /// Badge on the row of a session that asked something.
-    public let waitingBadge: String
 
     public static let french = Strings(
         noSessions: "aucune session",
@@ -73,6 +79,11 @@ public struct Strings: Sendable {
         sessionsWorking: { "\($0) en cours" },
         sessionsWaiting: { "\($0) en attente" },
         stateWorking: "en cours",
+        stateIdle: "au repos",
+        stateAwaiting: "question",
+        stateFinished: "terminé",
+        stateFailed: "erreur",
+        stateEnded: "arrêtée",
         quit: "Quitter notch-buddy",
         sessionsTitle: "SESSIONS",
         filterPlaceholder: "Filtrer les sessions…",
@@ -90,6 +101,7 @@ public struct Strings: Sendable {
         usageWeek: "semaine",
         usageLoading: "lecture…",
         usageRateLimited: "limité",
+        usageAge: { "il y a \($0)" },
         usageSignedOut: "non connecté",
         settingsLanguage: "Langue",
         settingsLanguageSystem: { "Suit macOS : \($0)" },
@@ -99,8 +111,7 @@ public struct Strings: Sendable {
         settingsOpenFolder: "Ouvrir le dossier",
         alertFinished: "terminé",
         alertFailed: "erreur",
-        alertWaiting: "attend une réponse",
-        waitingBadge: "question"
+        alertWaiting: "attend une réponse"
     )
 
     public static let english = Strings(
@@ -109,6 +120,11 @@ public struct Strings: Sendable {
         sessionsWorking: { "\($0) working" },
         sessionsWaiting: { "\($0) waiting" },
         stateWorking: "working",
+        stateIdle: "idle",
+        stateAwaiting: "question",
+        stateFinished: "done",
+        stateFailed: "error",
+        stateEnded: "ended",
         quit: "Quit notch-buddy",
         sessionsTitle: "SESSIONS",
         filterPlaceholder: "Filter sessions…",
@@ -126,6 +142,7 @@ public struct Strings: Sendable {
         usageWeek: "week",
         usageLoading: "loading…",
         usageRateLimited: "rate limited",
+        usageAge: { "\($0) ago" },
         usageSignedOut: "signed out",
         settingsLanguage: "Language",
         settingsLanguageSystem: { "Follows macOS: \($0)" },
@@ -135,8 +152,7 @@ public struct Strings: Sendable {
         settingsOpenFolder: "Open folder",
         alertFinished: "done",
         alertFailed: "error",
-        alertWaiting: "needs an answer",
-        waitingBadge: "question"
+        alertWaiting: "needs an answer"
     )
 
     public static func `for`(_ language: AppLanguage) -> Strings {

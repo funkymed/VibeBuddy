@@ -11,9 +11,9 @@ import Foundation
 /// A missing window renders as "unavailable", never as zero. Showing 0 % when
 /// the truth is unknown is worse than showing nothing, because 0 % looks like
 /// good news.
-public struct ClaudeUsage: Sendable, Equatable {
+public struct ClaudeUsage: Sendable, Equatable, Codable {
 
-    public struct Window: Sendable, Equatable {
+    public struct Window: Sendable, Equatable, Codable {
         /// 0…100.
         public let utilisation: Double
         public let resetsAt: Date?
