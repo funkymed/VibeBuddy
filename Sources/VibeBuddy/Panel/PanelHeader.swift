@@ -1,5 +1,5 @@
 import SwiftUI
-import NotchBuddyKit
+import VibeBuddyKit
 
 /// Top row of the expanded panel: who we are, what is happening, how to quit.
 ///

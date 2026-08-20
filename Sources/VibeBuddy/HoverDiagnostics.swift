@@ -1,5 +1,5 @@
 import AppKit
-import NotchBuddyKit
+import VibeBuddyKit
 
 /// Prints the regions that arm the hover, for each state, without a mouse.
 ///
@@ -20,7 +20,7 @@ enum HoverDiagnostics {
         // comes from them, so a bare panel measures a shape nobody ever sees.
         var loader = BuddyLoader()
         panel.setBuddy(loader.load(
-            id: UserDefaults.standard.string(forKey: "notchbuddy.buddy") ?? "emoji").manifest)
+            id: UserDefaults.standard.string(forKey: "vibebuddy.buddy") ?? "emoji").manifest)
         panel.setSessionCount(2)
         panel.show()
         settle(0.4)

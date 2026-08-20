@@ -1,5 +1,5 @@
 import SwiftUI
-import NotchBuddyKit
+import VibeBuddyKit
 
 /// Which build is reading the files on disk.
 ///

@@ -72,7 +72,7 @@ seulement ici.
 ## 3. Proposed Solution
 
 Deux cibles exécutables dans le même `Package.swift` (décision D4) :
-`vibebuddy` (AppKit/SwiftUI) et **`notch-hook` (dépendances : `Foundation`,
+`vibebuddy` (AppKit/SwiftUI) et **`vibe-hook` (dépendances : `Foundation`,
 `Darwin` — `import AppKit` interdit)**, avec un fichier `HookProtocol.swift`
 partagé par les deux.
 
@@ -141,7 +141,7 @@ horodatée est ce qui rend l'erreur réparable.
 | # | Tâche | Statut | % |
 |---|---|---|---|
 | T1 | Spike : un hook trivial reçoit-il un `PermissionRequest` et sa décision est-elle honorée ? (Q1) | **in-progress** | **60** — voir [`docs/spikes/hook-contract.md`](../spikes/hook-contract.md) |
-| T2 | Deuxième cible `notch-hook` + `HookProtocol.swift` partagé + garde-fou anti-`import AppKit` | todo | 0 |
+| T2 | Deuxième cible `vibe-hook` + `HookProtocol.swift` partagé + garde-fou anti-`import AppKit` | todo | 0 |
 | T3 | `HookSocketServer` (actor) : bind, `chmod 0600`, accept, ligne-JSON | todo | 0 |
 | T4 | Détection de déconnexion du pair en `DispatchSource` | todo | 0 |
 | T5 | Client : stdin → socket → stdout, `SO_RCVTIMEO`, `exit(0)` sur tout imprévu | todo | 0 |

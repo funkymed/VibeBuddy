@@ -1,5 +1,5 @@
 import SwiftUI
-import NotchBuddyKit
+import VibeBuddyKit
 
 /// The settings window: a sidebar, and one section at a time.
 ///
@@ -55,7 +55,7 @@ struct SettingsShell: View {
     /// Persisted so reopening the window returns where it was left. A settings
     /// window that always reopens on page one makes changing two related
     /// settings a navigation exercise.
-    @AppStorage("notchbuddy.settings.tab") private var selectedRaw: String = Tab.general.rawValue
+    @AppStorage("vibebuddy.settings.tab") private var selectedRaw: String = Tab.general.rawValue
 
     private var selection: Binding<Tab> {
         Binding(

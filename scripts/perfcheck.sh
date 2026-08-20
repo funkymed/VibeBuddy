@@ -53,7 +53,7 @@ BENCH_PID=$!
 # needs no privileges for a process we own.
 if [ "$SCENARIO" = "A" ] && [ "$SECONDS_TOTAL" -ge 40 ]; then
   sleep 10
-  APP_PID="$(pgrep -P $BENCH_PID -x NotchBuddy 2>/dev/null || echo $BENCH_PID)"
+  APP_PID="$(pgrep -P $BENCH_PID -x VibeBuddy 2>/dev/null || echo $BENCH_PID)"
   sample "$APP_PID" 20 -f "${OUT%.csv}.sample.txt" >/dev/null 2>&1 || true
 fi
 

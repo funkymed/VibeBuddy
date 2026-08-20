@@ -54,11 +54,11 @@ n'empêche d'en ajouter une huitième.
 ## 3. Proposed Solution
 
 Deux cibles exécutables dans un `Package.swift` unique (`vibebuddy` et
-`notch-hook`, cf. RFC-006 et décision D4), plus un module de code partagé.
+`vibe-hook`, cf. RFC-006 et décision D4), plus un module de code partagé.
 
 | Module | Responsabilité |
 |---|---|
-| `NotchBuddyApp` | `@main`, ~20 l. Miroir de `NotchPilotApp.swift:15-19` (`setActivationPolicy(.accessory)`) **sans** la branche `--hook`. |
+| `VibeBuddyApp` | `@main`, ~20 l. Miroir de `NotchPilotApp.swift:15-19` (`setActivationPolicy(.accessory)`) **sans** la branche `--hook`. |
 | `AppCoordinator` | Possède le graphe d'objets. Écoute `NSWorkspace.willSleepNotification`, `didWakeNotification`, `sessionDidResignActiveNotification` — et **suspend tout** sur les deux premiers. |
 | `WakeCoordinator` | **Le seul émetteur de tics de l'app.** `func schedule(_ client: WakeClient, cadence: Cadence)` avec `Cadence = .off \| .lazy(30s) \| .idle(5s) \| .active(1s)`. |
 | `AnimationBudget` | `@Observable`. Expose `frameRate: Double` (0 / 8 / 30) et `allowsImplicitAnimations: Bool`. Consommé par RFC-005 et par toute vue tentée par un `repeatForever`. |
@@ -70,7 +70,7 @@ Deux cibles exécutables dans un `Package.swift` unique (`vibebuddy` et
 
 | Métrique | Seuil | Commande |
 |---|---|---|
-| Réveils inactifs au repos | **< 2/s** | `powermetrics --samplers tasks -n 1 \| grep NotchBuddy` |
+| Réveils inactifs au repos | **< 2/s** | `powermetrics --samplers tasks -n 1 \| grep VibeBuddy` |
 | Réveils, écran verrouillé | **0** | idem |
 | `fork`/`exec` au repos | **0** | `sample <pid> 30` puis grep `posix_spawn` |
 | CPU au repos | < 0,5 % | `ps -o %cpu= -p <pid>` |
@@ -106,7 +106,7 @@ tenir le rend décoratif. On mesure, puis on tranche (question ouverte Q1).
 |---|---|---|---|
 | T1 | **Mesurer un `NSPanel` + `NSHostingView` vide** (RSS, CPU, réveils). Livrable : [`docs/perf/2026-08-19-D5-swiftui-floor.md`](../perf/2026-08-19-D5-swiftui-floor.md). Conditionne Q1. | **done** | **100** |
 | T2 | `Package.swift` deux cibles + module partagé | **done** | **100** |
-| T3 | `NotchBuddyApp` + `AppCoordinator` + suspension sur `willSleep` / verrouillage | **done** | **100** |
+| T3 | `VibeBuddyApp` + `AppCoordinator` + suspension sur `willSleep` / verrouillage | **done** | **100** |
 | T4 | `WakeCoordinator` + `Cadence` + tests unitaires de cadence | **done** | **100** |
 | T5 | `AnimationBudget` | **done** | **100** |
 | T6 | `NotchGeometry.resolve()` unique | **done** | **100** |
@@ -139,7 +139,7 @@ cours.
 
 **Non. SwiftUI est retenu, la pastille reste en `NSHostingView`.**
 
-Mesuré sur macOS 26.5, `NotchBuddy --bench`, 60 s, échantillonné depuis
+Mesuré sur macOS 26.5, `VibeBuddy --bench`, 60 s, échantillonné depuis
 l'intérieur du process :
 
 | Mode | RSS crête | `phys_footprint` crête | Réveils inactifs |
@@ -165,7 +165,7 @@ Trois cadences se justifient si la latence perçue le demande ; sinon `.lazy` et
 
 ```sh
 # Instrumenter les transitions de cadence sur une session de travail réelle :
-log stream --predicate 'subsystem == "fr.funkylab.notchbuddy" AND category == "wake"' --style compact
+log stream --predicate 'subsystem == "fr.funkylab.vibebuddy" AND category == "wake"' --style compact
 ```
 
 **Q3 — Faut-il suspendre aussi sur `NSWorkspace.screensDidSleepNotification` ?**

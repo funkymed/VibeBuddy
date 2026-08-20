@@ -1,5 +1,5 @@
 import AppKit
-import NotchBuddyKit
+import VibeBuddyKit
 
 /// Owns the object graph and the app's relationship with the system.
 ///

@@ -1,5 +1,5 @@
 import Foundation
-import NotchBuddyKit
+import VibeBuddyKit
 
 /// Drives `SessionStore` from its two clocks.
 ///

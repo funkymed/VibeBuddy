@@ -1,5 +1,5 @@
 import AppKit
-import NotchBuddyKit
+import VibeBuddyKit
 
 // Entry point.
 //

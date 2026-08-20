@@ -1,5 +1,5 @@
 import AppKit
-import NotchBuddyKit
+import VibeBuddyKit
 
 /// Tracks whether the pointer is over the pill.
 ///

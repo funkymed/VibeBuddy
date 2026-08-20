@@ -1,5 +1,5 @@
 import SwiftUI
-import NotchBuddyKit
+import VibeBuddyKit
 
 /// Which alerts interrupt, and how they are rendered.
 ///

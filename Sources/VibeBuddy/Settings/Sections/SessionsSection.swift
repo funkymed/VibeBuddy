@@ -1,5 +1,5 @@
 import SwiftUI
-import NotchBuddyKit
+import VibeBuddyKit
 
 /// How the session list behaves.
 struct SessionsSection: View {

@@ -147,7 +147,7 @@ Code jusqu'au timeout. C'est l'invariant le plus important de la RFC.
 
 ```sh
 # Vérifier qu'aucun descripteur ne fuit après un cycle de 20 demandes :
-lsof -p $(pgrep -x NotchBuddy) | grep -c unix
+lsof -p $(pgrep -x VibeBuddy) | grep -c unix
 # Relever avant / après, l'écart doit être nul.
 ```
 

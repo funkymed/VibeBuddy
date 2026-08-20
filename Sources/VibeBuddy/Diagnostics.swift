@@ -1,5 +1,5 @@
 import AppKit
-import NotchBuddyKit
+import VibeBuddyKit
 
 /// `--info` — what the app resolved about this machine, and what it currently
 /// costs. Exists so the geometry and wake budget can be checked against reality
@@ -76,7 +76,7 @@ enum Diagnostics {
             print("\n── disposition de la pastille ──")
         if let g = NotchGeometry.resolve() {
             var loader = BuddyLoader()
-            let buddy = loader.load(id: UserDefaults.standard.string(forKey: "notchbuddy.buddy") ?? "emoji").manifest
+            let buddy = loader.load(id: UserDefaults.standard.string(forKey: "vibebuddy.buddy") ?? "emoji").manifest
             for (label, count, alert) in [("repos", 0, String?.none), ("2 sessions", 2, nil),
                                           ("10 sessions", 10, nil),
                                           ("alerte", 2, "notch terminé")] {
@@ -194,7 +194,7 @@ enum Diagnostics {
             value == value.rounded() ? String(Int(value)) : String(value)
         }
         let installed = BuddyLoader.available()
-        let active = UserDefaults.standard.string(forKey: "notchbuddy.buddy") ?? "emoji"
+        let active = UserDefaults.standard.string(forKey: "vibebuddy.buddy") ?? "emoji"
         for manifest in installed {
             let mark = manifest.id == active ? "●" : "○"
             let frames = manifest.expressions.values.map(\.frames.count).reduce(0, +)

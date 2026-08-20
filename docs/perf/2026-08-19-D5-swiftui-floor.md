@@ -11,7 +11,7 @@ relever la cible à ~55 Mo ou faire la pastille en `CALayer` pur.
 
 ## Protocole
 
-`NotchBuddy --bench <mode> 60`, échantillonnage toutes les 5 s depuis l'intérieur
+`VibeBuddy --bench <mode> 60`, échantillonnage toutes les 5 s depuis l'intérieur
 du process (`task_info`, aucun sous-process, aucun `sudo`).
 
 - `shell` — `NSApplication` en `.accessory`, aucune fenêtre.

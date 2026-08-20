@@ -1,6 +1,6 @@
 import AppKit
 import AVFoundation
-import NotchBuddyKit
+import VibeBuddyKit
 
 /// Speaks an alert, and only builds a speech engine if it ever has to.
 ///

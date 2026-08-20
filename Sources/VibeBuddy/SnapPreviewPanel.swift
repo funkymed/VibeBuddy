@@ -1,5 +1,5 @@
 import AppKit
-import NotchBuddyKit
+import VibeBuddyKit
 
 /// Translucent ghost showing where the pill will land if released now.
 ///

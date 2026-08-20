@@ -1,5 +1,5 @@
 import SwiftUI
-import NotchBuddyKit
+import VibeBuddyKit
 
 /// What the pill and the panel put on screen.
 struct DisplaySection: View {

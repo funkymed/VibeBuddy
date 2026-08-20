@@ -2,7 +2,7 @@
 import PackageDescription
 
 let package = Package(
-    name: "NotchBuddy",
+    name: "VibeBuddy",
     platforms: [.macOS(.v14)],
     targets: [
         // Foundation-only. Shared by the app and the hook executable.
@@ -10,35 +10,35 @@ let package = Package(
         // Claude Code on every tool call, and dyld would load AppKit before
         // main() ever runs. See RFC-006, decision D4.
         .target(
-            name: "NotchHookProtocol",
-            path: "Sources/NotchHookProtocol"
+            name: "VibeHookProtocol",
+            path: "Sources/VibeHookProtocol"
         ),
 
         // App-side core: wake governance, animation budget, notch geometry,
         // performance probe. No UI.
         .target(
-            name: "NotchBuddyKit",
-            path: "Sources/NotchBuddyKit"
+            name: "VibeBuddyKit",
+            path: "Sources/VibeBuddyKit"
         ),
 
         .executableTarget(
             name: "VibeBuddy",
-            dependencies: ["NotchBuddyKit", "NotchHookProtocol"],
+            dependencies: ["VibeBuddyKit", "VibeHookProtocol"],
             path: "Sources/VibeBuddy"
         ),
 
         // Stub until RFC-006. Kept here so the two-target layout — and the
         // no-AppKit constraint — is enforced from day one.
         .executableTarget(
-            name: "notch-hook",
-            dependencies: ["NotchHookProtocol"],
-            path: "Sources/NotchHook"
+            name: "vibe-hook",
+            dependencies: ["VibeHookProtocol"],
+            path: "Sources/VibeHook"
         ),
 
         .testTarget(
-            name: "NotchBuddyKitTests",
-            dependencies: ["NotchBuddyKit"],
-            path: "Tests/NotchBuddyKitTests"
+            name: "VibeBuddyKitTests",
+            dependencies: ["VibeBuddyKit"],
+            path: "Tests/VibeBuddyKitTests"
         ),
     ]
 )

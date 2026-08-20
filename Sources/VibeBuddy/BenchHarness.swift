@@ -1,6 +1,6 @@
 import AppKit
 import SwiftUI
-import NotchBuddyKit
+import VibeBuddyKit
 
 /// The measurement that decides question D5.
 ///

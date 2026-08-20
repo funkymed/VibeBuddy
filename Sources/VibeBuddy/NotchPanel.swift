@@ -1,6 +1,6 @@
 import AppKit
 import SwiftUI
-import NotchBuddyKit
+import VibeBuddyKit
 
 /// The window. Holds no geometry arithmetic — that lives in `NotchFrameSolver`,
 /// where it can be tested without a display.
@@ -354,7 +354,7 @@ final class NotchPanel: NSPanel {
     /// two plausible causes and one fix that fixed nothing. The pointer against
     /// both regions, at the instant one of them fires, is what settles it.
     ///
-    /// `log stream --predicate 'subsystem == "com.notchbuddy"' --info`
+    /// `log stream --predicate 'subsystem == "com.vibebuddy"' --info`
     private func logHover(source: String, hovering: Bool) {
         let mouse = NSEvent.mouseLocation
         let polled = hover.pillRect

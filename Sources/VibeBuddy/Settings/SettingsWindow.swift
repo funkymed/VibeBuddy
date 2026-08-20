@@ -1,6 +1,6 @@
 import AppKit
 import SwiftUI
-import NotchBuddyKit
+import VibeBuddyKit
 
 /// A real macOS window, deliberately unlike the notch panel.
 ///

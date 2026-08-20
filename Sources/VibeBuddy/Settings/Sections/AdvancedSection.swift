@@ -1,6 +1,6 @@
 import AppKit
 import SwiftUI
-import NotchBuddyKit
+import VibeBuddyKit
 
 /// The things one needs once, and needs badly.
 struct AdvancedSection: View {

@@ -1,5 +1,5 @@
 import Foundation
-import NotchBuddyKit
+import VibeBuddyKit
 import ServiceManagement
 
 /// The login item, and an honest answer when there cannot be one.

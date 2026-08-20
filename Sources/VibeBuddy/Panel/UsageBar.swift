@@ -1,5 +1,5 @@
 import SwiftUI
-import NotchBuddyKit
+import VibeBuddyKit
 
 /// One limit window: a label, a dotted gauge, a percentage, a reset time.
 ///

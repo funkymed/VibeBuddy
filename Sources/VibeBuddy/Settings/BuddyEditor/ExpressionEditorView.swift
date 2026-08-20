@@ -1,5 +1,5 @@
 import SwiftUI
-import NotchBuddyKit
+import VibeBuddyKit
 
 /// One expression: its frames, and the four things the format lets it override.
 ///

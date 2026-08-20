@@ -1,6 +1,6 @@
 import AppKit
 import SwiftUI
-import NotchBuddyKit
+import VibeBuddyKit
 
 /// Choose a buddy, and edit every one of its expressions.
 ///
