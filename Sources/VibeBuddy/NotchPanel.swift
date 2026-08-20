@@ -46,6 +46,15 @@ final class NotchPanel: NSPanel {
     /// Do not pin the panel open over the settings window: `.floating` (3) is
     /// below `.statusBar` (25), so the panel covers what it just opened.
     /// See RFC-002, « Notes d'implémentation ».
+    /// True from the moment the panel starts growing until it has finished.
+    ///
+    /// Both hover sources lag during the growth — the tracking area is built
+    /// against `bounds`, which follows the resize, and the probe against a rect
+    /// that is only correct once it settles. Neither is allowed to close a
+    /// panel that has not finished opening; the probe is a poll, so if the
+    /// pointer really has left it says so again on its next tick.
+    private var opening = false
+
     var suppressesHover = false {
         didSet {
             guard suppressesHover != oldValue else { return }
@@ -105,14 +114,14 @@ final class NotchPanel: NSPanel {
             guard let self, !self.suppressesHover else { return }
             self.logHover(source: "zone", hovering: hovering)
             if hovering, state == .pill { state = .panel }
-            else if !hovering, state == .panel { state = .pill }
+            else if !hovering, state == .panel, !self.opening { state = .pill }
         }
 
         hover.onChange = { [weak self] hovering in
             guard let self, !self.suppressesHover else { return }
             self.logHover(source: "sonde", hovering: hovering)
             if hovering, state == .pill { state = .panel }
-            else if !hovering, state == .panel { state = .pill }
+            else if !hovering, state == .panel, !self.opening { state = .pill }
         }
 
         refreshGeometry()
@@ -210,6 +219,12 @@ final class NotchPanel: NSPanel {
         // Destination region up front: interpolating it drops the pointer out
         // of the growing panel and collapses it mid-open.
         host.hitRegion = hitRegion(for: state)
+        // The probe needs the same treatment, and did not have it: its rect was
+        // only reassigned once the animation had finished, so for the whole
+        // growth it compared the pointer against the 38 pt pill. Moving the
+        // pointer *down into* the opening panel left that rect and collapsed it.
+        hover.pillRect = hoverRect(for: state)
+        opening = state == .panel
 
         if state.isVisible { orderFrontRegardless() }
 
@@ -296,6 +311,8 @@ final class NotchPanel: NSPanel {
         host.hitRegion = hitRegion(for: state)
         host.refreshTrackingNow()
 
+        opening = false
+
         // The panel is open and the animation is over, so whatever became of
         // the reveal work item, the content belongs on screen now. Without
         // this the shape is drawn — it always is — while both contents are
@@ -343,6 +360,16 @@ final class NotchPanel: NSPanel {
     var debugState: String { String(describing: state) }
 
     /// Screen-space rect of the visible pill, which is narrower than the window.
+    /// The rect the probe tests against, taken from where the window is
+    /// **going** rather than where it currently is.
+    private func hoverRect(for state: PanelState) -> CGRect {
+        guard let target = targetFrame(for: state) else { return pillScreenRect }
+        let width = state == .panel ? Self.panelSize.width : pillSize.width
+        return CGRect(
+            x: target.midX - width / 2, y: target.minY,
+            width: width, height: target.height)
+    }
+
     private var pillScreenRect: CGRect {
         let f = frame
         let w = state == .panel ? Self.panelSize.width : pillSize.width

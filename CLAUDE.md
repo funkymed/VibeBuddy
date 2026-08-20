@@ -83,8 +83,8 @@ le motif.
 
 | RFC | Titre | Statut | % | Jalon | Charge |
 |---|---|---|---|---|---|
-| — | [Spike](docs/spikes/) keychain + oauth-usage — bloque RFC-004 | todo | 0 % | v1 | 0,5 j |
-| — | [Spike](docs/spikes/) contrat de hook — bloque RFC-007 **seulement** | todo | 0 % | v1 | 0,5 j |
+| — | [Spike](docs/spikes/keychain-oauth-usage.md) keychain + oauth-usage — débloquait RFC-004 | **done** | **100 %** | v1 | ✔ |
+| — | [Spike](docs/spikes/hook-contract.md) contrat de hook — bloque RFC-006 **et** RFC-007 | **in-progress** | **60 %** | v1 | 0,5 j |
 | [001](docs/rfc/done/RFC-001-socle-applicatif.md) | Socle applicatif, cycle de vie, budget de performance | **done** | **100 %** | v1 | ✔ |
 | [002](docs/rfc/RFC-002-fenetre-notch.md) | Fenêtre notch : NSPanel, click-through, multi-écran | **in-progress** | **95 %** | v1 | 4-6 j |
 | [003](docs/rfc/done/RFC-003-collecte-sessions.md) | Collecte de sessions : source de vérité unique | **done** | **100 %** | v1 | ✔ |
