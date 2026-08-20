@@ -2,10 +2,10 @@
 
 | | |
 |---|---|
-| **Status** | in-progress (75 %) — liste, groupement, scroll et **saut hors tmux** livrés ; tmux et détail à écrire |
+| **Status** | in-progress (80 %) — liste, groupement, saut hors tmux et filtre de process livrés ; tmux et vue détail à écrire |
 | **Author** | Cyril Pereira |
 | **Created** | 2026-08-19 |
-| **Updated** | 2026-08-20 |
+| **Updated** | 2026-08-20 (soir) |
 | **Phase** | 5 — Confort · la liste est arrivée avec le panneau de RFC-002 |
 | **Depends on** | RFC-002, RFC-003 |
 | **Related** | RFC-006 (mapping PID) · R8 |
@@ -123,7 +123,26 @@ c'est précisément le cas simple qui n'existe plus.
 | T5b | Ligne cliquable, message de résultat, i18n | **done** | **100** |
 | T6 | `selectTmuxPane` + `findTmux` + PATH enrichi | todo | 0 |
 | T7 | `TmuxPaneIndex` avec invalidation sur changement de frontmost | todo | 0 |
-| T8 | Unification du filtre de process claude (suppression du cas `node`) | todo | 0 |
+| T8 | Unification du filtre de process claude (suppression du cas `node`) | **done** | **100** |
+| T10 | **Les sessions vivantes ne sont plus repliées** — le groupement ne masque que l'historique | **done** | **100** |
+
+### T10 — le groupement masquait ce qu'il devait montrer
+
+Constaté à l'usage avec six agents : quatre tournaient dans `~/Sites/notch`, et le
+panneau n'affichait que trois lignes. `SessionGroup.group` repliait tout un
+dossier, sessions vivantes comprises, et le badge `×4/6` était le seul indice
+qu'il en manquait quatre.
+
+Le groupement avait été introduit pour empêcher qu'une session qui tourne soit
+enterrée sous son propre historique. Il repliait aussi ce qu'il devait mettre en
+avant, alors que suivre plusieurs sessions à la fois est l'objectif n°3 du
+produit et que le dossier n'est pas l'unité de travail.
+
+Règle actuelle : chaque session vivante a sa ligne ; les mortes d'un dossier se
+replient sur la première ligne vivante de ce dossier ; un dossier sans rien qui
+tourne reste une ligne unique. `SessionGroup.id` valait le `cwd` — avec plusieurs
+lignes vivantes dans le même dossier, `ForEach` aurait supprimé les doublons en
+silence. L'identité est celle de la session affichée.
 
 **Critère de sortie.** Avec **deux** sessions Claude dans le **même** répertoire,
 cliquer sur chaque ligne active le bon volet tmux — **cinq fois de suite sans

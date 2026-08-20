@@ -1,0 +1,8 @@
+bench: mode=panel duration=300s
+
+── bench summary (panel, 300s) ──
+RSS peak            40.8 MB
+footprint peak      11.3 MB
+CPU (steady)        0.000 %
+idle wakeups/s      0.010 (dont 0.2/s de sonde)
+idle wakeups/s net  0.000

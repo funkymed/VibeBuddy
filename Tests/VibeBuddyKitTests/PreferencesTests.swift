@@ -21,7 +21,7 @@ struct PreferencesTests {
         defer { defaults.removePersistentDomain(forName: name) }
         // No legacy domain: these tests are about defaults and coalescing,
         // not about what a previous install left behind.
-        body(PreferencesStore(defaults: defaults, previous: nil), defaults)
+        body(PreferencesStore(defaults: defaults, previous: []), defaults)
     }
 
     @Test("a value reads back before it has been flushed")
@@ -182,7 +182,7 @@ struct PreferencesMigrationTests {
             store.set("emoji", forKey: "notchbuddy.buddy")
             store.set(false, forKey: "notchbuddy.alerts.voice")
 
-                _ = PreferencesStore(defaults: store, previous: nil)
+                _ = PreferencesStore(defaults: store, previous: [])
 
             #expect(store.string(forKey: "vibebuddy.buddy") == "emoji")
             #expect(store.object(forKey: "vibebuddy.alerts.voice") as? Bool == false)
@@ -200,7 +200,7 @@ struct PreferencesMigrationTests {
             store.set("emoji", forKey: "notchbuddy.buddy")
             store.set("orb", forKey: "vibebuddy.buddy")
 
-                _ = PreferencesStore(defaults: store, previous: nil)
+                _ = PreferencesStore(defaults: store, previous: [])
 
             #expect(store.string(forKey: "vibebuddy.buddy") == "orb")
             #expect(store.object(forKey: "notchbuddy.buddy") == nil)
@@ -210,7 +210,7 @@ struct PreferencesMigrationTests {
     @Test("a fresh install migrates nothing and still stamps the schema")
     func freshInstall() {
         withDefaults { store in
-                _ = PreferencesStore(defaults: store, previous: nil)
+                _ = PreferencesStore(defaults: store, previous: [])
             #expect(store.integer(forKey: PreferencesStore.schemaKey) == PreferencesStore.schema)
             #expect(store.object(forKey: "vibebuddy.buddy") == nil)
         }
@@ -220,8 +220,8 @@ struct PreferencesMigrationTests {
     func idempotent() {
         withDefaults { store in
             store.set("emoji", forKey: "notchbuddy.buddy")
-                _ = PreferencesStore(defaults: store, previous: nil)
-                _ = PreferencesStore(defaults: store, previous: nil)
+                _ = PreferencesStore(defaults: store, previous: [])
+                _ = PreferencesStore(defaults: store, previous: [])
             #expect(store.string(forKey: "vibebuddy.buddy") == "emoji")
         }
     }

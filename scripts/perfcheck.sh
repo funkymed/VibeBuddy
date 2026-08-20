@@ -23,7 +23,11 @@ cd "$(dirname "$0")/.."
 SCENARIO="${1:-A}"
 SECONDS_TOTAL="${2:-600}"
 RFC="${3:-001}"
-BIN=".build/release/VibeBuddy"
+# Defaults to the development build; a release check points it at the bundle:
+#   VIBEBUDDY_BIN=dist/VibeBuddy.app/Contents/MacOS/VibeBuddy ./scripts/perfcheck.sh A 600 011
+# Measuring the bundle matters: it is signed, and the shipped app is the one
+# whose cost the budget is about.
+BIN="${VIBEBUDDY_BIN:-.build/release/VibeBuddy}"
 OUT="docs/perf/$(date +%Y%m%d-%H%M)-${RFC}-${SCENARIO}.csv"
 
 # Budget. Gated on phys_footprint, not RSS: RSS counts framework pages shared
@@ -34,19 +38,27 @@ BUDGET_CPU_BUSY=3.0
 BUDGET_IDLE_WAKES_REST=2.0
 BUDGET_IDLE_WAKES_BUSY=30.0
 
+# Each scenario needs the bench mode that actually exercises it. The script
+# used to run `--bench panel` for all three, so B and C measured an empty panel
+# and reported 0.000 % CPU while three sessions were live — a budget that always
+# passes measures nothing.
 case "$SCENARIO" in
-  A) BUDGET_CPU=$BUDGET_CPU_REST;  BUDGET_WAKES=$BUDGET_IDLE_WAKES_REST ;;
-  B|C) BUDGET_CPU=$BUDGET_CPU_BUSY; BUDGET_WAKES=$BUDGET_IDLE_WAKES_BUSY ;;
+  A) BUDGET_CPU=$BUDGET_CPU_REST;  BUDGET_WAKES=$BUDGET_IDLE_WAKES_REST; MODE=pill ;;
+  B) BUDGET_CPU=$BUDGET_CPU_BUSY; BUDGET_WAKES=$BUDGET_IDLE_WAKES_BUSY; MODE=app ;;
+  C) BUDGET_CPU=$BUDGET_CPU_BUSY; BUDGET_WAKES=$BUDGET_IDLE_WAKES_BUSY; MODE=interaction ;;
   *) echo "unknown scenario: $SCENARIO (expected A, B or C)" >&2; exit 2 ;;
 esac
 
-[ -x "$BIN" ] || { echo "missing $BIN — run: swift build -c release" >&2; exit 1; }
+[ -x "$BIN" ] || {
+  echo "missing $BIN — run ./scripts/build.sh, or swift build -c release" >&2
+  exit 1
+}
 mkdir -p docs/perf
 
-echo "▶ scenario $SCENARIO · ${SECONDS_TOTAL}s · RFC-$RFC"
+echo "▶ scenario $SCENARIO · mode $MODE · ${SECONDS_TOTAL}s · RFC-$RFC"
 
 # --bench self-reports from inside the process and exits on its own.
-"$BIN" --bench panel "$SECONDS_TOTAL" "$SCENARIO" > "$OUT" 2> "${OUT%.csv}.log" &
+"$BIN" --bench "$MODE" "$SECONDS_TOTAL" "$SCENARIO" > "$OUT" 2> "${OUT%.csv}.log" &
 BENCH_PID=$!
 
 # One external sample() to prove no subprocess is spawned at rest. `sample`
@@ -67,13 +79,22 @@ awk -F, -v rss_budget="$BUDGET_RSS_MB" -v cpu_budget="$BUDGET_CPU" \
   NR == 1 { next }
   {
     n++
-    if ($3 > rss)  rss = $3
-    if ($4 > foot) foot = $4
+    # `+0` on both sides, every time. Without it awk compares these as text,
+    # and "104.99" <= "40" is true letter by letter — which is how this script
+    # printed PASS on a footprint two and a half times over budget.
+    if ($3+0 > rss)  rss  = $3+0
+    if ($4+0 > foot) foot = $4+0
     if (n == 1) { t0 = $2; cpu0 = $5; w0 = $7 }
     t1 = $2; cpu1 = $5; w1 = $7
   }
   END {
     if (n < 2) { print "not enough samples"; exit 1 }
+    # `+0` is load-bearing: awk receives the budgets as strings, and a
+    # string comparison made every three-digit value pass against "40"
+    # ("104.94" <= "40" is true letter by letter). Every verdict this script
+    # printed before 2026-08-20 was worth nothing.
+    rss_budget += 0; cpu_budget += 0; wake_budget += 0
+    foot += 0; rss += 0
     win = t1 - t0
     cpu = (cpu1 - cpu0) / win * 100
     # 0.2/s is the sampler itself, which belongs to the harness not the app.

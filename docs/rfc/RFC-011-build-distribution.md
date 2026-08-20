@@ -2,10 +2,10 @@
 
 | | |
 |---|---|
-| **Status** | todo (0 %) |
+| **Status** | in-progress (60 %) — bundle, icône, identité stable, signature et DMG livrés ; reste CI, README et perfcheck de release |
 | **Author** | Cyril Pereira |
 | **Created** | 2026-08-19 |
-| **Updated** | 2026-08-19 |
+| **Updated** | 2026-08-20 |
 | **Phase** | 6 — Livraison |
 | **Depends on** | RFC-006 (nom de la seconde cible) |
 | **Related** | R7 · décision « auto-signé, zéro API Accessibilité » |
@@ -106,15 +106,73 @@ Homebrew et le glisser-déposer vers `/Applications` sont mieux servis par un DM
 
 | # | Tâche | Statut | % |
 |---|---|---|---|
-| T1 | `Package.swift` deux cibles + `build.sh` universel avec vrai diagnostic d'échec | todo | 0 |
-| T2 | `generate-icon.swift` + `iconutil` | todo | 0 |
-| T3 | `Info.plist` (`LSUIElement`, `NSSupportsAutomaticGraphicsSwitching`) | todo | 0 |
-| T4 | Certificat auto-signé à CN stable, hors dépôt, **sans repli ad-hoc** | todo | 0 |
-| T5 | Signature des deux exécutables + `codesign --verify --strict --deep` | todo | 0 |
-| T6 | `make-dmg.sh` | todo | 0 |
+| T1 | `Package.swift` deux cibles + `build.sh` universel avec vrai diagnostic d'échec | **done** | **100** |
+| T2 | `generate-icon.swift` + `iconutil` | **done** | **100** |
+| T3 | `Info.plist` (`LSUIElement`, `NSSupportsAutomaticGraphicsSwitching`) | **done** | **100** |
+| T4 | Certificat auto-signé à CN stable, hors dépôt, **sans repli ad-hoc** | **done** | **100** |
+| T5 | Signature des deux exécutables + `codesign --verify --strict --deep` | **done** | **100** |
+| T6 | `make-dmg.sh` | **done** | **100** |
 | T7 | Workflow GitHub Actions + bump du cask | todo | 0 |
 | T8 | README : documenter la friction Gatekeeper et le retrait de quarantaine | todo | 0 |
 | T9 | Perfcheck de release : les 3 scénarios sur machine propre, collés dans la note de version | todo | 0 |
+| T10 | **Migration du domaine de préférences** vers l'identifiant du bundle | **done** | **100** |
+
+### Ce que l'empaquetage a appris, le 2026-08-20
+
+**Le domaine de préférences bouge avec l'empaquetage.** Un binaire nu indexe
+`UserDefaults.standard` sur le nom de l'exécutable, un bundle sur son
+identifiant. Passer au `.app` déplaçait donc les réglages une seconde fois, et
+la migration, qui ne connaissait que le domaine d'origine, restaurait des
+valeurs vieilles de deux renommages. `PreferencesStore.legacyDomains` est
+désormais une chaîne ordonnée du plus récent au plus ancien (schéma 4).
+
+**`NSImage.lockFocus` ne marche pas depuis un script.** Le rendu de l'icône
+échoue avec `CGImageDestinationFinalize failed for public.tiff` : il faut un
+`NSBitmapImageRep` et un `NSGraphicsContext` explicites.
+
+**Le PKCS#12 d'OpenSSL 3 est illisible par le trousseau.** `security import`
+répond `MAC verification failed during PKCS12 import (wrong password?)` même
+avec le bon mot de passe. Il faut `-legacy`, `-keypbe PBE-SHA1-3DES`,
+`-certpbe PBE-SHA1-3DES`, `-macalg sha1`, et une passphrase non vide.
+
+**`add-trusted-cert` : `trustRoot`, et surtout pas `-d`.** `trustAsRoot` échoue
+avec « One or more parameters were not valid » pour un certificat qui se signe
+lui-même, et `-d` écrit dans le magasin administrateur, donc demande un mot de
+passe d'administrateur. Sans confiance, `find-identity -p codesigning` ne voit
+rien et `codesign` refuse de signer.
+
+**`set-key-partition-list` bloque sans mot de passe.** Il en réclame un en
+interactif : un hang en CI, un mystère en local. Il ne s'exécute que si
+`KEYCHAIN_PASSWORD` est fourni ; sinon macOS demande une autorisation à la
+première signature.
+
+**L'ordre de signature n'est pas négociable.** Signer le bundle avant ses
+binaires imbriqués échoue avec `code object is not signed at all: In
+subcomponent .../vibe-hook`.
+
+### Verdict de `spctl`, consigné comme le demande le critère de sortie
+
+```
+$ codesign -dv --verbose=2 dist/VibeBuddy.app
+Identifier=fr.funkylab.vibebuddy
+Authority=VibeBuddy Self-Signed
+TeamIdentifier=not set
+
+$ codesign --verify --strict --deep dist/VibeBuddy.app
+dist/VibeBuddy.app: valid on disk
+dist/VibeBuddy.app: satisfies its Designated Requirement
+
+$ spctl -a -t exec -vv dist/VibeBuddy.app
+dist/VibeBuddy.app: rejected
+origin=VibeBuddy Self-Signed
+```
+
+`rejected` est le résultat **attendu** et non un échec : Gatekeeper n'accepte
+qu'une signature notariée, et la notarisation est un non-goal assumé de cette
+fiche (§2). La signature est valide, son identité est stable, et c'est cette
+stabilité qui compte — elle garde les autorisations d'une version à l'autre. Le
+premier lancement demandera un clic droit → Ouvrir, à documenter dans le README
+(T8).
 
 **Critère de sortie.** `./scripts/build.sh && ./scripts/make-dmg.sh` produit un
 DMG sur une machine propre. Le DMG installé sur un **second compte utilisateur

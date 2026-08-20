@@ -3,3 +3,5 @@ Notch-Pilot/
 dist/
 .DS_Store
 docs/hook.md
+__pycache__/
+*.pyc

@@ -44,10 +44,12 @@ enum BenchHarness {
             if mode != .hidden { n.show() }
             notch = n
         case .app:
+            // Delegate only: `NSApp.run()` posts the launch notification itself,
+            // and calling it here as well built the whole graph twice — two
+            // panels, two session coordinators, two sets of FSEvents watchers.
+            // Every `--bench app` figure before 2026-08-20 measured that double.
             let coordinator = AppCoordinator()
             NSApp.delegate = coordinator
-            coordinator.applicationDidFinishLaunching(
-                Notification(name: NSApplication.didFinishLaunchingNotification))
             coordinator.onBuddyReload = { id in
                 FileHandle.standardError.write(Data("  ↻ buddy rechargé : \(id)\n".utf8))
             }

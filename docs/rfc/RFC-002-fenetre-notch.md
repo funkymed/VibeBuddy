@@ -107,6 +107,34 @@ qui est précisément ce qui a produit les deux rustines citées.
 | T6 | Réaction à `didChangeScreenParameters` + `resolveScreen` | **in-progress** | **70** — code fait, test écran externe à faire |
 | T7 | Drag + aimants + `SnapPreviewPanel` | **done** | **100** |
 | T8 | `perfcheck.sh` scénarios A et C, comparés au plancher de RFC-001 | **done** | **100** |
+| T10 | **Trois défauts de survol corrigés** (course d'animation, zone périmée, curseur) | **done** | **100** |
+
+### T10 — le survol, trois fois de suite
+
+**La course d'animation.** `applyState` sautait le changement de cadre quand
+`frame.size == carrier`. En pleine animation la fenêtre passe par toutes les
+tailles intermédiaires, dont celle vers laquelle on revient : un repli demandé
+pendant l'ouverture prenait le raccourci, l'animation d'ouverture continuait par
+dessous, et la fenêtre finissait à 460 pt alors que l'état disait pastille. La
+bande de survol faisait donc 460 pt de haut, et le panneau s'ouvrait bien avant
+que le pointeur atteigne le noir. Une animation de durée nulle supplante
+désormais celle en vol, et chaque changement d'état porte une génération.
+
+**La zone périmée.** Le rect d'une `NSTrackingArea` ne suit pas un
+redimensionnement, et `layout()` n'est pas appelé pour un simple changement de
+cadre. La zone est reconstruite sur `setFrameSize` et réaffirmée une fois le
+cadre stabilisé.
+
+**Le pointeur déjà à l'intérieur.** Une zone de suivi n'envoie aucun événement
+d'entrée pour un pointeur déjà présent quand elle est créée. Au lancement, ou
+après chaque repli, le panneau attendait le filet à 5 s. La zone signale
+elle-même un pointeur déjà dedans.
+
+**Le curseur, enfin.** `canBecomeKey` vaut `false` : AppKit ne consulte les
+cursor rects que pour la fenêtre key, et une zone `.cursorUpdate` n'a jamais été
+livrée (zéro appel en trace live). SwiftUI déclare ses zones dans `CursorZones`,
+et `ClickThroughHostView` pose la main depuis `mouseMoved` — après la
+réinitialisation d'AppKit pour le même événement, donc sans se battre.
 
 **Critère de sortie — partiellement atteint le 2026-08-19.**
 

@@ -19,12 +19,55 @@ judged as such.
 
 ## Install and run
 
-The app is not packaged yet, it runs from the repository. RFC-011 covers that.
+```sh
+./scripts/build.sh            # dist/VibeBuddy.app, universal, signed
+./scripts/make-dmg.sh         # dist/VibeBuddy-<version>.dmg
+```
+
+Or run it straight from the checkout, without packaging:
 
 ```sh
 swift build -c release
-.build/release/VibeBuddy              # runs until Ctrl-C or the power button
+.build/release/VibeBuddy      # runs until Ctrl-C or the power button
 ```
+
+Signing needs a one-time identity, created in your login keychain and never
+stored in the repository:
+
+```sh
+./scripts/make-identity.sh
+```
+
+### The first launch will be refused, and that is expected
+
+VibeBuddy is signed with a self-signed certificate, not a notarised one.
+Notarisation costs an Apple developer account, and this project does not have
+one. So Gatekeeper says no the first time:
+
+```
+$ spctl -a -t exec -vv dist/VibeBuddy.app
+dist/VibeBuddy.app: rejected
+origin=VibeBuddy Self-Signed
+```
+
+Open it once with **right-click → Open**, confirm, and macOS remembers. Every
+later launch is normal.
+
+What the signature does buy is a **stable identity**: permissions you grant
+survive updates. An ad-hoc signature changes identity on every build, which
+revokes them every time.
+
+If a future release ships through Homebrew, its cask will remove the quarantine
+flag for you:
+
+```sh
+xattr -dr com.apple.quarantine /Applications/VibeBuddy.app
+```
+
+That command disables a protection macOS applied on purpose. It is written here
+rather than run silently in a postflight script, because turning off someone's
+security check without telling them is not acceptable — even when the binary is
+your own.
 
 Buddies live outside the binary, in
 `~/Library/Application Support/VibeBuddy/buddies/`. To edit the ones in the

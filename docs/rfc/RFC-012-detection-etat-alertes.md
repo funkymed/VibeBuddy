@@ -5,7 +5,7 @@
 | **Status** | in-progress (95 %) — chemin complet vérifié en réel ; **l'attente de réponse est détectée** |
 | **Author** | Cyril Pereira |
 | **Created** | 2026-08-19 |
-| **Updated** | 2026-08-20 |
+| **Updated** | 2026-08-20 (soir) |
 | **Phase** | 4 — Intégration |
 | **Depends on** | RFC-003 · ~~RFC-006~~ — voir §3 |
 | **Related** | RFC-005 (expression du buddy) · RFC-010 (préférences) · R11 |
@@ -160,6 +160,33 @@ site d'appel. Le bus coûte ~40 lignes maintenant.
 | T7 | Suivi simultané de N sessions, chacune son état | **done** | **100** |
 | T8 | `perfcheck.sh` B — vérifier que rien n'ajoute de réveil | **done** | **100** |
 | T10 | **Attente de réponse** : `tool_use` de question sans `tool_result` → `.awaiting` + `needsAttention` | **done** | **100** |
+| T11 | **Silence au démarrage à froid** — la première vue d'une session n'annonce rien | **done** | **100** |
+| T12 | Un seul encodage de l'ordre de priorité (`SessionDisplayState` dans le Kit) | **done** | **100** |
+
+### T11 — l'app annonçait des nouvelles vieilles de plusieurs minutes
+
+`AlertTracker.ingest` traitait une session jamais vue comme étant au repos, puis
+constatait « tour terminé » : une transition, donc une alerte. Au lancement,
+*tous* les transcripts sont nouveaux — n'importe quel tour fini avant le
+démarrage déclenchait « terminé » à l'écran, et la pastille restait bloquée en
+état d'alerte pendant ses quatre secondes.
+
+La première vue d'une session enregistre son état sans rien annoncer. Le silence
+est par session : si `a` finit sous nos yeux dans le même instantané où `b`
+apparaît déjà finie, seul `a` alerte.
+
+### T12 — la règle était écrite quatre fois, et les quatre divergeaient
+
+`SessionStateMachine`, `SessionStateStyle`, l'agrégat d'`AppCoordinator` et le
+compteur de `PanelHeader` encodaient chacun leur ordre de priorité. Conséquences
+constatées : l'agrégat ne lisait jamais `lastResultWasError`, donc l'expression
+`.failed` n'était jamais demandée — le visage « erreur » de chaque `.buddy` et
+`MotionKind.shake` étaient du code mort dans la pastille. Et « terminé » était
+orange dans le panneau, vert dans la bulle de la pastille.
+
+`SessionDisplayState` (Kit, pure, testée) porte l'ordre unique :
+question > erreur > outil ou sous-agent en vol > tour terminé > repos. Les
+quatre sites s'y branchent. « Terminé » est orange partout.
 
 ### T10 — le cinquième signal, encore dans le transcript
 

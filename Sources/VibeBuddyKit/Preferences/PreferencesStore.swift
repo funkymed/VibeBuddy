@@ -14,16 +14,19 @@ public final class PreferencesStore {
     public static let coalescingDelay: TimeInterval = 0.25
 
     /// Current schema. Bump when a key changes meaning, and add a migration.
-    public static let schema = 3
+    public static let schema = 4
     static let schemaKey = "vibebuddy.schema"
 
     static let legacyPrefix = "notchbuddy."
     static let prefix = "vibebuddy."
 
-    /// Domain the settings lived in before the executable was renamed. For an
-    /// unbundled binary `UserDefaults.standard` is keyed on the executable name,
-    /// so renaming the binary strands every setting in the old plist.
-    public static let legacyDomain = "NotchBuddy"
+    /// Domains this app wrote to before, newest first.
+    ///
+    /// An unbundled binary keys `UserDefaults.standard` on the executable name,
+    /// a bundle keys it on its identifier — so both spellings hold real
+    /// settings. Packaging the app moved the domain a second time, and reading
+    /// only the oldest one restored values from two renames ago.
+    public static let legacyDomains = ["VibeBuddy", "NotchBuddy"]
 
     private let defaults: UserDefaults
     private var pending: [String: Any] = [:]
@@ -31,14 +34,15 @@ public final class PreferencesStore {
     public private(set) var writeCount = 0
 
     /// Injectable so tests do not inherit the developer's own settings.
-    private let previous: UserDefaults?
+    private let previousDomains: [UserDefaults]
 
     public init(
         defaults: UserDefaults = .standard,
-        previous: UserDefaults? = UserDefaults(suiteName: PreferencesStore.legacyDomain)
+        previous: [UserDefaults] = PreferencesStore.legacyDomains
+            .compactMap { UserDefaults(suiteName: $0) }
     ) {
         self.defaults = defaults
-        self.previous = previous
+        self.previousDomains = previous
         migrate()
     }
 
@@ -102,17 +106,25 @@ public final class PreferencesStore {
         let stored = defaults.integer(forKey: Self.schemaKey)
         guard stored != Self.schema else { return }
 
-        if stored < 3 {
+        if stored < 4 {
             for key in Self.allKeys where key.hasPrefix(Self.prefix) {
                 let legacy = Self.legacyPrefix + key.dropFirst(Self.prefix.count)
-                // Three places, newest first: old prefix here, then the previous
-                // executable's domain under either prefix.
-                let value = defaults.object(forKey: legacy)
-                    ?? previous?.object(forKey: legacy)
-                    ?? previous?.object(forKey: key)
+                // This domain under the old prefix first, then each previous
+                // domain in order of recency, under either prefix.
+                var value = defaults.object(forKey: legacy)
+                if value == nil {
+                    for domain in previousDomains {
+                        value = domain.object(forKey: key) ?? domain.object(forKey: legacy)
+                        if value != nil { break }
+                    }
+                }
                 guard let value else { continue }
-                // Never overwrite a value already under the new name.
-                if defaults.object(forKey: key) == nil { defaults.set(value, forKey: key) }
+                // Schema 4 overwrites what schema 3 wrote: that pass read the
+                // oldest domain only, so a value already present here can be two
+                // renames stale.
+                if stored == 3 || defaults.object(forKey: key) == nil {
+                    defaults.set(value, forKey: key)
+                }
                 defaults.removeObject(forKey: legacy)
             }
         }

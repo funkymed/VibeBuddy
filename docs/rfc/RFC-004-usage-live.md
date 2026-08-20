@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | in-progress (90 %) — spike réussi, module livré et vérifié en réel |
+| **Status** | in-progress (95 %) — module livré, refus du serveur encaissé (backoff + cache) ; reste `perfcheck A` |
 | **Author** | Cyril Pereira |
 | **Created** | 2026-08-19 |
 | **Updated** | 2026-08-19 |
@@ -111,6 +111,22 @@ la contient par un parseur tout-optionnel et un état « indisponible » explici
 | T6 | Cadence adaptative branchée sur le `WakeCoordinator` | **done** | **100** |
 | T7 | `protocol CredentialSource` à implémentation unique (parade R4) | **done** | **100** |
 | T8 | `perfcheck.sh` A — vérifier le réveil unique à 180 s | todo | 0 |
+| T9 | **Backoff exponentiel et cache de la dernière lecture** | **done** | **100** |
+
+### T9 — l'endpoint refuse, et `Retry-After` vaut zéro
+
+Mesuré le 2026-08-20 sur l'endpoint réel : `429`, corps
+`{"type":"rate_limit_error"}`, en-tête `retry-after: 0`. Le code obéissait au
+zéro et réessayait toutes les 10 s, ce qui gardait le limiteur chaud.
+
+Le `Retry-After` est désormais un **plancher**, jamais une permission : backoff
+60 s, 120, 240, plafonné à 15 min, remis à zéro par un succès. Un serveur qui
+refuse en disant « réessaie tout de suite » refusera aussi le tout de suite.
+
+La dernière bonne lecture est mise en cache (`UsageCache`) et réaffichée au
+lancement avec son âge dès qu'il dépasse deux minutes. Elle est jetée au-delà de
+5 h : une fenêtre de 5 h qui s'est réinitialisée n'est pas vieille, elle est
+fausse.
 
 **Critère de sortie — atteint sauf la comparaison visuelle.**
 

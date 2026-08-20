@@ -198,6 +198,9 @@ tête est ronde.
 | T9 | `perfcheck.sh` A et B | **done** | **100** |
 | T12 | Animation par images, rechargement à chaud, taille et couleur par expression | **done** | **100** |
 | T10 | `perfcheck.sh` C (curseur en mouvement, panneau déployé) | todo | 0 |
+| T13 | **Vitesse d'animation** : `speed:` global et par expression, en images/seconde | **done** | **100** |
+| T14 | **Mise à l'échelle pour tenir dans la fente** : plafond de largeur, visage réduit plutôt que rogné | **done** | **100** |
+| T15 | Mémoïsation des mesures, calculs hissés hors du corps du `TimelineView` | **done** | **100** |
 | T11 | Taille et position dérivées du slot mesuré (`PillLayout`, RFC-002) | **done** | **100** |
 
 **Critère de sortie — atteint le 2026-08-19.**
