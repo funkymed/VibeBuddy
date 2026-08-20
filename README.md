@@ -1,123 +1,121 @@
-# vibebuddy
+# VibeBuddy
 
-App macOS native qui transforme la notch du MacBook en tableau de bord de ses
-agents de code. Swift, SwiftPM, macOS 14 minimum, aucune dépendance externe :
-la stdlib et les frameworks Apple, rien d'autre.
+A native macOS app that turns the MacBook notch into a dashboard for your coding
+agents. Swift, SwiftPM, macOS 14 or later, no external dependencies: the standard
+library and Apple frameworks, nothing else.
 
-## Ce que ça fait
+## What it does
 
-Par ordre d'importance. Une fonctionnalité qui ne sert aucun de ces points est du
-confort, et se juge comme tel.
+In order of importance. A feature that serves none of these is comfort, and gets
+judged as such.
 
-1. Alerter sans qu'on regarde : quand l'agent a terminé, et quand il attend une
-   réponse. Les deux se lisent dans le transcript, sans passer par un hook.
-2. Montrer la consommation réelle, c'est-à-dire le pourcentage des limites 5 h et
-   7 j tel qu'Anthropic le renvoie, pas une estimation à partir des jetons.
-3. Suivre plusieurs sessions, chacune avec son état propre, groupées par projet.
-   Un clic sur une ligne vivante ramène son onglet de terminal.
-4. Le faire de façon ludique : un *buddy* animé porte l'état dans la notch.
+1. Alert you without you looking: when the agent has finished, and when it is
+   waiting for an answer. Both are read from the transcript, without a hook.
+2. Show real usage, meaning the 5 h and 7 d limit percentages as Anthropic
+   reports them, not an estimate derived from token counts.
+3. Track several sessions at once, each with its own state, grouped by project.
+   Clicking a live row brings its terminal tab back.
+4. Do it playfully: an animated *buddy* carries the state in the notch.
 
-## Installer et lancer
+## Install and run
 
-L'app n'est pas encore empaquetée, elle se lance depuis le dépôt. RFC-011 s'en
-occupe.
+The app is not packaged yet, it runs from the repository. RFC-011 covers that.
 
 ```sh
 swift build -c release
-.build/release/VibeBuddy              # tourne jusqu'à Ctrl-C ou au bouton power
+.build/release/VibeBuddy              # runs until Ctrl-C or the power button
 ```
 
-Les buddies vivent hors du binaire, dans
-`~/Library/Application Support/vibebuddy/buddies/`. Pour éditer ceux du dépôt
-en place :
+Buddies live outside the binary, in
+`~/Library/Application Support/VibeBuddy/buddies/`. To edit the ones in the
+repository in place:
 
 ```sh
-mkdir -p ~/Library/Application\ Support/vibebuddy/buddies
-ln -s "$PWD/assets/buddies/emoji.buddy" ~/Library/Application\ Support/vibebuddy/buddies/
+mkdir -p ~/Library/Application\ Support/VibeBuddy/buddies
+ln -s "$PWD/assets/buddies/emoji.buddy" ~/Library/Application\ Support/VibeBuddy/buddies/
 ```
 
-Ils sont rechargés à l'enregistrement du fichier, sans relance ni recompilation.
+They reload when the file is saved, with no relaunch and no rebuild.
 
-## Diagnostic et mesure
+## Diagnostics and measurement
 
-`--info` est l'outil de premier recours : écrans, géométrie, cadres calculés,
-budgets de réveil et d'animation, buddies installés avec leur cadence, langue,
-parseur confronté aux vrais transcripts, sessions vivantes avec leur tty,
-consommation, coût mémoire.
+`--info` is the first thing to reach for: screens, geometry, computed frames,
+wake and animation budgets, installed buddies with their frame rate, language,
+the parser run against real transcripts, live sessions with their tty, usage,
+memory cost.
 
 ```sh
 .build/release/VibeBuddy --info
-.build/release/VibeBuddy --hover                  # zones de survol contre pixels réellement peints
-.build/release/VibeBuddy --bench <mode> <secondes>
-#   modes : shell · panel · pill · hidden · interaction · sessions · app
-scripts/perfcheck.sh <scénario> <durée>            # A repos · B 3 sessions · C panneau ouvert
+.build/release/VibeBuddy --hover                  # hover regions against the pixels actually painted
+.build/release/VibeBuddy --bench <mode> <seconds>
+#   modes: shell · panel · pill · hidden · interaction · sessions · app
+scripts/perfcheck.sh <scenario> <duration>        # A rest · B 3 sessions · C panel open
 ```
 
-## Le format `.buddy`
+## The `.buddy` format
 
-Un buddy est de la donnée, pas du code : un fichier texte, éditable à la main ou
-depuis les réglages de l'app.
+A buddy is data, not code: a text file, editable by hand or from the app's
+settings.
 
 ```
-font: Menlo                   # optionnel, système par défaut
-size: 15                      # taille par défaut
-speed: 1                      # images par seconde, 1 par défaut
+font: Menlo                   # optional, system font by default
+size: 15                      # default size
+speed: 1                      # frames per second, 1 by default
 
-idle (yellow #FFBB00) 17 3    # couleur, puis taille, puis vitesse (positionnel)
-(ᵕ • ᴗ •)                     # une image par ligne
+idle (yellow #FFBB00) 17 3    # colour, then size, then speed (positional)
+(ᵕ • ᴗ •)                     # one frame per line
 („• ֊ •„)
-                              # une ligne vide termine la section
+                              # a blank line ends the section
 ```
 
-Six expressions : `sleeping`, `idle`, `working`, `awaiting`, `finished`,
-`failed`. Seule `idle` est obligatoire, les autres y retombent. Le mot de couleur
-avant le code hexadécimal est décoratif, seul le `#RRGGBB` compte.
+Six expressions: `sleeping`, `idle`, `working`, `awaiting`, `finished`,
+`failed`. Only `idle` is required, the others fall back to it. The colour word
+before the hex code is decoration, only the `#RRGGBB` counts.
 
-Deux formats ont précédé celui-ci, des béziers puis une grille de pixels. Ils
-marchaient à taille d'affiche et perdaient leur sens à 20 pt.
+Two formats came before this one, bezier paths then a pixel grid. Both worked at
+poster size and lost their meaning at 20 pt.
 
-## La contrainte qui gouverne
+## The constraint that governs
 
-La légèreté prime sur les fonctionnalités. L'app est visible en permanence, donc
-tout réveil inutile se paie en autonomie.
+Lightness comes before features. The app is on screen permanently, so every
+needless wakeup is paid for in battery life.
 
-| Métrique | Cible | Mesuré |
+| Metric | Target | Measured |
 |---|---|---|
-| `phys_footprint` | < 40 Mo | 11,8 Mo (`--bench pill 10`) |
-| Réveils inactifs au repos | < 2/s | 0,000/s (idem) |
-| CPU au repos | < 0,5 % | 0,016 % (idem) |
-| `fork`/`exec` au repos | 0 | 0 |
+| `phys_footprint` | < 40 MB | 11.8 MB (`--bench pill 10`) |
+| Idle wakeups at rest | < 2/s | 0.000/s (same run) |
+| CPU at rest | < 0.5 % | 0.016 % (same run) |
+| `fork`/`exec` at rest | 0 | 0 |
 
-Mesures du 2026-08-20 sur la machine de développement, pastille affichée et
-panneau fermé. À remesurer plutôt qu'à recopier, c'est la règle du dépôt.
+Measured on 2026-08-20 on the development machine, pill on screen and panel
+closed. Measure again rather than quoting these, that is the repository's rule.
 
-Le nombre de réveils gouverne, pas le pourcentage de CPU : un process à 0,4 % de
-CPU avec 70 réveils par seconde vide une batterie sans franchir aucun seuil
-exprimé en pourcentage. D'où une seule horloge dans toute l'app
-(`WakeCoordinator`), et un budget d'animation qui peut tomber à zéro image par
-seconde.
+Wakeup count governs, not CPU percentage: a process sitting at 0.4 % CPU with 70
+wakeups per second drains a battery without crossing any threshold expressed as
+a percentage. Hence a single clock for the whole app (`WakeCoordinator`), and an
+animation budget that can drop to zero frames per second.
 
 ## Tests
 
 ```sh
-swift test        # 254 tests, 50 suites
+swift test        # 261 tests, 51 suites
 ```
 
-Ils portent sur ce qui casse en silence : le parseur de transcripts, la machine à
-états des alertes, la géométrie de la notch, le format `.buddy`, la fenêtre de
-contexte, le calque d'édition des buddies et l'appariement des terminaux.
+They cover what breaks silently: the transcript parser, the alert state machine,
+notch geometry, the `.buddy` format, the context window, the buddy edit layer and
+terminal matching.
 
 ## Documentation
 
-| Fichier | Contenu |
+| File | Contents |
 |---|---|
-| [`CLAUDE.md`](CLAUDE.md) | Les règles : objectifs produit, décisions structurantes, Gantt, conventions |
-| [`docs/hook.md`](docs/hook.md) | L'état réel et les pièges chèrement acquis, à lire en premier |
-| [`docs/rfc/`](docs/rfc/) | Une RFC par sujet, avec son plan d'action et ses pourcentages |
-| [`docs/perf/`](docs/perf/) | Les mesures, en CSV, datées |
+| [`CLAUDE.md`](CLAUDE.md) | The rules: product goals, structural decisions, Gantt, conventions |
+| [`docs/rfc/`](docs/rfc/) | One RFC per subject, with its action plan and percentages |
+| [`docs/perf/`](docs/perf/) | The measurements, as dated CSVs |
 
 ## Inspiration
 
-Inspiré par Notch-Pilot & VibeIsland sur la mécanique de récolte des données de Claude et son intégration en Swift.
+Inspired by Notch-Pilot for the mechanics of collecting Claude's data and its
+integration in Swift.
 
-Ce n'est pas un fork, mais une interprétation différente et libre.
+This is not a fork, but a different and free interpretation.

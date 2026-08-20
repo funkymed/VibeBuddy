@@ -1,17 +1,14 @@
-# vibebuddy
+# VibeBuddy
 
-> Les identifiants internes (modules Swift `NotchBuddy` / `NotchBuddyKit`, cibles
-> du `Package.swift`, clés `UserDefaults` en `notchbuddy.*`) ne suivent pas le nom
-> produit. Ne pas les aligner sans écrire la migration d'abord : les clés portent
-> les réglages, et `SupportDirectory` montre à quoi ressemble une migration qui
-> ne perd rien.
+> Certains identifiants internes (modules Swift, clés `UserDefaults`,
+> sous-système de log) ne suivent pas le nom produit. Ne pas les aligner sans
+> écrire la migration d'abord : les clés portent les réglages, et
+> `SupportDirectory` montre à quoi ressemble une migration qui ne perd rien,
+> y compris quand le dossier déplacé ne contient que des liens symboliques.
 
 App macOS native qui transforme la notch du MacBook en tableau de bord de ses
 agents de code. Swift / SwiftPM, macOS 14+, **zéro dépendance externe**
 (stdlib + frameworks Apple).
-
-> **Reprise après effacement de contexte : lire [`docs/hook.md`](docs/hook.md) en premier.**
-> Ce fichier-ci donne les règles ; celui-là donne l'état réel et les pièges.
 
 ## Objectifs produit
 
