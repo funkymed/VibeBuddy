@@ -15,7 +15,7 @@ struct PanelHeader: View {
 
     private var live: [AgentSession] { sessions.filter(\.isLive) }
 
-    private var working: Int { live.filter { $0.action != .none }.count }
+    private var working: Int { live.filter { SessionDisplayState.of($0) == .working }.count }
 
     var body: some View {
         HStack(alignment: .center, spacing: 12) {
@@ -44,7 +44,7 @@ struct PanelHeader: View {
     private var counterChip: some View {
         HStack(spacing: 4) {
             Circle()
-                .fill(live.isEmpty ? PanelInk.tertiary : (working > 0 ? .green : .orange))
+                .fill(SessionStateStyle.colour(SessionDisplayState.aggregate(of: sessions) ?? .ended))
                 .frame(width: 7, height: 7)
             Text("\(working) / \(live.count)")
                 .font(.system(size: 12, weight: .medium, design: .monospaced))

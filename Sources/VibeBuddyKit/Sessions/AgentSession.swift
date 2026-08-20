@@ -13,7 +13,8 @@ public struct AgentSession: Sendable, Equatable, Identifiable {
     public let effort: String
     public let startedAt: Date
     public let lastActivity: Date
-    public let status: String
+    /// Language-neutral key for the running tool. Views translate it via `Strings.label(for:)`.
+    public let status: ToolLabel?
     public let action: ToolAction
     public let permissionMode: String
     public let contextTokens: Int
@@ -34,7 +35,7 @@ public struct AgentSession: Sendable, Equatable, Identifiable {
         id: String, provider: AgentProvider = .claudeCode, cwd: String,
         projectName: String, model: String, effort: String = "",
         startedAt: Date, lastActivity: Date,
-        status: String, action: ToolAction, permissionMode: String,
+        status: ToolLabel?, action: ToolAction, permissionMode: String,
         contextTokens: Int, contextWindow: Int, pid: pid_t?, isLive: Bool,
         subject: String? = nil, turnEnded: Bool = false,
         lastResultWasError: Bool = false, subagentsRunning: Int = 0,
@@ -81,4 +82,23 @@ public enum ToolAction: String, Sendable, Equatable, CaseIterable {
     case web
     case delegating
     case planning
+}
+
+/// Untranslated key for the running tool. Finer than `ToolAction`: `Read` and `Grep`
+/// share `.reading` but must not read the same on a row.
+public enum ToolLabel: Sendable, Equatable {
+    case shell
+    case editing
+    case writing
+    case reading
+    case searching
+    case listing
+    case web
+    case webSearch
+    case delegating
+    case planning
+    case notebook
+    case question
+    /// A tool we do not know, carrying its own name. Never translated.
+    case other(String)
 }

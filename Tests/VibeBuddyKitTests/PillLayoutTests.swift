@@ -14,6 +14,7 @@ private let plain = NotchGeometry(
 )
 
 @Suite("Pill layout")
+@MainActor
 struct PillLayoutTests {
 
     @Test("the pill always overhangs the cutout on both sides")

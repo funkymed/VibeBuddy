@@ -109,3 +109,42 @@ struct PipeToShellTests {
         #expect(!ToolActionClassifier.isDangerous(command))
     }
 }
+
+// The classifier lives in the Kit and must not decide the interface language: it
+// returns a key, and `Strings.label(for:)` is the only place that turns it into words.
+@Suite("Tool labels are keys, not words")
+struct ToolLabelTests {
+
+    @Test("known tools map to their key", arguments: [
+        ("Bash", ToolLabel.shell), ("BashOutput", .shell),
+        ("Edit", .editing), ("MultiEdit", .editing), ("Write", .writing),
+        ("Read", .reading), ("NotebookRead", .reading), ("NotebookEdit", .notebook),
+        ("Glob", .searching), ("Grep", .searching), ("LS", .listing),
+        ("WebFetch", .web), ("WebSearch", .webSearch),
+        ("Task", .delegating), ("Agent", .delegating),
+        ("TodoWrite", .planning), ("ExitPlanMode", .planning),
+        ("AskUserQuestion", .question),
+    ])
+    func knownTools(_ tool: String, _ expected: ToolLabel) {
+        #expect(ToolActionClassifier.label(tool: tool) == expected)
+    }
+
+    // Losing this would be the cost of folding labels into `ToolAction`: four tools
+    // share `.reading`, and a row saying "lecture" for a `Grep` reads wrong.
+    @Test("the label is finer than the action")
+    func finerThanAction() {
+        for tool in ["Read", "Grep", "LS"] {
+            #expect(ToolActionClassifier.classify(tool: tool, input: [:]) == .reading)
+        }
+        #expect(ToolActionClassifier.label(tool: "Read") != ToolActionClassifier.label(tool: "Grep"))
+        #expect(ToolActionClassifier.label(tool: "Grep") != ToolActionClassifier.label(tool: "LS"))
+        #expect(ToolActionClassifier.label(tool: "Write") != ToolActionClassifier.label(tool: "Edit"))
+    }
+
+    @Test("an unknown tool carries its own name, truncated")
+    func unknownTool() {
+        #expect(ToolActionClassifier.label(tool: "SomethingNew") == .other("somethingnew"))
+        #expect(ToolActionClassifier.label(tool: String(repeating: "z", count: 40))
+                == .other(String(repeating: "z", count: 14)))
+    }
+}

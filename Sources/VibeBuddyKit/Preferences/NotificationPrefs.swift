@@ -18,30 +18,46 @@ public final class NotificationPrefs {
 
     @ObservationIgnored private let store: PreferencesStore
 
-    public var onFinished: Bool { didSet { store.set(onFinished, forKey: Keys.onFinished) } }
-    public var onFailed: Bool { didSet { store.set(onFailed, forKey: Keys.onFailed) } }
-    public var onNeedsAttention: Bool {
-        didSet { store.set(onNeedsAttention, forKey: Keys.onNeedsAttention) }
+    /// Set while `reload()` re-reads the store, so no `didSet` writes back the
+    /// keys a reset has just removed.
+    @ObservationIgnored private var isReloading = false
+
+    public var onFinished: Bool = true { didSet { persist(onFinished, Keys.onFinished) } }
+    public var onFailed: Bool = true { didSet { persist(onFailed, Keys.onFailed) } }
+    public var onNeedsAttention: Bool = true {
+        didSet { persist(onNeedsAttention, Keys.onNeedsAttention) }
     }
 
     /// Speak the alert. Off by default and instantiated lazily on the other
     /// side: `AVSpeechSynthesizer` allocates several megabytes of audio engine.
-    public var voice: Bool { didSet { store.set(voice, forKey: Keys.voice) } }
-    public var haptics: Bool { didSet { store.set(haptics, forKey: Keys.haptics) } }
+    public var voice: Bool = false { didSet { persist(voice, Keys.voice) } }
+    public var haptics: Bool = false { didSet { persist(haptics, Keys.haptics) } }
 
     /// Stay silent when the terminal the alert is about is already in front.
-    public var quietWhenFrontmost: Bool {
-        didSet { store.set(quietWhenFrontmost, forKey: Keys.quietWhenFrontmost) }
+    public var quietWhenFrontmost: Bool = true {
+        didSet { persist(quietWhenFrontmost, Keys.quietWhenFrontmost) }
     }
 
     public init(store: PreferencesStore) {
         self.store = store
+        reload()
+    }
+
+    /// Re-read the store in place; see `AppearancePrefs.reload()`.
+    public func reload() {
+        isReloading = true
+        defer { isReloading = false }
         onFinished = store.bool(Keys.onFinished, default: true)
         onFailed = store.bool(Keys.onFailed, default: true)
         onNeedsAttention = store.bool(Keys.onNeedsAttention, default: true)
         voice = store.bool(Keys.voice, default: false)
         haptics = store.bool(Keys.haptics, default: false)
         quietWhenFrontmost = store.bool(Keys.quietWhenFrontmost, default: true)
+    }
+
+    private func persist(_ value: Any, _ key: String) {
+        guard !isReloading else { return }
+        store.set(value, forKey: key)
     }
 
     public func allows(_ kind: SessionAlert.Kind) -> Bool {

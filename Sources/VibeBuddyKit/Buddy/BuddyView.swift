@@ -60,30 +60,33 @@ public struct BuddyView: View {
     }
 
     /// Never above 1.
-    private var fitScale: CGFloat {
+    private func fitScale(naturalWidth: CGFloat) -> CGFloat {
         guard let fit, fit.width > 0, fit.height > 0, let settings else { return 1 }
         let size = manifest.size(for: settings)
-        let naturalWidth = reservedWidth
         let naturalHeight = PillLayout.lineHeight(size: size, family: manifest.font)
         guard naturalWidth > 0, naturalHeight > 0 else { return 1 }
         return min(1, fit.width / naturalWidth, fit.height / naturalHeight)
     }
 
     public var body: some View {
-        TimelineView(.animation(minimumInterval: interval, paused: tier == .still)) { timeline in
+        // Measured once per body, not once per frame: neither depends on
+        // `timeline.date`, and each `reservedWidth` walks every frame of the
+        // expression through `NSAttributedString`.
+        let width = reservedWidth
+        let fitted = fitScale(naturalWidth: width)
+
+        return TimelineView(.animation(minimumInterval: interval, paused: tier == .still)) { timeline in
             let phase = tier == .still ? 0 : timeline.date.timeIntervalSince(startedAt)
             let motion = (settings?.motion ?? .none).transform(at: phase)
 
-            let fitted = fitScale
-
             face(phase: phase)
                 .modifier(PixelGrid(colour: colour, pitch: pixelSize))
-                .frame(width: reservedWidth > 0 ? reservedWidth : nil, alignment: .leading)
+                .frame(width: width > 0 ? width : nil, alignment: .leading)
                 // Fit first, then motion. The other order would make a bouncing
                 // buddy grow past the box it was just fitted into.
                 .scaleEffect(fitted, anchor: .leading)
                 .frame(
-                    width: reservedWidth > 0 ? reservedWidth * fitted : nil,
+                    width: width > 0 ? width * fitted : nil,
                     alignment: .leading)
                 .scaleEffect(motion.scale)
                 .offset(x: motion.offset.width + motion.gaze.width * 0.4,

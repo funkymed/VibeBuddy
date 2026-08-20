@@ -10,7 +10,7 @@ private func session(
     AgentSession(
         id: id, cwd: "/Users/dev/\(project)", projectName: project,
         model: "claude-opus-5", startedAt: Date(), lastActivity: Date(),
-        status: "", action: action, permissionMode: "auto",
+        status: nil, action: action, permissionMode: "auto",
         contextTokens: 1000, contextWindow: 200_000, pid: 1234, isLive: live,
         turnEnded: turnEnded, lastResultWasError: error, subagentsRunning: subagents
     )
@@ -164,7 +164,7 @@ struct SessionGroupTests {
             id: id, cwd: cwd, projectName: (cwd as NSString).lastPathComponent,
             model: "claude-opus-5", startedAt: Date(),
             lastActivity: Date().addingTimeInterval(-ago),
-            status: "", action: .none, permissionMode: "auto",
+            status: nil, action: .none, permissionMode: "auto",
             contextTokens: 0, contextWindow: 200_000, pid: nil, isLive: live
         )
     }
@@ -222,5 +222,71 @@ struct SessionGroupTests {
     @Test("no sessions yields no groups")
     func empty() {
         #expect(SessionGroup.group([]).isEmpty)
+    }
+}
+
+/// Grouping folds history, never running agents.
+@Suite("Live sessions are never folded")
+struct LiveGroupingTests {
+
+    private func session(
+        _ id: String, cwd: String, live: Bool, activity: Date = Date()
+    ) -> AgentSession {
+        AgentSession(
+            id: id, cwd: cwd, projectName: (cwd as NSString).lastPathComponent,
+            model: "", startedAt: activity, lastActivity: activity,
+            status: nil, action: .none, permissionMode: "",
+            contextTokens: 0, contextWindow: 200_000, pid: nil, isLive: live)
+    }
+
+    // Four agents in one folder used to collapse into a single row: the app
+    // exists to watch several at once.
+    @Test("every live session gets its own row")
+    func liveSessionsAreNotFolded() {
+        let rows = SessionGroup.group([
+            session("a", cwd: "/p/notch", live: true),
+            session("b", cwd: "/p/notch", live: true),
+            session("c", cwd: "/p/notch", live: true),
+        ])
+        #expect(rows.count == 3)
+        // Distinct ids, or `ForEach` silently drops the duplicates.
+        #expect(Set(rows.map(\.id)).count == 3)
+    }
+
+    @Test("finished runs still fold into one row")
+    func historyStillFolds() {
+        let rows = SessionGroup.group([
+            session("old1", cwd: "/p/notch", live: false),
+            session("old2", cwd: "/p/notch", live: false),
+            session("old3", cwd: "/p/notch", live: false),
+        ])
+        #expect(rows.count == 1)
+        #expect(rows.first?.count == 3)
+    }
+
+    // The badge says "there is history here", once per folder rather than on
+    // every sibling.
+    @Test("history rides on the first live row only")
+    func historyRidesOnOneRow() {
+        let rows = SessionGroup.group([
+            session("live1", cwd: "/p/notch", live: true, activity: Date()),
+            session("live2", cwd: "/p/notch", live: true,
+                    activity: Date(timeIntervalSinceNow: -60)),
+            session("dead", cwd: "/p/notch", live: false,
+                    activity: Date(timeIntervalSinceNow: -600)),
+        ])
+        #expect(rows.count == 2)
+        #expect(rows.filter(\.hasHistory).count == 1)
+        #expect(rows.first?.count == 2)   // itself plus the dead run
+    }
+
+    @Test("folders stay separate and live ones come first")
+    func foldersStaySeparate() {
+        let rows = SessionGroup.group([
+            session("dead", cwd: "/p/old", live: false),
+            session("live", cwd: "/p/notch", live: true),
+        ])
+        #expect(rows.count == 2)
+        #expect(rows.first?.primary.id == "live")
     }
 }

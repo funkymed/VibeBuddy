@@ -52,6 +52,20 @@ public struct Strings: Sendable {
     public let settings: String
     public let settingsOpenFolder: String
 
+    // Tool labels — one per `ToolLabel` case. Reached through `label(for:)`.
+    public let toolShell: String
+    public let toolEditing: String
+    public let toolWriting: String
+    public let toolReading: String
+    public let toolSearching: String
+    public let toolListing: String
+    public let toolWeb: String
+    public let toolWebSearch: String
+    public let toolDelegating: String
+    public let toolPlanning: String
+    public let toolNotebook: String
+    public let toolQuestion: String
+
     // Alerts
     public let alertFinished: String
     public let alertFailed: String
@@ -93,6 +107,18 @@ public struct Strings: Sendable {
         settingsBuddyHint: "Un fichier .buddy par personnage, rechargé à l'enregistrement.",
         settings: "Réglages",
         settingsOpenFolder: "Ouvrir le dossier",
+        toolShell: "commande",
+        toolEditing: "édition",
+        toolWriting: "écriture",
+        toolReading: "lecture",
+        toolSearching: "recherche",
+        toolListing: "listage",
+        toolWeb: "web",
+        toolWebSearch: "recherche web",
+        toolDelegating: "délégation",
+        toolPlanning: "plan",
+        toolNotebook: "notebook",
+        toolQuestion: "question",
         alertFinished: "terminé",
         alertFailed: "erreur",
         alertWaiting: "attend une réponse"
@@ -134,10 +160,41 @@ public struct Strings: Sendable {
         settingsBuddyHint: "One .buddy file per character, reloaded on save.",
         settings: "Settings",
         settingsOpenFolder: "Open folder",
+        toolShell: "command",
+        toolEditing: "editing",
+        toolWriting: "writing",
+        toolReading: "reading",
+        toolSearching: "searching",
+        toolListing: "listing",
+        toolWeb: "web",
+        toolWebSearch: "web search",
+        toolDelegating: "delegating",
+        toolPlanning: "planning",
+        toolNotebook: "notebook",
+        toolQuestion: "question",
         alertFinished: "done",
         alertFailed: "error",
         alertWaiting: "needs an answer"
     )
+
+    /// Single translation point for `ToolLabel`; without it every view duplicates the switch.
+    public func label(for tool: ToolLabel) -> String {
+        switch tool {
+        case .shell:      return toolShell
+        case .editing:    return toolEditing
+        case .writing:    return toolWriting
+        case .reading:    return toolReading
+        case .searching:  return toolSearching
+        case .listing:    return toolListing
+        case .web:        return toolWeb
+        case .webSearch:  return toolWebSearch
+        case .delegating: return toolDelegating
+        case .planning:   return toolPlanning
+        case .notebook:   return toolNotebook
+        case .question:   return toolQuestion
+        case .other(let name): return name
+        }
+    }
 
     public static func `for`(_ language: AppLanguage) -> Strings {
         switch language.resolved() {

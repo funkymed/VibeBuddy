@@ -34,6 +34,7 @@ public struct PillLayout: Sendable, Equatable {
         self.height = height
     }
 
+    @MainActor
     public static func resolve(
         geometry: NotchGeometry,
         buddy: BuddyManifest?,
@@ -76,21 +77,59 @@ public struct PillLayout: Sendable, Equatable {
             height: max(0, height - inset * 2))
     }
 
+    @MainActor
     public static func lineHeight(size: CGFloat, family: String?) -> CGFloat {
-        let font = family.flatMap { NSFont(name: $0, size: size) }
-            ?? NSFont.systemFont(ofSize: size, weight: .medium)
-        return ceil(font.ascender - font.descender + font.leading)
+        let resolved = font(size: size, weight: .medium, family: family)
+        return ceil(resolved.ascender - resolved.descender + resolved.leading)
     }
 
+    /// Measured widths, keyed by everything that changes one.
+    ///
+    /// `BuddyView` measures inside a `TimelineView` body: at the `lively` tier
+    /// that was ~360 `NSAttributedString` allocations per second while the
+    /// panel was open, for values that never depend on time.
+    @MainActor private static var widths: [Key: CGFloat] = [:]
+    @MainActor private static var fonts: [Key: NSFont] = [:]
+
+    struct Key: Hashable {
+        let text: String
+        let size: CGFloat
+        let weight: CGFloat
+        let family: String?
+    }
+
+    /// Cache ceiling. The buddy editor re-measures on every keystroke, so an
+    /// unbounded cache grows for as long as someone is typing.
+    static let cacheLimit = 512
+
+    @MainActor
     public static func measure(
         _ text: String, size: CGFloat, weight: NSFont.Weight, family: String? = nil
     ) -> CGFloat {
         guard !text.isEmpty else { return 0 }
+        let key = Key(text: text, size: size, weight: weight.rawValue, family: family)
+        if let cached = widths[key] { return cached }
+
         // Measure in the font that will actually draw it: measuring in one
         // family and rendering in another is how a slot ends up clipped.
-        let font = family.flatMap { NSFont(name: $0, size: size) }
+        let attributed = NSAttributedString(
+            string: text, attributes: [.font: font(size: size, weight: weight, family: family)])
+        let width = ceil(attributed.size().width)
+        if widths.count >= cacheLimit { widths.removeAll(keepingCapacity: true) }
+        widths[key] = width
+        return width
+    }
+
+    /// The font a measurement or a line height is taken in, cached: `NSFont`
+    /// lookup by name is not free either.
+    @MainActor
+    static func font(size: CGFloat, weight: NSFont.Weight, family: String?) -> NSFont {
+        let key = Key(text: "", size: size, weight: weight.rawValue, family: family)
+        if let cached = fonts[key] { return cached }
+        let resolved = family.flatMap { NSFont(name: $0, size: size) }
             ?? NSFont.systemFont(ofSize: size, weight: weight)
-        let attributed = NSAttributedString(string: text, attributes: [.font: font])
-        return ceil(attributed.size().width)
+        if fonts.count >= cacheLimit { fonts.removeAll(keepingCapacity: true) }
+        fonts[key] = resolved
+        return resolved
     }
 }

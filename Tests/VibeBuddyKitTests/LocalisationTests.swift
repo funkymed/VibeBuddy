@@ -85,6 +85,37 @@ struct StringsTests {
         #expect(Strings.for(.french).usageTitle == "CONSOMMATION")
         #expect(Strings.for(.english).usageTitle == "USAGE")
     }
+
+    // Regression guard: `ToolActionClassifier` used to return French words straight
+    // into the row, so an English panel showed "édition · SessionStore.swift". If a
+    // label ever leaks back out of the Kit, both catalogues render it identically.
+    @Test("a tool label is translated, not passed through", arguments: [
+        ToolLabel.shell, .editing, .writing, .reading,
+        .searching, .listing, .webSearch, .delegating, .planning,
+    ])
+    func toolLabelsDiffer(_ tool: ToolLabel) {
+        let fr = Strings.french.label(for: tool)
+        let en = Strings.english.label(for: tool)
+        #expect(!fr.isEmpty)
+        #expect(!en.isEmpty)
+        #expect(fr != en)
+    }
+
+    // The one label that must NOT be translated: an unknown tool is named, not described.
+    @Test("an unknown tool keeps its own name in both languages")
+    func unknownToolPassesThrough() {
+        #expect(Strings.french.label(for: .other("mcp__weird")) == "mcp__weird")
+        #expect(Strings.english.label(for: .other("mcp__weird")) == "mcp__weird")
+    }
+
+    @Test("every tool label is filled in", arguments: [
+        ToolLabel.shell, .editing, .writing, .reading, .searching, .listing,
+        .web, .webSearch, .delegating, .planning, .notebook, .question,
+    ])
+    func everyToolLabelFilled(_ tool: ToolLabel) {
+        #expect(!Strings.french.label(for: tool).isEmpty)
+        #expect(!Strings.english.label(for: tool).isEmpty)
+    }
 }
 
 @Suite("Localisation store")

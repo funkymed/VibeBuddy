@@ -117,10 +117,11 @@ struct NotchShellView: View {
         }
     }
 
+    /// Same vocabulary as `SessionStateStyle`: finished is orange everywhere.
     static func dot(for kind: SessionAlert.Kind) -> Color {
         switch kind {
         case .failed: return .red
-        case .finished: return .green
+        case .finished: return .orange
         case .needsAttention: return .blue
         }
     }

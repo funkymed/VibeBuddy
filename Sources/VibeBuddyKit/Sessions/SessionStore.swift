@@ -142,7 +142,7 @@ public actor SessionStore {
             effort: tail.effort ?? "",
             startedAt: candidate.created,
             lastActivity: tail.lastTimestamp ?? candidate.modified,
-            status: tail.turnEnded ? "" : tail.status,
+            status: tail.turnEnded ? nil : tail.status,
             action: tail.action,
             permissionMode: tail.permissionMode ?? "",
             contextTokens: tokens,

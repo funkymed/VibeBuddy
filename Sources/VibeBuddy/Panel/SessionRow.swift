@@ -97,8 +97,8 @@ struct SessionRow: View, Equatable {
         var parts: [String] = []
         if session.awaitingAnswer {
             if let question = session.question { parts.append(question) }
-        } else if !session.status.isEmpty {
-            parts.append(session.status + (session.subject.map { " · \($0)" } ?? ""))
+        } else if let status = session.status {
+            parts.append(l10n.label(for: status) + (session.subject.map { " · \($0)" } ?? ""))
         }
         parts.append(l10n.since(Self.duration(since: session.startedAt)))
         return parts.joined(separator: " · ")

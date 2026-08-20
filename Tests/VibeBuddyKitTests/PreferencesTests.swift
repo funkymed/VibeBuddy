@@ -98,6 +98,59 @@ struct PreferencesTests {
         }
     }
 
+    // Reset used to reallocate the three models, but the settings window holds
+    // them by value and never rebuilds: every switch then edited an orphan and
+    // rewrote the keys the reset had just removed.
+    @Test("reloading after a reset yields the defaults and writes nothing back")
+    func reloadRestoresDefaults() {
+        withStore { store, _ in
+            let appearance = AppearancePrefs(store: store)
+            let layout = LayoutPrefs(store: store)
+            let notifications = NotificationPrefs(store: store)
+
+            appearance.buddyID = "orb"
+            appearance.pixelSize = 3
+            appearance.overrides.created["orb"] = BuddyOverrides.Created(name: "Orb")
+            layout.groupByDirectory = false
+            layout.showUsage = false
+            notifications.voice = true
+            notifications.onFinished = false
+            store.flush()
+            let written = store.writeCount
+            #expect(written == 1)
+
+            for key in PreferencesStore.allKeys { store.remove(key) }
+            appearance.reload()
+            layout.reload()
+            notifications.reload()
+
+            #expect(appearance.buddyID == "emoji")
+            #expect(appearance.pixelSize == 2)
+            #expect(appearance.overrides == BuddyOverrides())
+            #expect(layout.groupByDirectory)
+            #expect(layout.showUsage)
+            #expect(notifications.voice == false)
+            #expect(notifications.onFinished)
+
+            // The `didSet` observers must stay silent: nothing queued, nothing
+            // written, so the erased keys stay erased.
+            #expect(store.writeCount == written)
+            store.flush()
+            #expect(store.writeCount == written)
+        }
+    }
+
+    // A reload is not a reset: values still on disk must come back.
+    @Test("reloading re-reads what the store holds")
+    func reloadReadsStore() {
+        withStore { store, _ in
+            let layout = LayoutPrefs(store: store)
+            store.set(false, forKey: LayoutPrefs.Keys.jumpOnClick)
+            layout.reload()
+            #expect(layout.jumpOnClick == false)
+        }
+    }
+
     @Test("resetting removes the key rather than storing a default")
     func removeClears() {
         withStore { store, defaults in

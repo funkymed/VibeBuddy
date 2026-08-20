@@ -45,23 +45,23 @@ public enum ToolActionClassifier {
         return nil
     }
 
-    public static func label(tool: String) -> String {
+    /// Returns a key, never a sentence: this type lives in the Kit and must not decide
+    /// the interface language. `Strings.label(for:)` translates.
+    public static func label(tool: String) -> ToolLabel {
         switch tool.lowercased() {
-        case "bash", "bashoutput": return "commande"
-        case "edit", "multiedit":  return "édition"
-        case "write":              return "écriture"
-        case "read", "notebookread": return "lecture"
-        case "glob":               return "recherche"
-        case "grep":               return "recherche"
-        case "ls":                 return "listage"
-        case "webfetch":           return "web"
-        case "websearch":          return "recherche web"
-        case "task", "agent":      return "délégation"
-        case "todowrite":          return "plan"
-        case "exitplanmode":       return "plan"
-        case "notebookedit":       return "notebook"
-        case "askuserquestion":    return "question"
-        default:                   return String(tool.lowercased().prefix(14))
+        case "bash", "bashoutput":   return .shell
+        case "edit", "multiedit":    return .editing
+        case "write":                return .writing
+        case "read", "notebookread": return .reading
+        case "glob", "grep":         return .searching
+        case "ls":                   return .listing
+        case "webfetch":             return .web
+        case "websearch":            return .webSearch
+        case "task", "agent":        return .delegating
+        case "todowrite", "exitplanmode": return .planning
+        case "notebookedit":         return .notebook
+        case "askuserquestion":      return .question
+        default:                     return .other(String(tool.lowercased().prefix(14)))
         }
     }
 

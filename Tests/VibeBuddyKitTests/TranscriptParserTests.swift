@@ -20,7 +20,7 @@ struct TranscriptParserTests {
     func toolInProgress() {
         let t = TranscriptParser.parse(TranscriptFixtures.runningShell)
         #expect(t.action == .shell)
-        #expect(t.status == "commande")   // libellé lisible, pas le nom brut
+        #expect(t.status == .shell)
         #expect(t.subject == "swift build")
         #expect(!t.turnEnded)
     }
@@ -131,7 +131,7 @@ struct ToolSubjectTests {
     func shellSubject() {
         let t = TranscriptParser.parse(
             TranscriptFixtures.toolUse("Bash", #"{"command":"swift build -c release"}"#))
-        #expect(t.status == "commande")
+        #expect(t.status == .shell)
         #expect(t.subject == "swift build -c release")
     }
 
@@ -141,17 +141,17 @@ struct ToolSubjectTests {
     func filePathSubject() {
         let t = TranscriptParser.parse(TranscriptFixtures.toolUse(
             "Edit", #"{"file_path":"/Users/dev/Sites/notch/NotchPanel.swift"}"#))
-        #expect(t.status == "édition")
+        #expect(t.status == .editing)
         #expect(t.subject == "NotchPanel.swift")
     }
 
     @Test("every tool hides its subject under its own key", arguments: [
-        ("Grep",      #"{"pattern":"WakeCoordinator"}"#,      "recherche",     "WakeCoordinator"),
-        ("WebFetch",  #"{"url":"https://example.com/x"}"#,    "web",           "https://example.com/x"),
-        ("WebSearch", #"{"query":"swift fsevents"}"#,         "recherche web", "swift fsevents"),
-        ("Task",      #"{"description":"auditer les RFC"}"#,  "délégation",    "auditer les RFC"),
+        ("Grep",      #"{"pattern":"WakeCoordinator"}"#,      ToolLabel.searching,  "WakeCoordinator"),
+        ("WebFetch",  #"{"url":"https://example.com/x"}"#,    .web,                 "https://example.com/x"),
+        ("WebSearch", #"{"query":"swift fsevents"}"#,         .webSearch,           "swift fsevents"),
+        ("Task",      #"{"description":"auditer les RFC"}"#,  .delegating,          "auditer les RFC"),
     ])
-    func subjectKeys(_ tool: String, _ input: String, _ label: String, _ subject: String) {
+    func subjectKeys(_ tool: String, _ input: String, _ label: ToolLabel, _ subject: String) {
         let t = TranscriptParser.parse(TranscriptFixtures.toolUse(tool, input))
         #expect(t.status == label)
         #expect(t.subject == subject)
@@ -160,7 +160,7 @@ struct ToolSubjectTests {
     @Test("a tool with no recognisable subject yields nil rather than noise")
     func noSubject() {
         let t = TranscriptParser.parse(TranscriptFixtures.toolUse("TodoWrite", #"{"todos":[]}"#))
-        #expect(t.status == "plan")
+        #expect(t.status == .planning)
         #expect(t.subject == nil)
     }
 }

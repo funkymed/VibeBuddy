@@ -9,8 +9,8 @@ public struct ParsedTail: Sendable, Equatable {
     public var effort: String?
     public var gitBranch: String?
     public var action: ToolAction = .none
-    /// Human label for the running tool — "édition", "commande"…
-    public var status: String = ""
+    /// Untranslated key for the running tool. The view translates it.
+    public var status: ToolLabel?
     /// What the tool is pointed at: a file name, a command, a pattern.
     public var subject: String?
     public var lastResultWasError: Bool = false

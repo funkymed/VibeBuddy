@@ -16,10 +16,12 @@ final class AppCoordinator: NSObject, NSApplicationDelegate {
     let l10n = Localisation()
     /// One store, three models — RFC-010: splitting by who observes what keeps
     /// a buddy colour change from invalidating the window layout.
-    let prefs = PreferencesStore()
-    private(set) lazy var appearance = AppearancePrefs(store: prefs)
-    private(set) lazy var layout = LayoutPrefs(store: prefs)
-    private(set) lazy var notifications = NotificationPrefs(store: prefs)
+    let prefs: PreferencesStore
+    /// Held by value by the settings window, which never rebuilds: a reset
+    /// reloads these in place rather than replacing them.
+    let appearance: AppearancePrefs
+    let layout: LayoutPrefs
+    let notifications: NotificationPrefs
     private let voice = VoiceAnnouncer()
     private var settings: SettingsWindow?
     private var buddyWatchers: [ProjectsWatcher] = []
@@ -28,6 +30,15 @@ final class AppCoordinator: NSObject, NSApplicationDelegate {
     var showPillOnLaunch = true
     /// Which buddy to load. Nil means the built-in one.
     var buddyID: String? = "emoji"
+
+    override init() {
+        let prefs = PreferencesStore()
+        self.prefs = prefs
+        appearance = AppearancePrefs(store: prefs)
+        layout = LayoutPrefs(store: prefs)
+        notifications = NotificationPrefs(store: prefs)
+        super.init()
+    }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
@@ -110,9 +121,7 @@ final class AppCoordinator: NSObject, NSApplicationDelegate {
         sessions.onChange = { [weak self] list in
             guard let self, let panel = self.panel else { return }
             let live = list.filter(\.isLive)
-            let activity: SessionActivity? = live.contains(where: \.awaitingAnswer) ? .awaiting
-                : (live.contains { $0.action != .none } ? .working
-                : (live.contains { $0.turnEnded } ? .finished : (live.isEmpty ? nil : .idle)))
+            let activity = SessionDisplayState.aggregate(of: list)?.activity
             panel.setExpression(BuddyExpression.from(
                 activity: activity, hasLiveSession: !live.isEmpty, isVisible: true))
             panel.setSessionCount(live.count)
@@ -290,9 +299,9 @@ final class AppCoordinator: NSObject, NSApplicationDelegate {
     /// bundle, and removing those breaks much later.
     private func resetEverything() {
         for key in PreferencesStore.allKeys { prefs.remove(key) }
-        appearance = AppearancePrefs(store: prefs)
-        layout = LayoutPrefs(store: prefs)
-        notifications = NotificationPrefs(store: prefs)
+        appearance.reload()
+        layout.reload()
+        notifications.reload()
         applyLayoutPrefs()
         loadBuddy(appearance.buddyID)
         PerfProbe.log.info("réglages réinitialisés")

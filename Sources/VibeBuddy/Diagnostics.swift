@@ -115,7 +115,10 @@ enum Diagnostics {
             for (k, v) in t.unrecognised { unrecognised[k, default: 0] += v }
             let what = t.turnEnded
                 ? "tour terminé"
-                : (t.status.isEmpty ? "—" : t.status + (t.subject.map { " · \($0)" } ?? ""))
+                : (t.status.map { label in
+                      Strings.french.label(for: label)
+                          + (t.subject.map { " · \($0)" } ?? "")
+                  } ?? "—")
             print(String(format: "  %-16@ ctx=%7d %@%@ %@",
                 ((t.cwd ?? "—") as NSString).lastPathComponent as NSString,
                 t.contextTokens,
@@ -157,7 +160,7 @@ enum Diagnostics {
                        ? " ✔" : "")) as NSString,
                 (session.awaitingAnswer
                     ? "⏳ " + (session.question ?? "question")
-                    : (session.status.isEmpty ? "—" : session.status)) as NSString))
+                    : (session.status.map { Strings.french.label(for: $0) } ?? "—")) as NSString))
         }
         print(String(format: "  %d sessions · refresh en %.1f ms", live.count, refreshMs))
         print("  un terminal est au premier plan : \(TerminalFocusProbe.isAnyTerminalFrontmost())")

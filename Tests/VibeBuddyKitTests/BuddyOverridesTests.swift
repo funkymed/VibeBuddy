@@ -175,7 +175,7 @@ struct UngroupedSessionsTests {
         AgentSession(
             id: id, cwd: cwd, projectName: (cwd as NSString).lastPathComponent,
             model: "", startedAt: Date(), lastActivity: Date(),
-            status: "", action: .none, permissionMode: "",
+            status: nil, action: .none, permissionMode: "",
             contextTokens: 0, contextWindow: 200_000, pid: nil, isLive: live)
     }
 
