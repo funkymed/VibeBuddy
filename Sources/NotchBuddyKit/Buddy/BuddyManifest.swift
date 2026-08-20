@@ -171,14 +171,22 @@ public struct BuddyManifest: Sendable, Equatable, Decodable {
         }
     }
 
-    /// Every frame that could be widest, with the size it will be drawn at.
+    /// Every frame, with the size it will be drawn at.
     ///
-    /// Returned as pairs rather than as a single "widest" string, because with
-    /// per-expression sizes the longest frame is no longer necessarily the
-    /// widest one — a short face at 20 pt beats a long one at 11. Only
-    /// measurement can decide, so the layout gets everything it needs to try.
+    /// **All of them, not one candidate per expression.** The first version sent
+    /// each expression's `widestFrame` — longest by character count — and that
+    /// is not the widest by measurement: a kaomoji mixes glyphs whose advance
+    /// widths differ by a factor of three, so a shorter frame can be wider.
+    /// Measured on the shipped emoji buddy: the candidate came out at 71 pt
+    /// while the expression really needed 74, and the slot clipped by three
+    /// points.
+    ///
+    /// The cost is measuring roughly twenty-five short strings when the layout
+    /// resolves, which happens on a geometry or state change, not per frame.
     public var candidateFrames: [(text: String, size: CGFloat)] {
-        expressions.values.map { ($0.widestFrame, size(for: $0)) }
+        expressions.values.flatMap { expression in
+            expression.frames.map { ($0, size(for: expression)) }
+        }
     }
 
     /// Slowest and fastest a buddy may cycle.

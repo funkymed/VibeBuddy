@@ -89,6 +89,30 @@ struct PillLayoutTests {
         #expect(alert.rightWidth > counter.rightWidth)
     }
 
+    // Asymmetric ears were geometrically fine — the pill was shifted so its hole
+    // still landed on the cutout — and looked wrong: the notch is symmetric, so
+    // a shape hanging further out on one side reads as misaligned.
+    @Test("both ears are the same width, whatever they hold")
+    func earsAreSymmetric() {
+        let layout = PillLayout.resolve(
+            geometry: notched, buddy: BuiltInBuddy.manifest, sessionCount: 12)
+        #expect(layout.leftWidth == layout.rightWidth)
+        // Which makes the correction unnecessary rather than merely correct.
+        #expect(layout.notchAlignmentOffset == 0)
+    }
+
+    @Test("the wider side sets the width, the narrower one is padded up to it")
+    func widerSideWins() {
+        let bare = PillLayout.resolve(geometry: notched, buddy: nil, sessionCount: 0)
+        #expect(bare.leftWidth == PillLayout.emptySlotWidth)
+
+        let withBuddy = PillLayout.resolve(
+            geometry: notched, buddy: BuiltInBuddy.manifest, sessionCount: 0)
+        // The right ear is empty here, so it inherits the buddy's width.
+        #expect(withBuddy.rightWidth == withBuddy.leftWidth)
+        #expect(withBuddy.rightWidth > PillLayout.emptySlotWidth)
+    }
+
     @Test("a display without a cutout still produces a usable pill")
     func plainScreen() {
         let layout = PillLayout.resolve(geometry: plain, buddy: BuiltInBuddy.manifest, sessionCount: 1)

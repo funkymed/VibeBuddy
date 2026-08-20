@@ -22,6 +22,13 @@ final class AppCoordinator: NSObject, NSApplicationDelegate {
     private var sessions: SessionCoordinator?
     let usage = UsageState()
     let l10n = Localisation()
+    /// One store, three models — RFC-010. Splitting by *who observes what* is
+    /// what stops a buddy colour change from invalidating the window layout.
+    let prefs = PreferencesStore()
+    private(set) lazy var appearance = AppearancePrefs(store: prefs)
+    private(set) lazy var layout = LayoutPrefs(store: prefs)
+    private(set) lazy var notifications = NotificationPrefs(store: prefs)
+    private let voice = VoiceAnnouncer()
     private var settings: SettingsWindow?
     private var buddyWatchers: [ProjectsWatcher] = []
     /// Fired on every hot reload. Used by the bench to prove it happens.
@@ -44,14 +51,25 @@ final class AppCoordinator: NSObject, NSApplicationDelegate {
 
         let settings = SettingsWindow(
             l10n: l10n,
+            appearance: appearance,
+            layout: layout,
+            notifications: notifications,
             onBuddyChange: { [weak self] id in self?.loadBuddy(id) },
             onLanguageChange: { [weak self] in
                 guard let self else { return }
                 self.panel?.setLanguage(self.l10n.strings, locale: self.l10n.locale)
-            }
+            },
+            onReset: { [weak self] in self?.resetEverything() }
         )
-        settings.onVisibilityChange = { [weak panel] open in
+        settings.onVisibilityChange = { [weak self, weak panel] open in
             panel?.suppressesHover = open
+            // Closing the window is one of the two moments where waiting a
+            // quarter second for a coalesced write is a real risk.
+            if !open {
+                self?.prefs.flush()
+                self?.applyLayoutPrefs()
+                self?.loadBuddy(self?.appearance.buddyID)
+            }
         }
         self.settings = settings
         panel.onSettings = { settings.show() }
@@ -69,28 +87,52 @@ final class AppCoordinator: NSObject, NSApplicationDelegate {
             } }
         }
 
-        loadBuddy(UserDefaults.standard.string(forKey: "notchbuddy.buddy") ?? buddyID)
+        applyLayoutPrefs()
+        loadBuddy(appearance.buddyID)
         watchBuddies()
 
         let sessions = SessionCoordinator(wake: wake)
-        sessions.onAlert = { [weak panel] alert in
+        sessions.onAlert = { [weak self] alert in
+            guard let self else { return }
+            // The preference silences the *rendering*, never the reading: the
+            // state machine has already decided what happened, and a setting
+            // that changed that would make the panel and the alerts disagree.
+            guard self.notifications.allows(alert.kind) else {
+                PerfProbe.log.info("alerte tue par préférence: \(alert.kind.rawValue, privacy: .public)")
+                return
+            }
             PerfProbe.log.info(
                 "alerte: \(alert.projectName, privacy: .public) \(alert.kind.rawValue, privacy: .public)")
-            panel?.present(alert)
+            self.panel?.present(alert)
+            if self.notifications.haptics { Haptics.tap() }
+            if self.notifications.voice {
+                let label = NotchShellView.label(for: alert.kind, l10n: self.l10n.strings)
+                self.voice.announce(
+                    "\(alert.projectName) \(label)", locale: self.l10n.locale)
+            }
         }
-        sessions.onChange = { [weak panel] list in
+        sessions.onChange = { [weak self] list in
+            guard let self, let panel = self.panel else { return }
             let live = list.filter(\.isLive)
-            let activity: SessionActivity? = live.contains { $0.action != .none } ? .working
-                : (live.contains { $0.turnEnded } ? .finished : (live.isEmpty ? nil : .idle))
-            panel?.setExpression(BuddyExpression.from(
+            // A pending question outranks everything: it is the one state where
+            // nothing moves until the user acts.
+            let activity: SessionActivity? = live.contains(where: \.awaitingAnswer) ? .awaiting
+                : (live.contains { $0.action != .none } ? .working
+                : (live.contains { $0.turnEnded } ? .finished : (live.isEmpty ? nil : .idle)))
+            panel.setExpression(BuddyExpression.from(
                 activity: activity, hasLiveSession: !live.isEmpty, isVisible: true))
-            panel?.setSessionCount(live.count)
-            panel?.setSessions(list)
+            panel.setSessionCount(live.count)
+            panel.setSessions(list)
+            // D7's preference, applied where liveness is actually known.
+            if !self.layout.showPillWithoutSession {
+                live.isEmpty ? panel.hide() : panel.show()
+            }
         }
         sessions.onChangeLog = { list in
             let live = list.filter(\.isLive).count
             PerfProbe.log.info("sessions: \(live, privacy: .public) live / \(list.count, privacy: .public)")
         }
+        sessions.quietWhenTerminalFrontmost = notifications.quietWhenFrontmost
         sessions.start()
         self.sessions = sessions
 
@@ -114,6 +156,8 @@ final class AppCoordinator: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         wake.suspend()
+        // The other moment a queued write must not be lost.
+        prefs.flush()
     }
 
     // MARK: - System state
@@ -205,8 +249,7 @@ final class AppCoordinator: NSObject, NSApplicationDelegate {
                 guard changed.contains(where: { $0.hasSuffix(".buddy") }) else { return }
                 Task { @MainActor in
                     guard let self else { return }
-                    self.loadBuddy(
-                        UserDefaults.standard.string(forKey: "notchbuddy.buddy") ?? self.buddyID)
+                    self.loadBuddy(self.appearance.buddyID)
                     PerfProbe.log.info("buddy rechargé")
                     self.onBuddyReload?(self.panel?.currentBuddyID ?? "?")
                 }
@@ -249,12 +292,46 @@ final class AppCoordinator: NSObject, NSApplicationDelegate {
     }
 
     private func loadBuddy(_ id: String?) {
+        // A buddy created in the editor has no file, so the loader cannot find
+        // it — the layer holds it whole. Either way the overrides are applied
+        // afterwards, in the one place that knows the precedence.
+        if let id, let created = appearance.overrides.manifest(forCreated: id) {
+            panel?.setBuddy(appearance.resolved(created))
+            panel?.setPixelSize(appearance.pixelSize)
+            return
+        }
         var loader = BuddyLoader()
         let loaded = loader.load(id: id)
-        panel?.setBuddy(loaded.manifest)
+        panel?.setBuddy(appearance.resolved(loaded.manifest))
+        panel?.setPixelSize(appearance.pixelSize)
         for problem in loader.problems {
             PerfProbe.log.error("buddy: \(problem, privacy: .public)")
         }
+    }
+
+    /// Push the panel-facing preferences. Called at launch and whenever the
+    /// settings window closes, which is when they can have changed.
+    private func applyLayoutPrefs() {
+        sessions?.quietWhenTerminalFrontmost = notifications.quietWhenFrontmost
+        panel?.setLayoutPrefs(
+            groupByDirectory: layout.groupByDirectory,
+            jumpOnClick: layout.jumpOnClick,
+            showUsage: layout.showUsage)
+    }
+
+    /// Delete every preference this app owns, then reload from defaults.
+    ///
+    /// Keys are removed one by one rather than by wiping the domain: the domain
+    /// also holds system-managed entries for this bundle, and taking those with
+    /// it would be a bug that only shows up much later.
+    private func resetEverything() {
+        for key in PreferencesStore.allKeys { prefs.remove(key) }
+        appearance = AppearancePrefs(store: prefs)
+        layout = LayoutPrefs(store: prefs)
+        notifications = NotificationPrefs(store: prefs)
+        applyLayoutPrefs()
+        loadBuddy(appearance.buddyID)
+        PerfProbe.log.info("réglages réinitialisés")
     }
 
     private func enterLowPower(_ reason: String) {

@@ -20,6 +20,9 @@ public struct Strings: Sendable {
     public let sessionsIdle: @Sendable (Int) -> String
     public let sessionsWorking: @Sendable (Int) -> String
     public let sessionsWaiting: @Sendable (Int) -> String
+    /// Bare state word, for the header's compact fraction — the count is the
+    /// fraction itself, so the label must not carry one of its own.
+    public let stateWorking: String
     public let quit: String
 
     // Sessions
@@ -69,6 +72,7 @@ public struct Strings: Sendable {
         sessionsIdle: { "\($0) au repos" },
         sessionsWorking: { "\($0) en cours" },
         sessionsWaiting: { "\($0) en attente" },
+        stateWorking: "en cours",
         quit: "Quitter notch-buddy",
         sessionsTitle: "SESSIONS",
         filterPlaceholder: "Filtrer les sessions…",
@@ -104,6 +108,7 @@ public struct Strings: Sendable {
         sessionsIdle: { "\($0) idle" },
         sessionsWorking: { "\($0) working" },
         sessionsWaiting: { "\($0) waiting" },
+        stateWorking: "working",
         quit: "Quit notch-buddy",
         sessionsTitle: "SESSIONS",
         filterPlaceholder: "Filter sessions…",

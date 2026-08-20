@@ -40,4 +40,13 @@ public final class Localisation {
     public var effective: AppLanguage { language.resolved() }
 
     public var locale: Locale { language.locale }
+
+    /// The settings window's catalogue, in the same language as the panel.
+    ///
+    /// Separate struct, same resolution — a window that stayed English while the
+    /// panel spoke French would look like a bug, and the two catalogues have no
+    /// reason to ever disagree about which language is active.
+    public var settings: SettingsStrings {
+        effective == .french ? .french : .english
+    }
 }

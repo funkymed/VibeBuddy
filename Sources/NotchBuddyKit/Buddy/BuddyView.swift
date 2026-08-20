@@ -25,6 +25,10 @@ public struct BuddyView: View {
     private let manifest: BuddyManifest
     private let expression: BuddyExpression
     @Bindable private var budget: AnimationBudget
+    /// Device pixels backing one rendered pixel. A preference rather than a
+    /// constant since RFC-010: it changes how coarse the face looks, never how
+    /// large it is drawn.
+    private let pixelSize: CGFloat
 
     /// When the current expression began, so transient motions play from their
     /// start rather than from wherever a shared clock happened to be.
@@ -33,11 +37,13 @@ public struct BuddyView: View {
     public init(
         manifest: BuddyManifest,
         expression: BuddyExpression,
-        budget: AnimationBudget
+        budget: AnimationBudget,
+        pixelSize: Double = Double(BuddyView.defaultPixelSize)
     ) {
         self.manifest = manifest
         self.expression = expression
         self.budget = budget
+        self.pixelSize = CGFloat(pixelSize)
     }
 
     private var settings: BuddyManifest.Expression? {
@@ -93,7 +99,7 @@ public struct BuddyView: View {
             let motion = (settings?.motion ?? .none).transform(at: phase)
 
             face(phase: phase)
-                .modifier(PixelGrid(colour: colour))
+                .modifier(PixelGrid(colour: colour, pitch: pixelSize))
                 .frame(width: reservedWidth > 0 ? reservedWidth : nil, alignment: .leading)
                 .scaleEffect(motion.scale)
                 .offset(x: motion.offset.width + motion.gaze.width * 0.4,
@@ -123,7 +129,7 @@ public struct BuddyView: View {
                 secondsPerFrame: manifest.secondsPerFrame(for: settings)) ?? "",
             colour: colour,
             fontSize: manifest.size(for: settings),
-            pixelSize: Self.pixelSize,
+            pixelSize: pixelSize,
             font: manifest.font
         )
             .fixedSize()
@@ -132,14 +138,13 @@ public struct BuddyView: View {
             .shadow(color: colour.opacity(0.30), radius: 9)
     }
 
-    /// Device pixels per rendered pixel.
-    ///
-    /// Device pixels backing one rendered pixel.
+    /// Device pixels backing one rendered pixel, when nobody says otherwise.
     ///
     /// This coarsens the bitmap; it does **not** change how large the face is
     /// drawn. Raising it makes the blocks chunkier at the same size, and past
-    /// about three the kaomoji stop being legible.
-    static let pixelSize: CGFloat = 2
+    /// about three the kaomoji stop being legible — which is why the preference
+    /// that overrides it is clamped rather than free.
+    public static let defaultPixelSize: CGFloat = 2
 
     /// How often the timeline is allowed to tick.
     ///
@@ -179,14 +184,15 @@ public struct BuddyView: View {
 /// not by coincidence.
 struct PixelGrid: ViewModifier {
     let colour: Color
-
-    /// Points between one grid line and the next.
-    static var pitch: CGFloat { BuddyView.pixelSize }
+    /// Points between one grid line and the next. Follows the bitmap's own
+    /// coarseness by construction: any other pitch beats against the blocks
+    /// underneath and reads as a rendering fault.
+    var pitch: CGFloat = BuddyView.defaultPixelSize
 
     /// Thickness of the separation. A quarter of the pitch keeps the cell
     /// clearly larger than its border — beyond about a third the grid stops
     /// being a separation and becomes the subject.
-    static var lineWidth: CGFloat { max(0.5, pitch / 4) }
+    var lineWidth: CGFloat { max(0.5, pitch / 4) }
 
     /// Light enough that the thin strokes of a kaomoji survive. An earlier 0.38
     /// ate `ᓚ₍⑅^- .-^₎` outright.
@@ -200,16 +206,16 @@ struct PixelGrid: ViewModifier {
                     var x: CGFloat = 0
                     while x < size.width {
                         context.fill(
-                            Path(CGRect(x: x, y: 0, width: Self.lineWidth, height: size.height)),
+                            Path(CGRect(x: x, y: 0, width: lineWidth, height: size.height)),
                             with: ink)
-                        x += Self.pitch
+                        x += pitch
                     }
                     var y: CGFloat = 0
                     while y < size.height {
                         context.fill(
-                            Path(CGRect(x: 0, y: y, width: size.width, height: Self.lineWidth)),
+                            Path(CGRect(x: 0, y: y, width: size.width, height: lineWidth)),
                             with: ink)
-                        y += Self.pitch
+                        y += pitch
                     }
                 }
                 .mask(content)

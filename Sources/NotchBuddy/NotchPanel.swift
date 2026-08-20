@@ -38,6 +38,14 @@ final class NotchPanel: NSPanel {
     /// Clicking a live session row. The pid is the agent's, not the terminal's.
     var onJump: (pid_t) -> Void = { _ in }
     private var jumpNote: String?
+    /// Panel-facing preferences (RFC-010). Held as plain values rather than by
+    /// observing the models: the panel redraws on its own schedule, and a view
+    /// that re-evaluated on every preference write would be the invalidation
+    /// problem this split exists to avoid.
+    private var pixelSize: Double = Double(BuddyView.defaultPixelSize)
+    private var groupByDirectory = true
+    private var jumpOnClick = true
+    private var showUsage = true
 
     /// Suppresses hover while another surface of ours owns the screen.
     ///
@@ -286,7 +294,9 @@ final class NotchPanel: NSPanel {
                            showPanelContent: contentRevealed, usage: usage,
                            l10n: l10n, locale: locale,
                            onSettings: onSettings, onQuit: onQuit,
-                           onJump: onJump, jumpNote: jumpNote)
+                           onJump: onJump, jumpNote: jumpNote,
+                           pixelSize: pixelSize, groupByDirectory: groupByDirectory,
+                           jumpOnClick: jumpOnClick, showUsage: showUsage)
         )
     }
 
@@ -310,6 +320,25 @@ final class NotchPanel: NSPanel {
     }
 
     /// Latest usage reading. Only redraws while the panel is open.
+    /// How coarse the buddy's pixels are.
+    func setPixelSize(_ size: Double) {
+        guard size != pixelSize else { return }
+        pixelSize = size
+        rebuildContent()
+    }
+
+    /// The three preferences the panel renders.
+    func setLayoutPrefs(groupByDirectory: Bool, jumpOnClick: Bool, showUsage: Bool) {
+        guard groupByDirectory != self.groupByDirectory
+            || jumpOnClick != self.jumpOnClick
+            || showUsage != self.showUsage
+        else { return }
+        self.groupByDirectory = groupByDirectory
+        self.jumpOnClick = jumpOnClick
+        self.showUsage = showUsage
+        if state == .panel { rebuildContent() }
+    }
+
     /// Say how the last jump went, or clear the message.
     ///
     /// Only redrawn while the panel is open — a note nobody can see is a

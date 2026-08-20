@@ -39,6 +39,10 @@ struct NotchShellView: View {
     var onQuit: () -> Void = {}
     var onJump: (pid_t) -> Void = { _ in }
     var jumpNote: String?
+    var pixelSize: Double = Double(BuddyView.defaultPixelSize)
+    var groupByDirectory = true
+    var jumpOnClick = true
+    var showUsage = true
 
     /// Slot geometry, measured from what the ears actually contain.
     private var layout: PillLayout? {
@@ -78,7 +82,9 @@ struct NotchShellView: View {
                 sessions: sessions, buddy: buddy, expression: expression,
                 budget: budget, usage: usage, l10n: l10n, locale: locale,
                 onSettings: onSettings, onQuit: onQuit,
-                onJump: onJump, jumpNote: jumpNote
+                onJump: onJump, jumpNote: jumpNote,
+                pixelSize: pixelSize, groupByDirectory: groupByDirectory,
+                jumpOnClick: jumpOnClick, showUsage: showUsage
             )
             // An explicit fade, short and on its own terms. The default
             // insertion transition fired at the start of the growth, which is
@@ -122,7 +128,8 @@ struct NotchShellView: View {
     @ViewBuilder
     private var buddyContent: some View {
         if let buddy {
-            BuddyView(manifest: buddy, expression: expression, budget: budget)
+            BuddyView(manifest: buddy, expression: expression, budget: budget,
+                      pixelSize: pixelSize)
         }
     }
 

@@ -32,15 +32,26 @@ struct PanelContentView: View {
     /// be found, or a refused permission. Nil the rest of the time, because a
     /// jump that worked is its own confirmation: the terminal is now in front.
     var jumpNote: String?
+    var pixelSize: Double = Double(BuddyView.defaultPixelSize)
+    /// One row per directory rather than one per transcript.
+    var groupByDirectory = true
+    var jumpOnClick = true
+    var showUsage = true
 
 
-    private var visible: [SessionGroup] { SessionGroup.group(sessions) }
+    private var visible: [SessionGroup] {
+        // Ungrouped is not "no grouping applied" — it is one group per session,
+        // so the row keeps working without a second code path for its badges.
+        groupByDirectory
+            ? SessionGroup.group(sessions)
+            : SessionGroup.ungrouped(sessions)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             PanelHeader(
                 buddy: buddy, expression: expression, sessions: sessions,
-                budget: budget, l10n: l10n,
+                budget: budget, l10n: l10n, pixelSize: pixelSize,
                 onSettings: onSettings, onQuit: onQuit
             )
 
@@ -54,8 +65,10 @@ struct PanelContentView: View {
             sessionsSection
                 .frame(maxHeight: .infinity, alignment: .top)
 
-            Divider().overlay(.white.opacity(0.08))
-            UsageSection(state: usage, l10n: l10n, locale: locale)
+            if showUsage {
+                Divider().overlay(.white.opacity(0.08))
+                UsageSection(state: usage, l10n: l10n, locale: locale)
+            }
         }
         .padding(.horizontal, 18)
         .padding(.top, 16)
@@ -108,7 +121,9 @@ struct PanelContentView: View {
                         // `SessionGroup.group` owns that rule so the view and
                         // the tests cannot disagree about it.
                         ForEach(visible) { group in
-                            SessionRow(group: group, l10n: l10n, onJump: onJump).equatable()
+                            SessionRow(
+                                group: group, l10n: l10n,
+                                onJump: jumpOnClick ? onJump : nil).equatable()
                         }
                     }
                 }

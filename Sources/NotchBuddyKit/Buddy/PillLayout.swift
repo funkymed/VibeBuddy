@@ -29,12 +29,17 @@ public struct PillLayout: Sendable, Equatable {
 
     /// Breathing room either side of a slot's content, so glyphs never touch
     /// the cutout or the pill's rounded edge.
-    public static let slotPadding: CGFloat = 10
+    ///
+    /// Trimmed from 10 to 6 when the ears became symmetric: symmetry pads the
+    /// narrower ear up to the wider one, so the padding is now paid twice on the
+    /// side that has nothing to show. Six points still clears the cutout — the
+    /// glyphs never reach the edge — and the pill stops looking inflated.
+    public static let slotPadding: CGFloat = 6
 
     /// Inset on the outer edge of an ear, taken from `slotPadding` rather than
     /// added to it — the slot's measured width already includes both sides, so
     /// adding here would push content past the pill it was measured for.
-    public static let outerPadding: CGFloat = 8
+    public static let outerPadding: CGFloat = 6
 
     /// Width an ear keeps when it has nothing to show, so the pill still reads
     /// as a shape rather than collapsing onto the notch.
@@ -91,9 +96,23 @@ public struct PillLayout: Sendable, Equatable {
             measure($0, size: counterFontSize, weight: .semibold) + slotPadding * 2
         } ?? emptySlotWidth
 
+        // Both ears get the width of the wider one.
+        //
+        // Measuring each ear from its own contents made the pill lopsided — a
+        // four-glyph buddy on the left, `×2` on the right — and the fix for that
+        // used to be shifting the whole pill so its hole still landed on the
+        // cutout (`notchAlignmentOffset`). That works geometrically and looks
+        // wrong: the notch is symmetric, and a shape hanging further out on one
+        // side reads as misaligned even when it is exactly aligned.
+        //
+        // Equal ears cost a few points of width on the narrower side and buy a
+        // shape that is symmetric about the cutout by construction — the offset
+        // is then zero, not corrected.
+        let slot = max(left, right, emptySlotWidth)
+
         return PillLayout(
-            leftWidth: max(left, emptySlotWidth),
-            rightWidth: max(right, emptySlotWidth),
+            leftWidth: slot,
+            rightWidth: slot,
             // Without a cutout there is no hole to straddle, so the two ears sit
             // side by side with a token gap.
             notchWidth: notch?.width ?? 24,

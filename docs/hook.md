@@ -26,13 +26,13 @@ du confort :
 
 | | |
 |---|---|
-| Sources | 54 fichiers, 7 100 lignes |
-| Tests | 19 fichiers, **214 tests**, tous verts |
+| Sources | 72 fichiers, 8 926 lignes |
+| Tests | 21 fichiers, **238 tests**, tous verts |
 | Coût mesuré | **8,3 Mo** `phys_footprint` · **0,04 %** CPU · **0 réveil inactif** |
 | Fait | RFC-001 (socle), RFC-003 (sessions) |
-| En cours | 002 à 95 %, 005 à 95 %, 012 à 95 %, 004 à 90 %, 008 à 75 %, 010 à 25 % |
+| En cours | 002 à 95 %, 005 à 95 %, 012 à 95 %, 004 à 90 %, 010 à 90 %, 008 à 75 % |
 | **Bloqué** | **RFC-006 et RFC-007** — voir « le spike qui n'a pas tranché » |
-| Reste v1 | 13-22 j-h |
+| Reste v1 | 9-17 j-h |
 
 Le Gantt fait foi et vit dans `CLAUDE.md`. **Il a dérivé trois fois** au cours du
 développement : du code livré, des fiches à 0 %. Vérifier le code avant de croire
@@ -151,6 +151,24 @@ les réglages (utilisateur, projet, local, plus `env.ANTHROPIC_MODEL`) ; le seui
 des 200k reste en filet, pour ce que les réglages ne voient pas (`/model` tapé en
 cours de session).
 
+**`@Observable` change la sémantique de `didSet`.** La macro transforme une
+propriété stockée en propriété calculée autour du registrar : s'assigner à
+soi-même depuis son propre `didSet` **ré-entre dans le setter** au lieu d'être
+ignoré comme sur une propriété stockée ordinaire. Un bornage écrit dans `didSet`
+a récursé jusqu'à épuiser la pile et a tué le runner de tests entier avec un
+SIGSEGV, sans nom de test pour l'accuser. Borner dans une propriété calculée.
+
+**Les préférences sont trois modèles, pas un.** `AppearancePrefs`, `LayoutPrefs`,
+`NotificationPrefs`, un seul `PreferencesStore` derrière, écritures coalescées
+(60 changements → 1 écriture, sous test). Le découpage est par *qui observe
+quoi* : un changement de couleur du buddy ne doit pas invalider ce qui regarde la
+position de la fenêtre.
+
+**Les modifications de buddy vivent dans `UserDefaults`, pas dans le `.buddy`.**
+Arbitrage du 2026-08-20. Deux sources de vérité, donc **une seule fonction** les
+réconcilie — `BuddyOverrides.apply(to:)` — et `BuddyExportWriter` aplatit le tout
+en `.buddy` autonome pour qu'une retouche puisse encore se partager.
+
 **Le saut vers l'onglet s'apparie sur le tty, jamais sur un titre.**
 `ProcessLookup.tty(of:)` (`sysctl` → `e_tdev` → `devname`) donne `/dev/ttys004` ;
 iTerm2 et Terminal publient `tty` en lecture sur leur `session` / `tab`. C'est
@@ -220,11 +238,10 @@ revenir** sans lire RFC-005 §4, qui dit pourquoi avec les mesures.
 
 1. **Faire trancher le spike hook** — une minute d'interaction humaine, débloque
    ou annule 8-12 j-h.
-2. **RFC-010** (25 %) — **périmètre élargi le 2026-08-20** : fenêtre de réglages
-   segmentée (barre latérale, sept sections) et **éditeur complet des expressions
-   du buddy**, en plus du reste des préférences. L'éditeur écrit un calque dans
-   `UserDefaults`, pas dans le `.buddy` — arbitrage assumé, avec une exportation
-   explicite comme contrepoids. Fiche écrite, **pas encore validée, aucun code**.
+2. **RFC-010** (90 %) — livrée le 2026-08-20 : fenêtre segmentée à sept sections,
+   éditeur complet des expressions du buddy, trois modèles de préférences, voix
+   et haptique. Reste le **login item**, écrit mais invérifiable tant que l'app
+   n'est pas un bundle — il attend RFC-011 — et les vérifications à l'usage.
 3. **RFC-011** — empaquetage. L'app n'est pas installable aujourd'hui.
 4. Vérifications terrain en attente : écran externe (RFC-002), trois sessions
    simultanées (RFC-012), scénario C curseur en mouvement (RFC-005).

@@ -49,6 +49,21 @@ public struct SessionGroup: Sendable, Equatable, Identifiable {
         .sorted { byRelevance($0.primary, $1.primary) }
     }
 
+    /// One group per session, same ordering.
+    ///
+    /// The preference to *not* group still goes through `SessionGroup`, rather
+    /// than the view growing a second path for bare sessions: the row's badges,
+    /// its equality and its jump all read a group, and two shapes for the same
+    /// row is how a list ends up with two behaviours.
+    ///
+    /// Keyed by session id, because two ungrouped rows in one directory must
+    /// not collide on `id` — `ForEach` would drop one of them.
+    public static func ungrouped(_ sessions: [AgentSession]) -> [SessionGroup] {
+        sessions.sorted(by: byRelevance).map {
+            SessionGroup(cwd: $0.id, primary: $0, all: [$0])
+        }
+    }
+
     static func byRelevance(_ a: AgentSession, _ b: AgentSession) -> Bool {
         if a.isLive != b.isLive { return a.isLive }
         return a.lastActivity > b.lastActivity

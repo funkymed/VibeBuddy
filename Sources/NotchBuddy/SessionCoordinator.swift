@@ -27,6 +27,10 @@ final class SessionCoordinator {
     let alerts = AlertBus()
     private let tracker: AlertTracker
     var onAlert: ((SessionAlert) -> Void)?
+    /// RFC-010 preference, pushed rather than observed: this is read inside a
+    /// closure the tracker owns, and an `@Observable` read there would tie the
+    /// tracker's lifetime to a preference model it has no reason to know.
+    var quietWhenTerminalFrontmost = true
     /// Alerts the policy chose not to show, with the reason. Exposed because a
     /// notification system that drops things silently cannot be trusted.
     var suppressedAlerts: [(alert: SessionAlert, reason: String)] { tracker.suppressed }
@@ -35,7 +39,11 @@ final class SessionCoordinator {
         self.wake = wake
         self.store = store
         self.tracker = AlertTracker(bus: alerts)
-        self.tracker.isHostingTerminalFrontmost = { session in
+        self.tracker.isHostingTerminalFrontmost = { [weak self] session in
+            // The preference can turn this suppression off entirely. On a second
+            // display the "frontmost" terminal can be a screen away, which is
+            // the case someone would reasonably disagree with.
+            guard self?.quietWhenTerminalFrontmost ?? true else { return false }
             guard let pid = session.pid else { return false }
             return TerminalFocusProbe.isHostingTerminalFrontmost(agentPID: pid)
         }

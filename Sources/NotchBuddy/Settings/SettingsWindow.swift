@@ -22,17 +22,29 @@ final class SettingsWindow {
     /// Told when the window opens and closes, so the panel can hold itself open.
     var onVisibilityChange: ((Bool) -> Void)?
     private let l10n: Localisation
+    private let appearance: AppearancePrefs
+    private let layout: LayoutPrefs
+    private let notifications: NotificationPrefs
     private var onBuddyChange: (String?) -> Void
     private var onLanguageChange: () -> Void
+    private var onReset: () -> Void
 
     init(
         l10n: Localisation,
+        appearance: AppearancePrefs,
+        layout: LayoutPrefs,
+        notifications: NotificationPrefs,
         onBuddyChange: @escaping (String?) -> Void,
-        onLanguageChange: @escaping () -> Void
+        onLanguageChange: @escaping () -> Void,
+        onReset: @escaping () -> Void
     ) {
         self.l10n = l10n
+        self.appearance = appearance
+        self.layout = layout
+        self.notifications = notifications
         self.onBuddyChange = onBuddyChange
         self.onLanguageChange = onLanguageChange
+        self.onReset = onReset
     }
 
     func show() {
@@ -42,16 +54,23 @@ final class SettingsWindow {
             return
         }
 
-        let view = SettingsView(
+        let view = SettingsShell(
             l10n: l10n,
+            appearance: appearance,
+            layout: layout,
+            notifications: notifications,
             onBuddyChange: onBuddyChange,
-            onLanguageChange: onLanguageChange
+            onLanguageChange: onLanguageChange,
+            onReset: onReset
         )
         let hosting = NSHostingController(rootView: view)
         let window = NSWindow(contentViewController: hosting)
         window.title = "notch-buddy"
-        window.styleMask = [.titled, .closable, .miniaturizable]
-        window.setContentSize(NSSize(width: 520, height: 360))
+        // Resizable now: a sidebar plus a buddy editor does not fit a fixed
+        // 520x360, and the sections differ enough in height that a single size
+        // would be wrong for most of them.
+        window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
+        window.setContentSize(NSSize(width: 820, height: 560))
         window.isReleasedWhenClosed = false
         window.center()
         self.window = window
@@ -79,112 +98,5 @@ final class SettingsWindow {
         window.level = NSWindow.Level(rawValue: NSWindow.Level.statusBar.rawValue + 1)
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
-    }
-}
-
-private struct SettingsView: View {
-    @Bindable var l10n: Localisation
-    var onBuddyChange: (String?) -> Void
-    var onLanguageChange: () -> Void
-
-    @AppStorage("notchbuddy.buddy") private var buddyID: String = "emoji"
-    @State private var available: [BuddyManifest] = BuddyLoader.available()
-
-    /// Left at `.still` on purpose.
-    ///
-    /// The preview goes through `BuddyView` so that what is shown here is the
-    /// same renderer as the pill — pixel grid, bloom and all. A still budget
-    /// gives that renderer no clock, so six faces on screen cost six static
-    /// bitmaps rather than six timelines. The style is what the preview is for;
-    /// the motion is visible in the notch itself.
-    @State private var previewBudget = AnimationBudget()
-
-    var body: some View {
-        Form {
-            Section {
-                Picker(selection: Binding(
-                    get: { l10n.language },
-                    set: { l10n.set($0); onLanguageChange() }
-                )) {
-                    ForEach(AppLanguage.allCases, id: \.self) { language in
-                        Text(language.displayName).tag(language)
-                    }
-                } label: {
-                    Text(l10n.strings.settingsLanguage)
-                }
-                // What `.system` means today, so the choice is not a guess.
-                if l10n.language == .system {
-                    Text(l10n.strings.settingsLanguageSystem(l10n.effective.displayName))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-
-            Section {
-                Picker(selection: Binding(
-                    get: { buddyID },
-                    set: { buddyID = $0; onBuddyChange($0) }
-                )) {
-                    // The name alone. A raw frame inlined in the menu was a
-                    // second way of drawing a buddy — unpixellated, unlit, and
-                    // therefore a preview of something the app never shows.
-                    // The real renderer sits right below.
-                    ForEach(available, id: \.id) { manifest in
-                        Text(manifest.name).tag(manifest.id)
-                    }
-                } label: {
-                    Text(l10n.strings.settingsBuddy)
-                }
-                // Live preview, through the one renderer. Choosing a buddy
-                // from a name alone is a guess.
-                //
-                // Only expressions the manifest actually declares: asking for a
-                // missing one falls back to `idle`, so listing all six would
-                // show the same face several times and read as a buddy with no
-                // states.
-                //
-                // On black, because that is the pill's background. The bloom is
-                // built to sit on it, and a preview on the form's own grey
-                // would misrepresent every colour in the file.
-                if let manifest = available.first(where: { $0.id == buddyID }) {
-                    HStack(spacing: 16) {
-                        ForEach(declared(in: manifest), id: \.self) { expression in
-                            BuddyView(
-                                manifest: manifest,
-                                expression: expression,
-                                budget: previewBudget
-                            )
-                            .fixedSize()
-                        }
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 10)
-                    .background(RoundedRectangle(cornerRadius: 8).fill(.black))
-                }
-
-                HStack {
-                    Spacer()
-                    // No reload button: buddy files are watched and reloaded as
-                    // they are saved. A button offering to do what already
-                    // happens teaches people to distrust the automatic path.
-                    Button(l10n.strings.settingsOpenFolder) {
-                        let path = BuddyLoader.searchPath
-                        try? FileManager.default.createDirectory(
-                            atPath: path, withIntermediateDirectories: true)
-                        NSWorkspace.shared.open(URL(fileURLWithPath: path))
-                    }
-                }
-            }
-        }
-        .formStyle(.grouped)
-        .frame(minWidth: 460, minHeight: 300)
-    }
-
-    /// The expressions this manifest really defines, in declaration order of
-    /// the enum rather than of the dictionary — a dictionary has none, and the
-    /// preview would reshuffle on every appearance.
-    private func declared(in manifest: BuddyManifest) -> [BuddyExpression] {
-        BuddyExpression.allCases.filter { manifest.expressions[$0.rawValue] != nil }
     }
 }

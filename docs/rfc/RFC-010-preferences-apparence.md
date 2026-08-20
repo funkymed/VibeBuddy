@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | in-progress (25 %) — fenêtre native et i18n livrées ; **périmètre élargi le 2026-08-20** (fenêtre segmentée + éditeur de buddy), donc le pourcentage baisse |
+| **Status** | in-progress (90 %) — modèle, fenêtre segmentée et éditeur de buddy livrés ; reste le login item (bloqué par RFC-011) et les vérifications terrain |
 | **Author** | Cyril Pereira |
 | **Created** | 2026-08-19 |
 | **Updated** | 2026-08-20 |
@@ -229,22 +229,44 @@ fenêtre coûtent plus de comptabilité qu'elles n'en clarifient.
 
 | # | Tâche | Statut | % |
 |---|---|---|---|
-| T1 | Les trois modèles `@Observable` + `PreferencesStore` | todo | 0 |
-| T2 | Écritures coalescées (vérifier : aucune écriture par frame de drag) | todo | 0 |
-| T3 | Cadre de migration généralisé | todo | 0 |
-| T4 | `applyStartAtLogin` + réconciliation au premier lancement | todo | 0 |
+| T1 | Les trois modèles `@Observable` + `PreferencesStore` | **done** | **100** |
+| T2 | Écritures coalescées (60 changements → 1 écriture, sous test) | **done** | **100** |
+| T3 | Cadre de migration généralisé | **done** | **100** |
+| T4 | `applyStartAtLogin` + réconciliation au premier lancement | **partial** | **60** |
 | T5 | `SettingsView` + sous-vues (< 200 l. chacune) | **done** | **100** |
 | T9 | **Internationalisation** — hors périmètre initial, voir ci-dessous | **done** | **100** |
-| T6 | `SpeechPresenter` + pop-out de fin de session + dédup à la minute | todo | 0 |
-| T7 | `VoiceAnnouncer` paresseux + debounce | todo | 0 |
-| T8 | Retour haptique | todo | 0 |
-| T10 | Coquille segmentée : barre latérale, sections, sélection persistante | todo | 0 |
-| T11 | Découpage des sections existantes (Général, Buddy) dans la coquille | todo | 0 |
-| T12 | `BuddyOverrides` + `apply(to:)` + une seule clé `UserDefaults` | todo | 0 |
-| T13 | `ExpressionEditor` : images, couleur, taille, vitesse, mouvement | todo | 0 |
-| T14 | Création, duplication, renommage, suppression d'un buddy | todo | 0 |
-| T15 | `BuddyExportWriter` : aplatir calque + fichier en `.buddy` autonome | todo | 0 |
-| T16 | Aperçu live via `BuddyView`, budget `lively` limité à l'éditeur | todo | 0 |
+| T6 | Pop-out de fin de session + dédup — **livré par RFC-012** (`AlertPresenter`, `AlertPolicy`) | **done** | **100** |
+| T7 | `VoiceAnnouncer` paresseux + debounce 4 s | **done** | **100** |
+| T8 | Retour haptique | **done** | **100** |
+| T10 | Coquille segmentée : barre latérale, sections, sélection persistante | **done** | **100** |
+| T11 | Sept sections, chacune un fichier de moins de 200 lignes | **done** | **100** |
+| T12 | `BuddyOverrides` + `apply(to:)` + une seule clé `UserDefaults` | **done** | **100** |
+| T13 | `ExpressionEditor` : images, couleur, taille, vitesse, mouvement | **done** | **100** |
+| T14 | Duplication et suppression d'un buddy | **done** | **100** |
+| T15 | `BuddyExportWriter` : aplatir calque + fichier en `.buddy` autonome | **done** | **100** |
+| T16 | Aperçu live via `BuddyView`, budget `lively` limité à l'éditeur | **done** | **100** |
+
+### Ce qui a résisté, à l'implémentation du 2026-08-20
+
+**`@Observable` change la sémantique de `didSet`.** Une propriété stockée devient
+une propriété calculée autour du registrar, donc s'assigner à soi-même depuis son
+propre `didSet` **ré-entre dans le setter** au lieu d'être ignoré comme sur une
+propriété stockée ordinaire. Le premier `pixelSize` bornait sa valeur dans
+`didSet` et récursait jusqu'à épuiser la pile : le test a tué le runner entier
+avec un SIGSEGV, sans nom de test. Bornage en propriété calculée.
+
+**Le login item demande un bundle.** `SMAppService.mainApp` échoue sur un binaire
+nu, ce qu'est l'app tant que RFC-011 n'a pas empaqueté. Le réglage lit l'état
+réel du système plutôt qu'un drapeau stocké — c'est la moitié de la leçon que la
+référence documente elle-même (`BuddyPreferences.swift:453-456`) — et se désactive
+en disant pourquoi. **T4 reste à 60 % : le code est là, il n'est pas vérifiable.**
+
+**« Aucun réglage sans effet » a coûté du câblage, pas des cases.** Regrouper par
+dossier passe par `SessionGroup.ungrouped` plutôt que par un second type de ligne
+dans la vue ; le silence quand le terminal est au premier plan est poussé dans
+`AlertTracker` au lieu d'y être lu ; la grosseur des pixels descend jusqu'à
+`BuddyView` en paramètre. Trois câblages pour trois interrupteurs, et zéro
+interrupteur décoratif.
 
 **Critère de sortie.** Une session qui se termine déclenche **exactement une**
 notification — pas deux, pas zéro — sur dix essais. Un drag complet de la
@@ -256,6 +278,12 @@ la voit changer dans la notch **sans relancer l'app**. Réinitialiser cette
 expression restitue exactement ce que dit le fichier. Exporter puis charger le
 `.buddy` obtenu redonne le buddy édité, à l'identique — vérifié en comparant les
 manifestes, pas les fichiers.
+
+**Où en est ce critère (2026-08-20).** Le troisième point est **tenu et sous
+test** (`BuddyOverridesTests.exportRoundTrip`, plus le cas positionnel taille
+avant vitesse). Les deux premiers sont écrits mais **vérifiés seulement par les
+tests du calque** : ils demandent une session réelle et un clic, pas une
+assertion.
 
 ### Décidé le 2026-08-19 : une fenêtre de préférences native
 

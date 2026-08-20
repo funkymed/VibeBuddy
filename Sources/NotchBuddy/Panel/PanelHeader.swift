@@ -12,6 +12,7 @@ struct PanelHeader: View {
     let sessions: [AgentSession]
     @Bindable var budget: AnimationBudget
     let l10n: Strings
+    var pixelSize: Double = Double(BuddyView.defaultPixelSize)
     var onSettings: () -> Void
     var onQuit: () -> Void
 
@@ -21,37 +22,29 @@ struct PanelHeader: View {
     ///
     /// Aggregated rather than listed: the detail is two rows below, and a header
     /// that enumerates is a header nobody reads.
-    private var summary: String {
-        if live.isEmpty { return l10n.noSessions }
-        let asking = live.filter(\.awaitingAnswer)
-        // Said first and on its own: a finished turn waits for free, an
-        // unanswered question does not.
-        if !asking.isEmpty {
-            let names = asking.prefix(2).map(\.projectName).joined(separator: ", ")
-            return names + " — " + l10n.alertWaiting
-        }
-        let working = live.filter { $0.action != .none }.count
-        let waiting = live.filter(\.turnEnded).count
-        var parts: [String] = []
-        if working > 0 { parts.append(l10n.sessionsWorking(working)) }
-        if waiting > 0 { parts.append(l10n.sessionsWaiting(waiting)) }
-        return parts.isEmpty ? l10n.sessionsIdle(live.count) : parts.joined(separator: ", ")
-    }
+    /// Agents doing something right now.
+    private var working: Int { live.filter { $0.action != .none }.count }
 
     var body: some View {
         HStack(alignment: .center, spacing: 12) {
             if let buddy {
-                BuddyView(manifest: buddy, expression: expression, budget: budget)
+                BuddyView(manifest: buddy, expression: expression, budget: budget,
+                          pixelSize: pixelSize)
                     .fixedSize()
             }
 
             // Just what the agents are doing. The app's own name sits on the
             // identity line below, where it is read once rather than competing
             // with the state on every glance.
-            Text(summary)
-                .font(.system(size: 13))
-                .foregroundStyle(.white.opacity(0.65))
-                .lineLimit(1)
+            // Nothing between the buddy and the chip. The left side held a
+            // sentence, then a fraction; both said what the chip on the right
+            // now says once, and the rows below say per session anyway.
+            if live.isEmpty {
+                Text(l10n.noSessions)
+                    .font(.system(size: 13))
+                    .foregroundStyle(.white.opacity(0.55))
+                    .lineLimit(1)
+            }
 
             Spacer(minLength: 8)
 
@@ -61,16 +54,22 @@ struct PanelHeader: View {
         }
     }
 
-    /// Live over total, so a session that ended is still visible as history
-    /// without being counted as running.
+    /// Working over live.
+    ///
+    /// It used to be live over total, which counted transcripts rather than
+    /// agents: a project with an afternoon of history read `1 / 9` and the nine
+    /// meant nothing — history is already visible as the `×n` badge on its row.
+    /// Working over live answers the question the header is actually asked:
+    /// how many of the agents that are up are doing something.
     private var counterChip: some View {
         HStack(spacing: 5) {
             Circle()
-                .fill(live.isEmpty ? Color.white.opacity(0.3) : .green)
+                .fill(live.isEmpty ? Color.white.opacity(0.3) : (working > 0 ? .green : .orange))
                 .frame(width: 7, height: 7)
-            Text("\(live.count) / \(sessions.count)")
+            Text("\(working) / \(live.count)")
                 .font(.system(size: 12, weight: .medium, design: .monospaced))
                 .foregroundStyle(.white.opacity(0.8))
+                .help(l10n.stateWorking)
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
