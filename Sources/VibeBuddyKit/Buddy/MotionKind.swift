@@ -51,19 +51,6 @@ public enum MotionKind: String, Sendable, Equatable, CaseIterable, Decodable {
         return t
     }
 
-    /// Frame rate this motion actually needs: a 0.28 Hz breathing cycle is
-    /// indistinguishable at 8 fps from 60, a decaying shake is not.
-    public var preferredTier: AnimationBudget.Tier {
-        switch self {
-        case .none:                     return .still
-        case .breathe:                  return .ambient
-        case .pulse, .dart:             return .ambient
-        case .bounce, .shake:           return .lively
-        }
-    }
-
     /// Whether the motion settles on its own, so the clock can stop afterwards.
     public var isTransient: Bool { self == .bounce || self == .shake }
-
-    public var settleDuration: Double { isTransient ? 1.6 : .infinity }
 }

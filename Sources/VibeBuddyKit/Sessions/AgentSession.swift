@@ -78,7 +78,6 @@ public enum ToolAction: String, Sendable, Equatable, CaseIterable {
     case shell
     /// A shell command matching a destructive pattern.
     case danger
-    case thinking
     case web
     case delegating
     case planning

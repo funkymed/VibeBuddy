@@ -30,6 +30,4 @@ public final class AlertBus {
             }
         }
     }
-
-    public var subscriberCount: Int { subscribers.count }
 }

@@ -42,12 +42,6 @@ struct MotionTests {
         }
     }
 
-    @Test("only motions that show it ask for the expensive tier")
-    func tiers() {
-        #expect(MotionKind.none.preferredTier == .still)
-        #expect(MotionKind.breathe.preferredTier == .ambient)
-        #expect(MotionKind.bounce.preferredTier == .lively)
-    }
 }
 
 

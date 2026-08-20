@@ -4,10 +4,6 @@ import Foundation
 /// See RFC-003, « Notes d'implémentation ».
 public actor SessionStore {
 
-    /// Contracted freshness. Do not reinstate a flat 1 Hz timer here.
-    public static let activeLatency: TimeInterval = 2
-    public static let restingLatency: TimeInterval = 30
-
     public static let fullWalkInterval: TimeInterval = 120
 
     public static let staleAfter: TimeInterval = 15 * 60
@@ -15,7 +11,6 @@ public actor SessionStore {
     /// Above this many prompt tokens the 1M window is *proved*. Backstop only — a
     /// session at 142k on 1M read 71 % instead of 14 % before `ContextWindowResolver`.
     public static let largeContextThreshold = 200_000
-    public static let defaultContextWindow = ContextWindowResolver.defaultWindow
     public static let largeContextWindow = ContextWindowResolver.largeWindow
 
     private let root: String
@@ -32,7 +27,6 @@ public actor SessionStore {
     private var windows = ContextWindowResolver()
 
     private var current: [AgentSession] = []
-    private var subscribers: [UUID: AsyncStream<[AgentSession]>.Continuation] = [:]
 
     public init(
         root: String? = nil,
@@ -46,21 +40,6 @@ public actor SessionStore {
     // MARK: - Reading
 
     public var sessions: [AgentSession] { current }
-
-    public var liveSessions: [AgentSession] { current.filter(\.isLive) }
-
-    public func updates() -> AsyncStream<[AgentSession]> {
-        let id = UUID()
-        return AsyncStream { continuation in
-            subscribers[id] = continuation
-            continuation.yield(current)
-            continuation.onTermination = { [weak self] _ in
-                Task { await self?.removeSubscriber(id) }
-            }
-        }
-    }
-
-    private func removeSubscriber(_ id: UUID) { subscribers[id] = nil }
 
     // MARK: - Refresh
 
@@ -111,10 +90,7 @@ public actor SessionStore {
         sessions.sort { $0.lastActivity > $1.lastActivity }
         reader.evict(keeping: seenPaths)
 
-        if sessions != current {
-            current = sessions
-            for continuation in subscribers.values { continuation.yield(sessions) }
-        }
+        if sessions != current { current = sessions }
         return sessions
     }
 
@@ -214,6 +190,4 @@ public actor SessionStore {
         }
         return out
     }
-
-    public var cachedTranscripts: Int { reader.cachedCount }
 }

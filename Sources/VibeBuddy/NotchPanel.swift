@@ -314,19 +314,6 @@ final class NotchPanel: NSPanel {
     }
     /// Hover opens the panel from `.pill` **and from `.speech`**.
     ///
-    /// An alert used to lock the pill for its four seconds: reaching for a
-    /// notification and having it refuse to open is the opposite of what the
-    /// notification is for. Opening dismisses the bubble, the panel says the
-    /// same thing with more detail.
-    private func hoverChanged(_ hovering: Bool) {
-        if hovering, state == .pill || state == .speech {
-            alertDismissal?.cancel()
-            currentAlert = nil
-            state = .panel
-        } else if !hovering, state == .panel {
-            state = .pill
-        }
-    }
 
 
 

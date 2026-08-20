@@ -52,6 +52,4 @@ public struct AlertPolicy: Sendable {
         guard recent.count > 32 else { return }
         recent = recent.filter { now.timeIntervalSince($0.value) < Self.dedupeWindow }
     }
-
-    public var trackedKeys: Int { recent.count }
 }
