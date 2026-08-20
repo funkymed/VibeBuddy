@@ -1,7 +1,16 @@
+import CoreGraphics
 import Foundation
 
-/// Parser for the `.buddy` text format: `name (colour #RRGGBB) [size] [speed]`
-/// opens a section, one frame per line, a blank line closes it.
+/// Parser for the `.buddy` text format.
+///
+/// A file opens with the screen, then one section per expression:
+///
+///     face: 80x30 oval
+///
+///     idle (amber #FFBB00)
+///     eye   shape:oval w:9 h:13 r:4.5 gap:20 y:-3
+///     mouth shape:arc w:24 h:9 t:0.6 bend:1 y:8
+///     time  beat:1.6 blink:0.3 grain:0.03 glitch:0 gaze:wander
 ///
 /// A `.buddy` is data outside the binary: recompiling changes nothing, the file
 /// has to be re-read. Parsing never throws — a bad section is skipped.
@@ -14,12 +23,12 @@ public struct BuddyFile: Sendable {
         public let problems: [String]
     }
 
-    /// `name (anything #RRGGBB) [size] [speed]` — the colour word is decoration.
+    /// `name (anything #RRGGBB)` — the colour word is decoration.
     /// Do not hoist this into a stored property: `Regex` is not `Sendable`, and
     /// sharing one across concurrent parses is a real race.
     private static func headerPattern()
-        -> Regex<(Substring, Substring, Substring, Substring, Substring?, Substring?)> {
-        /^\s*([a-zA-Z][a-zA-Z0-9_-]*)\s*\(([^)]*?)#([0-9A-Fa-f]{6})\s*\)\s*(\d{1,2})?\s*(\d+(?:\.\d+)?)?\s*$/
+        -> Regex<(Substring, Substring, Substring, Substring)> {
+        /^\s*([a-zA-Z][a-zA-Z0-9_-]*)\s*\(([^)]*?)#([0-9A-Fa-f]{6})\s*\)\s*$/
     }
 
     public static func parse(_ text: String, id: String, name: String) -> ParseResult {
@@ -27,27 +36,21 @@ public struct BuddyFile: Sendable {
         var problems: [String] = []
 
         let header = headerPattern()
-        var current: (name: String, colour: String, size: CGFloat?,
-                      rate: Double?, frames: [String])?
-        var font: String?
-        var size: CGFloat = 13
-        var speed: Double = BuddyManifest.defaultFrameRate
+        var current: (name: String, colour: String)?
+        var eye: EyeSpec?
+        var face = BuddyManifest.FacePlate()
 
         func flush() {
             guard let section = current else { return }
-            guard !section.frames.isEmpty else {
-                problems.append("« \(section.name) » n'a aucune image")
-                current = nil
+            defer { current = nil; eye = nil }
+            guard let spec = eye else {
+                problems.append("« \(section.name) » ne décrit aucun visage")
                 return
             }
             expressions[section.name] = BuddyManifest.Expression(
-                frames: section.frames,
+                eye: spec,
                 motion: MotionKind.default(for: section.name),
-                colour: "#" + section.colour,
-                fontSize: section.size,
-                framesPerSecond: section.rate
-            )
-            current = nil
+                colour: "#" + section.colour)
         }
 
         for (index, raw) in text.split(separator: "\n", omittingEmptySubsequences: false).enumerated() {
@@ -59,37 +62,33 @@ public struct BuddyFile: Sendable {
                 continue  // a comment, not a colour
             }
 
-            // Directives only before the first section, so a frame that reads
-            // like one is never eaten.
+            // Directives only before the first section, so a pose line that
+            // reads like one is never eaten.
             if current == nil, let colon = trimmed.firstIndex(of: ":") {
                 let key = trimmed[..<colon].trimmingCharacters(in: .whitespaces).lowercased()
                 let value = trimmed[trimmed.index(after: colon)...]
                     .trimmingCharacters(in: .whitespaces)
-                if key == "font", !value.isEmpty { font = value; continue }
-                if key == "size", let parsed = Double(value), parsed >= 6, parsed <= 48 {
-                    size = CGFloat(parsed); continue
+                if key == "face" {
+                    if let parsed = parseFace(value) { face = parsed }
+                    else {
+                        problems.append(
+                            "ligne \(index + 1) : « face: \(value) » illisible, attendu « 80x30 oval »")
+                    }
+                    continue
                 }
-                // Out-of-range values are reported, never clamped.
-                if key == "speed", let parsed = Double(value),
-                   BuddyManifest.isValidFrameRate(parsed) {
-                    speed = parsed; continue
+                // `kind`, `font`, `size` and `speed` belonged to the glyph
+                // format and are gone. Say so rather than swallow them: a file
+                // written for the old format would otherwise parse to a face
+                // that ignores half of what it was told.
+                if ["kind", "font", "size", "speed"].contains(key) {
+                    problems.append("ligne \(index + 1) : « \(key): » n'existe plus")
+                    continue
                 }
             }
 
             if let match = try? header.wholeMatch(in: line) {
                 flush()
-                let perExpressionSize: CGFloat? = match.4
-                    .flatMap { Double(String($0)) }
-                    .map { CGFloat($0) }
-                let perExpressionRate: Double? = match.5
-                    .flatMap { Double(String($0)) }
-                    .flatMap { BuddyManifest.isValidFrameRate($0) ? $0 : nil }
-                if match.5 != nil, perExpressionRate == nil {
-                    problems.append(
-                        "ligne \(index + 1) : vitesse hors bornes, celle du fichier est gardée")
-                }
-                current = (String(match.1).lowercased(), String(match.3).uppercased(),
-                           perExpressionSize, perExpressionRate, [])
+                current = (String(match.1).lowercased(), String(match.3).uppercased())
                 continue
             }
 
@@ -97,9 +96,13 @@ public struct BuddyFile: Sendable {
                 problems.append("ligne \(index + 1) hors section : « \(trimmed) »")
                 continue
             }
-            // Do not trim frames: several of these faces are drawn out of their
-            // leading and trailing spaces.
-            current?.frames.append(line)
+            // Several lines merge into one spec, so a face can be split across
+            // lines the way a long one wants to be.
+            switch applyPose(trimmed, to: eye ?? EyeSpec(pose: EyePose())) {
+            case let .ok(updated): eye = updated
+            case let .unknown(token):
+                problems.append("ligne \(index + 1) : clé « \(token) » inconnue")
+            }
         }
         flush()
 
@@ -112,26 +115,139 @@ public struct BuddyFile: Sendable {
         return ParseResult(
             manifest: BuddyManifest(
                 schema: BuddyManifest.supportedSchema,
-                kind: .ascii,
                 id: id,
                 name: name,
                 colour: expressions["idle"]?.colour ?? "#FFFFFF",
-                fontSize: size,
-                framesPerSecond: speed,
-                font: font,
+                face: face,
                 expressions: expressions
             ),
             problems: problems
         )
     }
+
+    // MARK: - The grammar
+
+    /// `80x30 oval` or `58x28 r10` — width, height, then either the word
+    /// `oval` or a corner radius.
+    static func parseFace(_ text: String) -> BuddyManifest.FacePlate? {
+        let pattern = /^(\d+(?:\.\d+)?)\s*x\s*(\d+(?:\.\d+)?)(?:\s+(oval|r\s*\d+(?:\.\d+)?))?$/
+        guard let match = try? pattern.wholeMatch(
+                in: text.trimmingCharacters(in: .whitespaces).lowercased()),
+              let width = Double(String(match.1)), let height = Double(String(match.2))
+        else { return nil }
+        let tail = match.3.map(String.init)
+        if tail == "oval" {
+            return BuddyManifest.FacePlate(
+                width: CGFloat(width), height: CGFloat(height),
+                radius: CGFloat(height / 2), silhouette: .oval)
+        }
+        let radius = tail
+            .map { $0.dropFirst().trimmingCharacters(in: .whitespaces) }
+            .flatMap { Double($0) } ?? (height / 3)
+        return BuddyManifest.FacePlate(
+            width: CGFloat(width), height: CGFloat(height),
+            radius: CGFloat(radius), silhouette: .rounded)
+    }
+
+    /// One line of a section. The first word says which part it describes, the
+    /// rest are `key:value` pairs in any order. Returns the offending token
+    /// rather than a message, so the caller owns the wording.
+    static func applyPose(_ line: String, to spec: EyeSpec) -> PoseOutcome {
+        var spec = spec
+        var tokens = line.split(whereSeparator: { $0 == " " || $0 == "\t" }).map(String.init)
+        guard let head = tokens.first else { return .ok(spec) }
+        let target: Target
+        switch head.lowercased() {
+        case "eye":   target = .eye
+        case "mouth": target = .mouth
+        case "time":  target = .time
+        default:      return .unknown(head)
+        }
+        tokens.removeFirst()
+
+        // A `mouth` line is what creates the mouth: a face with no such line
+        // has no mouth at all, rather than one of size zero.
+        if target == .mouth, spec.pose.mouth == nil {
+            spec.pose.mouth = FaceFeature(shape: .arc, width: 18, height: 7, offsetY: 7)
+        }
+
+        for token in tokens {
+            guard let colon = token.firstIndex(of: ":") else { return .unknown(token) }
+            let key = token[..<colon].lowercased()
+            let raw = String(token[token.index(after: colon)...])
+
+            if key == "shape" {
+                guard let shape = EyeShape(rawValue: raw.lowercased()) else { return .unknown(raw) }
+                switch target {
+                case .eye:   spec.pose.eye.shape = shape
+                case .mouth: spec.pose.mouth?.shape = shape
+                case .time:  return .unknown(key)
+                }
+                continue
+            }
+            if key == "gaze" {
+                guard target == .time,
+                      let kind = GazeKind(rawValue: raw.lowercased()) else { return .unknown(raw) }
+                spec.gaze = kind
+                continue
+            }
+            guard let value = Double(raw) else { return .unknown(token) }
+            let number = CGFloat(value)
+
+            if target == .time {
+                switch key {
+                case "beat":
+                    spec.beat = min(EyeSpec.maximumBeat, max(EyeSpec.minimumBeat, value))
+                // Zero is the only way to say "never blinks", so it is not rejected.
+                case "blink":  spec.blink = max(0, min(1, value))
+                case "depth":  spec.depthScale = max(0, min(4, number))
+                case "grain":  spec.grain = max(0, min(1, value))
+                case "glitch": spec.glitch = max(0, min(1, value))
+                default:       return .unknown(key)
+                }
+                continue
+            }
+
+            var feature = target == .eye ? spec.pose.eye : (spec.pose.mouth ?? FaceFeature())
+            switch key {
+            case "w":    feature.width = number
+            case "h":    feature.height = number
+            case "r":    feature.radius = number
+            case "t":    feature.thickness = number
+            case "bend": feature.bend = number
+            case "tilt": feature.tilt = number
+            case "y":    feature.offsetY = number
+            case "gap":
+                guard target == .eye else { return .unknown(key) }
+                spec.pose.gap = number
+            default: return .unknown(key)
+            }
+            if target == .eye { spec.pose.eye = feature } else { spec.pose.mouth = feature }
+        }
+        return .ok(spec)
+    }
+
+    enum Target { case eye, mouth, time }
+
+    /// Not `Result`: `String` is not an `Error`, and wrapping the key in one
+    /// would be ceremony around a parser that never throws by design.
+    enum PoseOutcome {
+        case ok(EyeSpec)
+        case unknown(String)
+    }
 }
 
 extension MotionKind {
+    /// A face moves in beats, so the only motion left for the screen is a
+    /// reaction — one that happens and settles.
+    ///
+    /// `breathe` and `pulse` are deliberately absent: a continuous scale under
+    /// a face that snaps between fixed poses is the one soft thing left on
+    /// screen, and it is what reads as the whole thing drifting.
     static func `default`(for expression: String) -> MotionKind {
         switch expression {
-        case "sleeping": return .none
-        case "failed":   return .shake
         case "finished": return .bounce
+        case "failed":   return .shake
         default:         return .none
         }
     }

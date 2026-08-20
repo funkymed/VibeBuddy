@@ -74,7 +74,7 @@ enum Diagnostics {
             print("\n── disposition de la pastille ──")
         if let g = NotchGeometry.resolve() {
             var loader = BuddyLoader()
-            let buddy = loader.load(id: UserDefaults.standard.string(forKey: "vibebuddy.buddy") ?? "emoji").manifest
+            let buddy = loader.load(id: UserDefaults.standard.string(forKey: "vibebuddy.buddy") ?? BuiltInBuddy.id).manifest
             for (label, count, alert) in [("repos", 0, String?.none), ("2 sessions", 2, nil),
                                           ("10 sessions", 10, nil),
                                           ("alerte", 2, "notch terminé")] {
@@ -194,21 +194,46 @@ enum Diagnostics {
             value == value.rounded() ? String(Int(value)) : String(value)
         }
         let installed = BuddyLoader.available()
-        let active = UserDefaults.standard.string(forKey: "vibebuddy.buddy") ?? "emoji"
+        let active = UserDefaults.standard.string(forKey: "vibebuddy.buddy") ?? BuiltInBuddy.id
         for manifest in installed {
             let mark = manifest.id == active ? "●" : "○"
-            let frames = manifest.expressions.values.map(\.frames.count).reduce(0, +)
+            let plate = manifest.face
             print("  \(mark) \(manifest.id)  \(manifest.expressions.count) expressions · "
-                  + "\(frames) images · \(rate(manifest.framesPerSecond)) img/s")
+                  + "écran \(rate(Double(plate.width)))×\(rate(Double(plate.height))) "
+                  + (plate.silhouette == .oval
+                     ? "ovale"
+                     : "r\(rate(Double(plate.radius)))"))
             for name in BuddyExpression.allCases {
                 guard let e = manifest.expression(name) else { continue }
                 // Printed per expression, overridden or not: an override that
                 // failed to parse looks like an inherited value otherwise.
-                print(String(format: "      %-9@ %@  %-5@ %@",
+                print(String(format: "      %-9@ %@  %-8@ %@",
                              name.rawValue as NSString,
                              (e.colour ?? manifest.colour) as NSString,
-                             (rate(manifest.rate(for: e)) + " img/s") as NSString,
-                             (e.frames.first ?? "") as NSString))
+                             e.motion.rawValue as NSString,
+                             BuddyExportWriter.poseLine(e.eye) as NSString))
+                // The cells themselves, because a face is authored by eye and
+                // this is the only faithful preview outside the running app.
+                if manifest.id == active {
+                    for row in faceRows(spec: e.eye, plate: plate) { print("        \(row)") }
+                }
+            }
+        }
+        // Follows `VIBEBUDDY_FACE` so any expression's sequence can be read
+        // without launching the app and waiting for the right state.
+        var idleLoader = BuddyLoader()
+        let traced = AppCoordinator.forcedFace ?? .idle
+        if let spec = idleLoader.load(id: active).manifest.expressions[traced.rawValue]?.eye {
+            print("  séquence \(traced.rawValue) — un temps de \(spec.beat) s")
+            for index in 0..<18 {
+                let beat = EyeAnimation.beat(at: index, spec: spec)
+                let frame = EyeAnimation.at(
+                    phase: Double(index) * spec.beat + spec.beat * 0.7, spec: spec)
+                print(String(
+                    format: "    %2d  %-7@ regard %+5.1f,%+5.1f pt   profondeur %.2f   ouverture %.2f   roulis %+.1f   dissymétrie %+.2f",
+                    index, beat.rawValue as NSString,
+                    Double(frame.gaze.width), Double(frame.gaze.height),
+                    Double(frame.depth), Double(frame.squeeze), Double(frame.roll), Double(frame.lopsided)))
             }
         }
         print("  dossier : \(BuddyLoader.searchPath)")
@@ -269,5 +294,40 @@ enum Diagnostics {
 
     private static func fmt(_ interval: TimeInterval?) -> String {
         interval.map { String(format: "tick %.0fs ", $0) } ?? "aucun timer"
+    }
+
+    /// One eyes expression, drawn as the cells it actually lights up.
+    ///
+    /// A `.buddy` face is authored by eye and there is no other faithful
+    /// preview outside the running app: every attempt to judge a pose from its
+    /// numbers alone got it wrong. Sampled on a beat that looks straight ahead,
+    /// so the preview is the pose rather than a glance.
+    static func faceRows(spec: EyeSpec, plate: BuddyManifest.FacePlate) -> [String] {
+        let pitch = BuddyView.defaultPixelSize
+        let size = CGSize(width: plate.width, height: plate.height)
+        var phase = 0.0
+        for index in 0..<64 where EyeAnimation.beat(at: index, spec: spec) == .ahead {
+            phase = Double(index) * spec.beat + spec.beat * 0.6
+            break
+        }
+        let animation = EyeAnimation.at(phase: phase, spec: spec)
+        // Grain and tear included: a `failed` face whose screen is not tearing
+        // is not the face the app shows.
+        let rendered = EyeRaster.frame(
+            in: size, pose: spec.pose, animation: animation, pitch: pitch,
+            grain: spec.grain, glitch: spec.glitch,
+            tick: Int(phase * EyeSpec.noiseRate))
+        let columns = max(1, Int(size.width / pitch))
+        let rows = max(1, Int(size.height / pitch))
+        var grid = [[Character]](
+            repeating: [Character](repeating: " ", count: columns), count: rows)
+        for (cells, mark) in [(rendered.grain, Character("·")), (rendered.dim, Character("░")), (rendered.lit, Character("█"))] {
+            for cell in cells {
+                let row = Int(cell.minY / pitch), column = Int(cell.minX / pitch)
+                guard grid.indices.contains(row), grid[row].indices.contains(column) else { continue }
+                grid[row][column] = mark
+            }
+        }
+        return grid.map { String($0) }
     }
 }

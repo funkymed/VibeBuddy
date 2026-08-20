@@ -158,14 +158,6 @@ struct OversizedBuddyTests {
         #expect(box.height > 0)
     }
 
-    // The vertical half of the fit: a 40 pt face is taller than a 38 pt notch,
-    // so the scale has to come from the height even when the width fits.
-    @Test("a line is taller than its point size")
-    func lineHeightExceedsPointSize() {
-        #expect(PillLayout.lineHeight(size: 40, family: nil) > 40)
-        #expect(PillLayout.lineHeight(size: 12, family: nil) > 12)
-    }
-
     @Test("the shipped buddies are unaffected by the cap")
     func shippedBuddiesFit() {
         let layout = PillLayout.resolve(

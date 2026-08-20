@@ -8,17 +8,21 @@ struct BuddyOverridesTests {
 
     private func manifest() -> BuddyManifest {
         BuddyFile.parse("""
-        size: 15
-        speed: 1
+        face: 80x30 oval
 
         idle (x #FFBB00)
-        (^.^)
-        (-.-)
+        eye   shape:oval w:9 h:13 r:4.5 gap:20 y:-3
+        mouth shape:arc w:24 h:9 t:0.6 bend:1 y:8
+        time  beat:1.6 blink:0.3 gaze:wander
 
-        working (x #55FF55) 12 3
-        (o.o)
-        (O.O)
+        working (x #55FF55)
+        eye  shape:ring w:16 h:16 t:0.26 gap:14 y:-3
+        time beat:1.2 blink:0.2 gaze:scan
         """, id: "test", name: "Test").manifest!
+    }
+
+    private func pose(_ shape: EyeShape) -> EyeSpec {
+        EyeSpec(pose: EyePose(eye: FaceFeature(shape: shape, width: 11, height: 11)))
     }
 
     @Test("no edits means the manifest is returned untouched")
@@ -30,28 +34,25 @@ struct BuddyOverridesTests {
     @Test("an edit replaces only what it names")
     func partialEdit() {
         var overrides = BuddyOverrides()
-        overrides.set(.init(frames: ["(¬_¬)"]), for: "idle", of: "test")
+        overrides.set(.init(eye: pose(.x)), for: "idle", of: "test")
         let resolved = overrides.apply(to: manifest())
-        #expect(resolved.expressions["idle"]?.frames == ["(¬_¬)"])
+        #expect(resolved.expressions["idle"]?.eye.pose.eye.shape == .x)
         // Everything unnamed still comes from the file.
-        #expect(resolved.expressions["working"]?.frames == ["(o.o)", "(O.O)"])
-        #expect(resolved.rate(for: resolved.expressions["working"]) == 3)
+        #expect(resolved.expressions["working"]?.eye.pose.eye.shape == .ring)
+        #expect(resolved.expressions["working"]?.eye.gaze == .scan)
     }
 
     @Test("each field can be overridden on its own")
     func everyField() {
         var overrides = BuddyOverrides()
-        overrides.set(
-            .init(colour: "#FF0000", fontSize: 22, framesPerSecond: 4, motion: .bounce),
-            for: "idle", of: "test")
+        overrides.set(.init(colour: "#FF0000", motion: .bounce), for: "idle", of: "test")
         let resolved = overrides.apply(to: manifest())
         let idle = resolved.expressions["idle"]
         #expect(idle?.colour == "#FF0000")
-        #expect(resolved.size(for: idle) == 22)
-        #expect(resolved.rate(for: idle) == 4)
         #expect(idle?.motion == .bounce)
-        // Untouched: the frames still come from the file.
-        #expect(idle?.frames == ["(^.^)", "(-.-)"])
+        // Untouched: the face still comes from the file.
+        #expect(idle?.eye.pose.eye.shape == .oval)
+        #expect(idle?.eye.pose.mouth != nil)
     }
 
     // A reset must leave no trace, or every listing would show an expression as
@@ -59,53 +60,54 @@ struct BuddyOverridesTests {
     @Test("resetting removes the record entirely")
     func resetLeavesNothing() {
         var overrides = BuddyOverrides()
-        overrides.set(.init(frames: ["a"]), for: "idle", of: "test")
+        overrides.set(.init(colour: "#FF0000"), for: "idle", of: "test")
         #expect(overrides.hasEdits(for: "test"))
         overrides.reset("idle", of: "test")
-        #expect(overrides.hasEdits(for: "test") == false)
-        #expect(overrides.apply(to: manifest()) == manifest())
+        #expect(!overrides.hasEdits(for: "test"))
+        #expect(overrides.edits["test"] == nil)
     }
 
     @Test("an edit that stores nothing is not stored")
-    func emptyEditIsDropped() {
+    func emptyEditIsNotAnEdit() {
         var overrides = BuddyOverrides()
-        overrides.set(BuddyOverrides.Expression(), for: "idle", of: "test")
-        #expect(overrides.hasEdits(for: "test") == false)
+        overrides.set(.init(), for: "idle", of: "test")
+        #expect(!overrides.hasEdits(for: "test"))
     }
 
-    // An expression whose frames are all blank renders nothing at all. Falling
-    // back to the file is the honest reading of "no frames".
-    @Test("blanking every frame falls back to the file")
-    func blankFramesIgnored() {
+    @Test("an edit naming no face falls back to the file")
+    func faceFallsBack() {
         var overrides = BuddyOverrides()
-        overrides.set(.init(frames: ["", "  "]), for: "idle", of: "test")
+        overrides.set(.init(colour: "#00FF00"), for: "idle", of: "test")
         let resolved = overrides.apply(to: manifest())
-        #expect(resolved.expressions["idle"]?.frames == ["(^.^)", "(-.-)"])
+        #expect(resolved.expressions["idle"]?.eye == manifest().expressions["idle"]?.eye)
+        #expect(resolved.expressions["idle"]?.colour == "#00FF00")
     }
 
     @Test("a buddy created in the app needs no file")
     func createdBuddy() throws {
         var overrides = BuddyOverrides()
-        overrides.created["mine"] = .init(
-            name: "Mine", expressions: ["idle": .init(frames: ["(o_o)"])])
-        let manifest = try #require(overrides.manifest(forCreated: "mine"))
-        #expect(manifest.id == "mine")
-        #expect(manifest.expressions["idle"]?.frames == ["(o_o)"])
-        try manifest.validate()
+        var created = BuddyOverrides.Created(name: "Mine", colour: "#00FF00")
+        created.expressions["idle"] = .init(colour: "#00FF00", eye: pose(.oval))
+        overrides.created["mine"] = created
+        let m = try #require(overrides.manifest(forCreated: "mine"))
+        #expect(m.name == "Mine")
+        #expect(m.expressions["idle"]?.eye.pose.eye.shape == .oval)
+        #expect(throws: Never.self) { try m.validate() }
     }
 
     @Test("a created buddy without idle is refused rather than half-built")
     func createdNeedsIdle() {
         var overrides = BuddyOverrides()
-        overrides.created["mine"] = .init(
-            name: "Mine", expressions: ["working": .init(frames: ["(o_o)"])])
+        var created = BuddyOverrides.Created(name: "Mine")
+        created.expressions["working"] = .init(eye: pose(.oval))
+        overrides.created["mine"] = created
         #expect(overrides.manifest(forCreated: "mine") == nil)
     }
 
     @Test("the layer survives encoding")
     func codableRoundTrip() {
         var overrides = BuddyOverrides()
-        overrides.set(.init(frames: ["a", "b"], motion: .shake), for: "failed", of: "test")
+        overrides.set(.init(eye: pose(.x), motion: .shake), for: "failed", of: "test")
         overrides.created["mine"] = .init(name: "Mine")
         #expect(BuddyOverrides.decode(overrides.encoded()) == overrides)
     }
@@ -120,34 +122,19 @@ struct BuddyOverridesTests {
     @Test("exporting then reparsing gives back the edited buddy")
     func exportRoundTrip() throws {
         var overrides = BuddyOverrides()
-        overrides.set(
-            .init(frames: ["(¬_¬)", "(o_o)"], colour: "#FF0000",
-                  fontSize: 18, framesPerSecond: 2),
-            for: "idle", of: "test")
-        let edited = overrides.apply(to: manifest())
-
-        let text = BuddyExportWriter.text(for: edited)
-        let reparsed = try #require(BuddyFile.parse(text, id: "test", name: "Test").manifest)
-
-        let idle = reparsed.expressions["idle"]
-        #expect(idle?.frames == ["(¬_¬)", "(o_o)"])
-        #expect(idle?.colour == "#FF0000")
-        #expect(reparsed.size(for: idle) == 18)
-        #expect(reparsed.rate(for: idle) == 2)
-        // The untouched expression survives the trip too, overrides and all.
-        #expect(reparsed.rate(for: reparsed.expressions["working"]) == 3)
-    }
-
-    // A speed override with no size would be read back as a size: the format is
-    // positional.
-    @Test("a speed override forces its size to be written")
-    func exportWritesSizeBeforeSpeed() throws {
-        var overrides = BuddyOverrides()
-        overrides.set(.init(framesPerSecond: 5), for: "idle", of: "test")
-        let text = BuddyExportWriter.text(for: overrides.apply(to: manifest()))
-        let reparsed = try #require(BuddyFile.parse(text, id: "t", name: "T").manifest)
-        #expect(reparsed.rate(for: reparsed.expressions["idle"]) == 5)
-        #expect(reparsed.size(for: reparsed.expressions["idle"]) == 15)
+        overrides.set(.init(colour: "#FF0000", eye: pose(.caret)), for: "idle", of: "test")
+        let resolved = overrides.apply(to: manifest())
+        let text = BuddyExportWriter.text(for: resolved, name: "Exported")
+        let result = BuddyFile.parse(text, id: "test", name: "Test")
+        let reparsed = try #require(result.manifest)
+        #expect(result.problems.isEmpty, "\(result.problems)")
+        #expect(reparsed.face == resolved.face)
+        for name in BuddyExpression.allCases {
+            #expect(reparsed.expressions[name.rawValue]?.eye
+                    == resolved.expressions[name.rawValue]?.eye, "\(name)")
+            #expect(reparsed.expressions[name.rawValue]?.colour
+                    == resolved.expressions[name.rawValue]?.colour, "\(name)")
+        }
     }
 
     @Test("exporting twice gives the same bytes")

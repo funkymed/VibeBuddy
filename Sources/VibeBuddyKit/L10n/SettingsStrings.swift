@@ -33,12 +33,7 @@ public struct SettingsStrings: Sendable {
     // Buddy
     public let activeBuddy: String
     public let expressions: String
-    public let frames: String
-    public let addFrame: String
-    public let removeFrame: String
     public let colour: String
-    public let size: String
-    public let speed: String
     public let motion: String
     public let editedBadge: String
     public let resetExpression: String
@@ -97,12 +92,7 @@ public struct SettingsStrings: Sendable {
         language: "Langue de l'app",
         activeBuddy: "Buddy actif",
         expressions: "Expressions",
-        frames: "Images",
-        addFrame: "Ajouter une image",
-        removeFrame: "Supprimer",
         colour: "Couleur",
-        size: "Taille",
-        speed: "Vitesse (images/s)",
         motion: "Mouvement",
         editedBadge: "modifiée",
         resetExpression: "Réinitialiser cette expression",
@@ -152,12 +142,7 @@ public struct SettingsStrings: Sendable {
         language: "App language",
         activeBuddy: "Active buddy",
         expressions: "Expressions",
-        frames: "Frames",
-        addFrame: "Add a frame",
-        removeFrame: "Remove",
         colour: "Colour",
-        size: "Size",
-        speed: "Speed (frames/s)",
         motion: "Motion",
         editedBadge: "edited",
         resetExpression: "Reset this expression",

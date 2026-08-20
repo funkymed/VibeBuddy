@@ -50,243 +50,103 @@ struct MotionTests {
     }
 }
 
+
 @Suite("Buddy file format")
 struct BuddyFileTests {
 
-    private func parse(_ text: String) -> BuddyFile.ParseResult {
-        BuddyFile.parse(text, id: "test", name: "Test")
-    }
+    static let source = """
+    # a comment, not a colour
+    face: 80x30 oval
 
-    // The format is what someone writes when asked to describe a buddy on a
-    // napkin — because that is literally where it came from.
+    idle (amber #FFBB00)
+    eye   shape:oval w:9 h:13 r:4.5 gap:20 y:-3
+    mouth shape:arc w:24 h:9 t:0.6 bend:1 y:8
+    time  beat:1.6 blink:0.3 gaze:wander
+
+    failed (red #FF5555)
+    eye   shape:wing w:18 h:11 t:0.55 bend:1 gap:8 y:-4
+    time  beat:1.5 glitch:0.85 gaze:none
+    """
+
     @Test("a whole buddy parses")
-    func fullBuddy() throws {
-        let result = parse("""
-        # commentaire
-
-        sleeping (blue #00BBFF)
-        ( -.- )
-        ( -.- ) z
-
-        idle (yellow #FFBB00)
-        ( ^.^ )
-        ( -.- )
-        """)
+    func parsesWholeFile() throws {
+        let result = BuddyFile.parse(Self.source, id: "t", name: "T")
         let m = try #require(result.manifest)
-        #expect(result.problems.isEmpty)
+        #expect(result.problems.isEmpty, "\(result.problems)")
         #expect(m.expressions.count == 2)
-        #expect(m.expressions["sleeping"]?.frames.count == 2)
-        #expect(m.expressions["idle"]?.frames == ["( ^.^ )", "( -.- )"])
+        #expect(m.face.silhouette == .oval)
+        #expect(m.face.width == 80)
+        #expect(throws: Never.self) { try m.validate() }
     }
 
     @Test("the colour is read and the colour word ignored")
-    func colourParsing() throws {
-        let m = try #require(parse("idle (jaune vif #FFBB00)\n( ^.^ )").manifest)
+    func colourWordIsDecoration() throws {
+        let m = try #require(BuddyFile.parse(Self.source, id: "t", name: "T").manifest)
         #expect(m.expressions["idle"]?.colour == "#FFBB00")
+        #expect(m.expressions["failed"]?.colour == "#FF5555")
+        // The manifest colour is idle's: it is the face you see most.
+        #expect(m.colour == "#FFBB00")
     }
 
-    // Several of these faces are built out of their spacing.
-    @Test("leading and trailing spaces in a frame survive")
-    func spacingPreserved() throws {
-        let m = try #require(parse("idle (x #FFFFFF)\n  ( ^.^ )  ").manifest)
-        #expect(m.expressions["idle"]?.frames.first == "  ( ^.^ )  ")
+    @Test("motion is derived from the expression, and only reactions move")
+    func motionIsDerived() throws {
+        let m = try #require(BuddyFile.parse(Self.source, id: "t", name: "T").manifest)
+        #expect(m.expressions["idle"]?.motion == MotionKind.none)
+        #expect(m.expressions["failed"]?.motion == .shake)
     }
 
-    @Test("comments and blank lines are not frames")
-    func commentsIgnored() throws {
-        let m = try #require(parse("""
-        # un commentaire
+    @Test("a line outside any section is reported, not silently dropped")
+    func strayLineIsReported() {
+        let result = BuddyFile.parse("""
+        eye shape:oval
+
         idle (x #FFFFFF)
-        ( ^.^ )
-        """).manifest)
-        #expect(m.expressions["idle"]?.frames == ["( ^.^ )"])
+        eye shape:oval
+        """, id: "t", name: "T")
+        #expect(result.problems.contains { $0.contains("hors section") })
     }
 
-    // A buddy file is edited by hand, so half a buddy beats none — but a
-    // problem must be reported rather than swallowed.
-    @Test("a frame outside any section is reported, not silently dropped")
-    func orphanFrameReported() {
-        let result = parse("( ^.^ )\nidle (x #FFFFFF)\n( -.- )")
-        #expect(result.manifest != nil)
-        #expect(result.problems.count == 1)
-        #expect(result.problems[0].contains("hors section"))
-    }
+    @Test("a directive from the glyph format is reported rather than swallowed")
+    func retiredDirectivesAreReported() {
+        for key in ["kind", "font", "size", "speed"] {
+            let result = BuddyFile.parse("""
+            \(key): 13
 
-    @Test("a section with no frames is reported")
-    func emptySectionReported() {
-        let result = parse("sleeping (x #FFFFFF)\n\nidle (x #FFFFFF)\n( ^.^ )")
-        #expect(result.problems.contains { $0.contains("sleeping") })
+            idle (x #FFFFFF)
+            eye shape:oval
+            """, id: "t", name: "T")
+            #expect(result.problems.contains { $0.contains(key) }, "\(key)")
+        }
     }
 
     @Test("a file without idle yields no buddy")
-    func idleRequired() {
-        let result = parse("working (x #FFFFFF)\n( o.o )")
+    func idleIsMandatory() {
+        let result = BuddyFile.parse("""
+        working (x #FFFFFF)
+        eye shape:oval
+        """, id: "t", name: "T")
         #expect(result.manifest == nil)
         #expect(result.problems.contains { $0.contains("idle") })
     }
 
-    @Test("nonsense parses to nothing rather than crashing", arguments: [
-        "", "   ", "####", "idle", "idle (no colour)", "(#FFFFFF)",
-    ])
-    func nonsenseIsSafe(_ text: String) {
-        #expect(parse(text).manifest == nil)
-    }
-}
-
-@Suite("Frame animation")
-struct FrameTests {
-
-    private func expression(_ frames: [String]) -> BuddyManifest.Expression {
-        BuddyManifest.Expression(frames: frames, motion: .none, colour: nil)
-    }
-
-    @Test("frames advance one per second and wrap")
-    func advancesAndWraps() {
-        let e = expression(["a", "b", "c"])
-        #expect(e.frame(at: 0.0) == "a")
-        #expect(e.frame(at: 0.9) == "a")
-        #expect(e.frame(at: 1.0) == "b")
-        #expect(e.frame(at: 2.0) == "c")
-        #expect(e.frame(at: 3.0) == "a")     // wrapped
-        #expect(e.frame(at: 100.0) == "b")
-    }
-
-    @Test("a single frame never changes")
-    func singleFrameIsStatic() {
-        let e = expression(["only"])
-        #expect(e.frame(at: 0) == "only")
-        #expect(e.frame(at: 99) == "only")
-    }
-
-    // Sizing the slot from the *current* frame would resize the pill every
-    // second as the animation cycles. The widest frame wins and nothing moves.
-    @Test("the widest frame is what the layout measures")
-    func widestWins() {
-        let e = expression(["ab", "abcdef", "abc"])
-        #expect(e.widestFrame == "abcdef")
-    }
-
-    @Test("every expression offers a candidate for the layout to measure")
-    func candidatesAcrossExpressions() throws {
-        let m = try #require(BuddyFile.parse("""
-        idle (x #FFFFFF)
-        ab
-
-        sleeping (x #FFFFFF)
-        abcdefghij
-        """, id: "t", name: "T").manifest)
-        let texts = Set(m.candidateFrames.map(\.text))
-        #expect(texts == ["ab", "abcdefghij"])
-    }
-
-    // With per-expression sizes the longest frame is no longer necessarily the
-    // widest: a short face at 20 pt beats a long one at 11. The layout has to
-    // measure each candidate at its own size, so the manifest must hand over
-    // both — not a single pre-chosen "widest" string.
-    @Test("a candidate carries the size it will be drawn at")
-    func candidateCarriesItsSize() throws {
-        let m = try #require(BuddyFile.parse("""
-        idle (x #FFFFFF) 11
-        aaaaaaaaaa
-
-        working (x #FFFFFF) 22
-        oo
-        """, id: "t", name: "T").manifest)
-        let sizes = Dictionary(uniqueKeysWithValues: m.candidateFrames.map { ($0.text, $0.size) })
-        #expect(sizes["aaaaaaaaaa"] == 11)
-        #expect(sizes["oo"] == 22)
-    }
-
-    @Test("speed is read as images per second and inverted for the renderer")
-    func speedDirective() throws {
-        let m = try #require(BuddyFile.parse("""
-        size: 14
-        speed: 4
-        idle (x #FFFFFF)
-        ab
-        cd
-        """, id: "t", name: "T").manifest)
-        #expect(m.framesPerSecond == 4)
-        #expect(m.secondsPerFrame(for: m.expressions["idle"]) == 0.25)
-        // Faster means the frames actually come sooner, not just a stored number.
-        #expect(m.expressions["idle"]?.frame(at: 0.3, secondsPerFrame: 0.25) == "cd")
-    }
-
-    @Test("a file that says nothing keeps one frame per second")
-    func speedDefaults() throws {
-        let m = try #require(BuddyFile.parse("""
-        idle (x #FFFFFF)
-        ab
-        """, id: "t", name: "T").manifest)
-        #expect(m.framesPerSecond == BuddyManifest.defaultFrameRate)
-        #expect(m.secondsPerFrame(for: m.expressions["idle"]) == 1)
-    }
-
-    @Test("an expression overrides the file's speed, size first")
-    func perExpressionSpeed() throws {
-        let m = try #require(BuddyFile.parse("""
-        size: 14
-        speed: 2
-        idle (x #FFFFFF)
-        ab
-
-        working (x #FFFFFF) 20 8
-        cd
-
-        sleeping (x #FFFFFF) 0.5
-        ef
-        """, id: "t", name: "T").manifest)
-        #expect(m.rate(for: m.expressions["idle"]) == 2)
-        #expect(m.size(for: m.expressions["working"]) == 20)
-        #expect(m.rate(for: m.expressions["working"]) == 8)
-        // `0.5` cannot be a size — sizes are whole — so it lands on the speed.
-        #expect(m.rate(for: m.expressions["sleeping"]) == 0.5)
-        #expect(m.size(for: m.expressions["sleeping"]) == 14)
-    }
-
-    // Clamping would hide the mistake: a file asking for 200 images per second
-    // would draw at 30 and its author would never learn why.
-    @Test("an out-of-range speed is refused, not clamped")
-    func speedOutOfRangeIsReported() throws {
+    @Test("an unreadable face falls back rather than failing the file")
+    func badFaceFallsBack() throws {
         let result = BuddyFile.parse("""
-        speed: 200
+        face: not-a-size
+
         idle (x #FFFFFF)
-        ab
+        eye shape:oval
         """, id: "t", name: "T")
         let m = try #require(result.manifest)
-        #expect(m.framesPerSecond == BuddyManifest.defaultFrameRate)
-        #expect(result.problems.count == 1)
-
-        let perExpression = BuddyFile.parse("""
-        idle (x #FFFFFF) 14 0.001
-        ab
-        """, id: "t", name: "T")
-        #expect(perExpression.manifest?.expressions["idle"]?.framesPerSecond == nil)
-        #expect(perExpression.problems.count == 1)
+        #expect(result.problems.contains { $0.contains("face") })
+        #expect(throws: Never.self) { try m.validate() }
     }
 
-    @Test("validation rejects a rate outside the bounds")
-    func validationRejectsBadRate() throws {
-        let m = BuddyManifest(
-            schema: BuddyManifest.supportedSchema, kind: .ascii, id: "t", name: "T",
-            colour: "#FFFFFF", fontSize: 13, framesPerSecond: 999, font: nil,
-            expressions: ["idle": BuddyManifest.Expression(
-                frames: ["ab"], motion: .none, colour: nil)])
-        #expect(throws: BuddyManifest.ValidationError.badFrameRate(999)) { try m.validate() }
-    }
-
-    @Test("an expression without a size falls back to the file's")
-    func sizeFallsBack() throws {
-        let m = try #require(BuddyFile.parse("""
-        size: 14
-        idle (x #FFFFFF)
-        ab
-
-        working (x #FFFFFF) 20
-        cd
-        """, id: "t", name: "T").manifest)
-        #expect(m.size(for: m.expressions["idle"]) == 14)
-        #expect(m.size(for: m.expressions["working"]) == 20)
+    @Test("nonsense parses to nothing rather than crashing", arguments: [
+        "", "\n\n\n", "####", "(((", "idle", "idle (#ZZZZZZ)", "face: 80x30 oval",
+    ])
+    func nonsenseIsSafe(_ text: String) {
+        #expect(BuddyFile.parse(text, id: "t", name: "T").manifest == nil)
     }
 }
 
@@ -296,15 +156,29 @@ struct BuiltInBuddyTests {
     @Test("it parses and validates")
     func builtInIsValid() throws {
         let m = BuiltInBuddy.manifest
-        #expect(m.id == "orb")
+        #expect(m.id == BuiltInBuddy.id)
         try m.validate()
         #expect(m.expressions.count == BuddyExpression.allCases.count)
     }
 
-    @Test("every expression animates")
-    func allAnimate() {
-        for e in BuiltInBuddy.manifest.expressions.values {
-            #expect(e.frames.count > 1)
+    @Test("it is byte-for-byte the file a person edits")
+    func builtInMatchesTheAsset() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let onDisk = try String(
+            contentsOf: root.appendingPathComponent("assets/buddies/eve.buddy"), encoding: .utf8)
+        #expect(onDisk.trimmingCharacters(in: .whitespacesAndNewlines)
+                == BuiltInBuddy.text.trimmingCharacters(in: .whitespacesAndNewlines))
+    }
+
+    @Test("every expression has a face and a screen that can hold it")
+    func allHaveFaces() throws {
+        let m = BuiltInBuddy.manifest
+        for name in BuddyExpression.allCases {
+            let e = try #require(m.expressions[name.rawValue], "\(name)")
+            #expect(e.eye.pose.eye.width > 0)
+            #expect(e.eye.pose.mouth != nil, "\(name) has no mouth")
         }
     }
 

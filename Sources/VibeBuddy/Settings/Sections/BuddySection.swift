@@ -99,14 +99,10 @@ struct BuddySection: View {
     private func duplicate(_ manifest: BuddyManifest) {
         let id = uniqueID(from: manifest.id)
         var created = BuddyOverrides.Created(
-            name: "\(manifest.name) 2", colour: manifest.colour,
-            fontSize: Double(manifest.fontSize),
-            framesPerSecond: manifest.framesPerSecond, font: manifest.font)
+            name: "\(manifest.name) 2", colour: manifest.colour, face: manifest.face)
         for (name, expression) in manifest.expressions {
             created.expressions[name] = BuddyOverrides.Expression(
-                frames: expression.frames, colour: expression.colour,
-                fontSize: expression.fontSize.map { Double($0) },
-                framesPerSecond: expression.framesPerSecond, motion: expression.motion)
+                colour: expression.colour, eye: expression.eye, motion: expression.motion)
         }
         appearance.overrides.created[id] = created
         reload()

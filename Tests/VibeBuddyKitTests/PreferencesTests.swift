@@ -124,7 +124,7 @@ struct PreferencesTests {
             layout.reload()
             notifications.reload()
 
-            #expect(appearance.buddyID == "emoji")
+            #expect(appearance.buddyID == BuiltInBuddy.id)
             #expect(appearance.pixelSize == 2)
             #expect(appearance.overrides == BuddyOverrides())
             #expect(layout.groupByDirectory)

@@ -1,7 +1,12 @@
 import SwiftUI
 import VibeBuddyKit
 
-/// One expression: its frames, and the four things the format lets it override.
+/// One expression: the two things the settings can change without editing the
+/// `.buddy` file itself.
+///
+/// The pose — shapes, sizes, tempo — lives in the file. It is a dozen numbers
+/// per face and a form for it would be a form for a text format that is already
+/// readable; `--info` previews it, and the file reloads on save.
 ///
 /// See RFC-010, "Notes d'implémentation".
 struct ExpressionEditorView: View {
@@ -25,88 +30,9 @@ struct ExpressionEditorView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 22) {
-            frames
             attributes
         }
     }
-
-    // MARK: - Frames
-
-    private var frames: some View {
-        SettingsGroup(title: s.frames) {
-            ForEach(Array(currentFrames.enumerated()), id: \.offset) { index, frame in
-                HStack(spacing: 8) {
-                    TextField("", text: Binding(
-                        get: { frame },
-                        set: { update(frame: $0, at: index) }))
-                        .textFieldStyle(.plain)
-                        .font(.body.monospaced())
-                    Button {
-                        remove(at: index)
-                    } label: {
-                        Image(systemName: "minus.circle")
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(.secondary)
-                    .disabled(currentFrames.count <= 1)
-                    .help(s.removeFrame)
-                    .pointingHandCursor(currentFrames.count > 1)
-                    Button { move(index, by: -1) } label: { Image(systemName: "arrow.up") }
-                        .buttonStyle(.plain).foregroundStyle(.secondary)
-                        .disabled(index == 0)
-                        // A disabled control keeps the arrow: the hand would
-                        // promise a click that does nothing.
-                        .pointingHandCursor(index > 0)
-                    Button { move(index, by: 1) } label: { Image(systemName: "arrow.down") }
-                        .buttonStyle(.plain).foregroundStyle(.secondary)
-                        .disabled(index == currentFrames.count - 1)
-                        .pointingHandCursor(index < currentFrames.count - 1)
-                }
-                .padding(.vertical, 6)
-                if index < currentFrames.count - 1 { Divider() }
-            }
-            Divider()
-            Button(s.addFrame) { addFrame() }
-                .pointingHandCursor()
-                .buttonStyle(.plain)
-                .foregroundStyle(.tint)
-                .padding(.vertical, 8)
-        }
-    }
-
-    private var currentFrames: [String] {
-        edit.frames ?? settings?.frames ?? [""]
-    }
-
-    private func update(frame text: String, at index: Int) {
-        var frames = currentFrames
-        guard frames.indices.contains(index) else { return }
-        frames[index] = text
-        commit { $0.frames = frames }
-    }
-
-    private func addFrame() {
-        var frames = currentFrames
-        frames.append(frames.last ?? "")
-        commit { $0.frames = frames }
-    }
-
-    private func remove(at index: Int) {
-        var frames = currentFrames
-        guard frames.count > 1, frames.indices.contains(index) else { return }
-        frames.remove(at: index)
-        commit { $0.frames = frames }
-    }
-
-    private func move(_ index: Int, by offset: Int) {
-        var frames = currentFrames
-        let target = index + offset
-        guard frames.indices.contains(index), frames.indices.contains(target) else { return }
-        frames.swapAt(index, target)
-        commit { $0.frames = frames }
-    }
-
-    // MARK: - Attributes
 
     private var attributes: some View {
         SettingsGroup(title: expression.rawValue) {
@@ -116,31 +42,6 @@ struct ExpressionEditorView: View {
                     set: { colour in commit { $0.colour = colour.hexString } }
                 ), supportsOpacity: false)
                 .labelsHidden()
-            }
-            Divider()
-            SettingsRow(title: s.size, hint: edit.fontSize == nil ? s.inherited : nil) {
-                Stepper(
-                    value: Binding(
-                        get: { edit.fontSize ?? Double(manifest.size(for: settings)) },
-                        set: { value in commit { $0.fontSize = value } }),
-                    in: 6...48, step: 1
-                ) {
-                    Text("\(Int(edit.fontSize ?? Double(manifest.size(for: settings))))")
-                        .font(.callout.monospaced())
-                }
-            }
-            Divider()
-            SettingsRow(title: s.speed, hint: edit.framesPerSecond == nil ? s.inherited : nil) {
-                Stepper(
-                    value: Binding(
-                        get: { edit.framesPerSecond ?? manifest.rate(for: settings) },
-                        set: { value in commit { $0.framesPerSecond = value } }),
-                    in: BuddyManifest.minimumFrameRate...BuddyManifest.maximumFrameRate,
-                    step: 0.5
-                ) {
-                    Text(rateLabel)
-                        .font(.callout.monospaced())
-                }
             }
             Divider()
             SettingsRow(title: s.motion, hint: edit.motion == nil ? s.inherited : nil) {
@@ -169,11 +70,6 @@ struct ExpressionEditorView: View {
                 }
             }
         }
-    }
-
-    private var rateLabel: String {
-        let value = edit.framesPerSecond ?? manifest.rate(for: settings)
-        return value == value.rounded() ? String(Int(value)) : String(format: "%.1f", value)
     }
 
     /// One write path for every field, so a change can never bypass either the

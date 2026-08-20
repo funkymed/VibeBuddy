@@ -20,7 +20,7 @@ public final class AppearancePrefs {
     @ObservationIgnored private var isReloading = false
 
     /// Which manifest is active. Historical key, unchanged: already on disk.
-    public var buddyID: String = "emoji" {
+    public var buddyID: String = BuiltInBuddy.id {
         didSet { persist(buddyID, Keys.buddyID) }
     }
 
@@ -57,7 +57,7 @@ public final class AppearancePrefs {
     public func reload() {
         isReloading = true
         defer { isReloading = false }
-        buddyID = store.string(Keys.buddyID, default: "emoji") ?? "emoji"
+        buddyID = store.string(Keys.buddyID, default: BuiltInBuddy.id) ?? BuiltInBuddy.id
         storedPixelSize = min(max(store.double(Keys.pixelSize, default: 2), 1), 3)
         overrides = BuddyOverrides.decode(store.data(Keys.overrides))
     }

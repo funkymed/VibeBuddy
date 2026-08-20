@@ -14,7 +14,7 @@ enum HoverDiagnostics {
         // The pill's width comes from these: a bare panel measures nothing real.
         var loader = BuddyLoader()
         panel.setBuddy(loader.load(
-            id: UserDefaults.standard.string(forKey: "vibebuddy.buddy") ?? "emoji").manifest)
+            id: UserDefaults.standard.string(forKey: "vibebuddy.buddy") ?? BuiltInBuddy.id).manifest)
         panel.setSessionCount(2)
         panel.show()
         settle(0.4)

@@ -29,7 +29,7 @@ final class AppCoordinator: NSObject, NSApplicationDelegate {
 
     var showPillOnLaunch = true
     /// Which buddy to load. Nil means the built-in one.
-    var buddyID: String? = "emoji"
+    var buddyID: String? = BuiltInBuddy.id
 
     override init() {
         let prefs = PreferencesStore()
@@ -122,7 +122,7 @@ final class AppCoordinator: NSObject, NSApplicationDelegate {
             guard let self, let panel = self.panel else { return }
             let live = list.filter(\.isLive)
             let activity = SessionDisplayState.aggregate(of: list)?.activity
-            panel.setExpression(BuddyExpression.from(
+            panel.setExpression(Self.forcedFace ?? BuddyExpression.from(
                 activity: activity, hasLiveSession: !live.isEmpty, isVisible: true))
             panel.setSessionCount(live.count)
             panel.setSessions(list)
@@ -131,6 +131,7 @@ final class AppCoordinator: NSObject, NSApplicationDelegate {
                 live.isEmpty ? panel.hide() : panel.show()
             }
         }
+        if let face = Self.forcedFace { panel.setExpression(face) }
         sessions.onChangeLog = { list in
             let live = list.filter(\.isLive).count
             PerfProbe.log.info("sessions: \(live, privacy: .public) live / \(list.count, privacy: .public)")
@@ -324,4 +325,15 @@ final class AppCoordinator: NSObject, NSApplicationDelegate {
         watchBuddies()
         PerfProbe.log.info("resumed (\(reason, privacy: .public))")
     }
+
+    /// `VIBEBUDDY_FACE=finished` pins the buddy to one expression.
+    ///
+    /// A face is authored by eye, and five of the six cannot be reached on
+    /// demand: they depend on what an agent happens to be doing. Reading the
+    /// environment once at launch costs nothing and is the only way to look at
+    /// `failed` without breaking something on purpose.
+    static let forcedFace: BuddyExpression? = ProcessInfo.processInfo
+        .environment["VIBEBUDDY_FACE"]
+        .flatMap { BuddyExpression(rawValue: $0.lowercased()) }
+
 }

@@ -8,30 +8,20 @@ public enum BuddyExportWriter {
     /// Keep the expression order the enum's, never the dictionary's: a
     /// dictionary has no order and two exports would differ by shuffling alone.
     public static func text(for manifest: BuddyManifest, name: String? = nil) -> String {
-        var lines: [String] = [
+        var lines = [
             "# \(name ?? manifest.name) — exporté par \(AppName.display)",
-            "# Une image par ligne. « speed » donne le nombre d'images par seconde.",
-            "# Sur l'en-tête d'une expression : taille d'abord, vitesse ensuite.",
+            "# Un visage par section : l'œil est dessiné deux fois, en miroir.",
+            "",
+            "face: \(number(Double(manifest.face.width)))x\(number(Double(manifest.face.height))) "
+                + (manifest.face.silhouette == .oval
+                   ? "oval"
+                   : "r\(number(Double(manifest.face.radius)))"),
             "",
         ]
-        if let font = manifest.font { lines.append("font: \(font)") }
-        lines.append("size: \(number(Double(manifest.fontSize)))")
-        lines.append("speed: \(number(manifest.framesPerSecond))")
-        lines.append("")
-
         for expression in BuddyExpression.allCases {
             guard let settings = manifest.expressions[expression.rawValue] else { continue }
-            let colour = settings.colour ?? manifest.colour
-            var header = "\(expression.rawValue) (colour \(colour))"
-            let size = settings.fontSize.map { number(Double($0)) }
-            let rate = settings.framesPerSecond.map { number($0) }
-            // Positional: the parser reads the first number as the size, so a
-            // speed override forces its size to be written too.
-            if let size { header += " \(size)" }
-            else if rate != nil { header += " \(number(Double(manifest.fontSize)))" }
-            if let rate { header += " \(rate)" }
-            lines.append(header)
-            lines.append(contentsOf: settings.frames)
+            lines.append("\(expression.rawValue) (colour \(settings.colour ?? manifest.colour))")
+            lines.append(contentsOf: poseLines(settings.eye))
             lines.append("")
         }
         return lines.joined(separator: "\n")
@@ -66,6 +56,39 @@ public enum BuddyExportWriter {
             case let .io(detail): return detail
             }
         }
+    }
+
+    /// The inverse of `BuddyFile.applyPose`. Every key is written, including
+    /// the ones left at their default: an export is meant to be edited by hand,
+    /// and a key that is absent is a key nobody discovers.
+    public static func poseLines(_ eye: EyeSpec) -> [String] {
+        var lines = ["eye " + keys(eye.pose.eye) + " gap:" + number(Double(eye.pose.gap))]
+        if let mouth = eye.pose.mouth { lines.append("mouth " + keys(mouth)) }
+        lines.append(
+            "time beat:" + number(eye.beat)
+                + " blink:" + number(eye.blink)
+                + " depth:" + number(Double(eye.depthScale))
+                + " grain:" + number(eye.grain)
+                + " glitch:" + number(eye.glitch)
+                + " gaze:" + eye.gaze.rawValue)
+        return lines
+    }
+
+    /// One line, for the places that show a face in a single row (`--info`).
+    public static func poseLine(_ eye: EyeSpec) -> String {
+        poseLines(eye).joined(separator: " · ")
+    }
+
+    static func keys(_ feature: FaceFeature) -> String {
+        var parts = ["shape:" + feature.shape.rawValue]
+        parts.append("w:" + number(Double(feature.width)))
+        parts.append("h:" + number(Double(feature.height)))
+        parts.append("r:" + number(Double(feature.radius)))
+        parts.append("t:" + number(Double(feature.thickness)))
+        parts.append("bend:" + number(Double(feature.bend)))
+        parts.append("tilt:" + number(Double(feature.tilt)))
+        parts.append("y:" + number(Double(feature.offsetY)))
+        return parts.joined(separator: " ")
     }
 
     static func number(_ value: Double) -> String {

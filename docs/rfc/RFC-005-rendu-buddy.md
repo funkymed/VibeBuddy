@@ -97,6 +97,50 @@ visage**. Un manifeste qui passe `fontSize` de 13 à 20 élargit son slot sans q
 personne n'édite de constante — c'est la divergence assumée avec la référence,
 qui code 56 pt en dur.
 
+### Le second genre : `kind: eyes`
+
+Le format texte reste le défaut. À côté, un manifeste peut déclarer
+`kind: eyes` et décrire un **visage** plutôt que des glyphes : une dalle
+arrondie à balayage, deux yeux dessinés en miroir, une bouche.
+
+```
+kind: eyes
+face: 76x28 r11
+
+working (green #70D46B)
+eye   shape:ring w:16 h:16 t:0.26 gap:14 y:-3
+mouth shape:oval w:14 h:5 r:2.5 y:8
+time  beat:1.2 blink:0.2 gaze:scan
+```
+
+**Les formes sont un vocabulaire fermé**, comme les mouvements :
+`oval · arc · ring · wing · line · dots · caret · x`. Un manifeste en choisit
+une, il n'en décrit jamais — un fichier tiers ne devient pas un évaluateur de
+géométrie dans la boucle de rendu, et chaque forme reste une fonction bornée.
+
+**Le rendu est une rastérisation analytique.** Chaque cellule de la dalle est
+testée contre le contour et allumée entière ou pas du tout. Rien n'est dessiné
+lisse puis quantifié : pas de bitmap à allouer, pas de cellule à moitié éclairée.
+Sur 76×28 à 2 pt par pixel cela fait 532 tests de point par image, à 8 Hz.
+
+**Le mouvement est discret.** Un *temps* (`beat`) dure une seconde ou deux ; les
+yeux tiennent une position pendant tout le temps, puis sont ailleurs au suivant.
+Il n'y a pas de trajet entre les deux — c'est ce qui le rend sec. La séquence
+est tirée d'un hachage de l'indice du temps, donc la même phase redonne toujours
+la même image : rien à mémoriser, aucun `Task`, aucun `Timer` (D3). La marche à
+travers le répertoire avance d'un pas **impair** dans une liste qui alterne
+« droit devant » et une direction, ce qui interdit par construction de retomber
+deux fois de suite au même endroit.
+
+La durée d'un clignement est **fixe** (0,23 s), pas une fraction du temps : les
+deux ont d'abord été liées, si bien que ralentir les yeux ralentissait aussi le
+clignement jusqu'à ce qu'il se lise comme un œil qui se ferme.
+
+**Cadence plafonnée à `ambient`** même quand le budget autorise `lively` : le
+visage change toutes les quelques centaines de millisecondes, donc 8 Hz place
+déjà chaque frontière de temps à une image près. 30 Hz redessinerait trois fois
+sur quatre la même image — précisément la dépense que D3 existe pour interdire.
+
 ### Les mouvements restent un vocabulaire fermé
 
 Un manifeste **choisit** un mouvement, il n'en décrit jamais. C'est ce qui rend
@@ -176,6 +220,29 @@ une revue, et se tape par quiconque veut son buddy. Le manifeste passe de 13,9 K
 Le coût est réel et mérite d'être nommé : **pas de dégradés, pas de contrôle au
 pixel, et le visage dépend de la police monospace installée.** Assumé.
 
+### Un visage paramétré sans formes — écarté
+
+La première version des yeux n'avait pas de vocabulaire de formes : un seul
+rectangle arrondi, déformé par un nombre `curve`. **Un anneau, une aile et un
+sourire ne sont un rectangle arrondi pour aucune valeur d'aucun nombre**, et à
+sept cellules de large un rectangle courbé se lit comme un rectangle courbé.
+Les formes nommées coûtent trente lignes et remplacent quatre paramètres.
+
+### Une animation continue — écartée
+
+Clignement adouci, regard interpolé, `breathe` et `pulse` sur la dalle : à
+2 pt par pixel une rampe tient sur une image grise, et une image grise se lit
+comme une bavure, pas comme un mouvement. Verdict à l'usage : « ça bouge trop ».
+Remplacé par des temps discrets et un clignement binaire.
+
+### Trois tailles de dalle avant la bonne
+
+32×15, puis 44×22, puis 58×28 — soit un œil de trois, cinq puis six cellules de
+large. À six cellules, **le trou d'un anneau fait une cellule et se referme dès
+qu'on l'entoure d'un halo**. 76×28 est le maximum utile : l'oreille de la
+pastille plafonne à 96 pt (`PillLayout.maxSlotWidth`) et la hauteur est celle de
+l'encoche.
+
 ### Retirer la silhouette — retenu au passage
 
 Découvert pendant l'étape pixel et conservé : une tête de tigre dépensait la
@@ -202,6 +269,11 @@ tête est ronde.
 | T14 | **Mise à l'échelle pour tenir dans la fente** : plafond de largeur, visage réduit plutôt que rogné | **done** | **100** |
 | T15 | Mémoïsation des mesures, calculs hissés hors du corps du `TimelineView` | **done** | **100** |
 | T11 | Taille et position dérivées du slot mesuré (`PillLayout`, RFC-002) | **done** | **100** |
+| T16 | `kind: eyes` : `FaceFeature`, `EyePose`, dalle, grammaire `eye`/`mouth`/`time` | **done** | **100** |
+| T17 | `EyeRaster` : rastérisation analytique en cellules entières, huit formes | **done** | **100** |
+| T18 | Séquence discrète — temps, clignement à durée fixe, marche à pas impair | **done** | **100** |
+| T19 | Buddy `eve` : six visages, premier client du genre `eyes` | **done** | **100** |
+| T20 | Aperçu ASCII des visages dans `--info` | **done** | **100** |
 
 **Critère de sortie — atteint le 2026-08-19.**
 
@@ -543,3 +615,33 @@ Le vocabulaire : `none` immobile (`sleeping`), `breathe` montée et descente len
 `pulse` battement plus vif et plus fort, `dart` petits sauts du regard (deux
 fréquences pour ne pas se lire comme un métronome), `bounce` ressort court amorti
 pour les arrivées, `shake` frisson latéral bref amorti pour les échecs.
+
+### `EyeRaster` — pièges payés
+
+**Un `Canvas` ne se teinte pas par `foregroundStyle`.** Seule une *image*
+`isTemplate` le fait. Rempli en blanc puis « teinté », le visage sortait blanc à
+l'écran alors que la rastérisation était juste.
+
+**Tout doit tomber sur la grille, et ce n'est pas un détail.** Un œil dont le
+centre tombe entre deux cellules arrondit différemment à gauche et à droite : il
+sort d'une cellule plus gras d'un côté, et l'asymétrie scintille dès qu'il
+bouge. Centre, écart et regard sont accrochés au pas.
+
+**Le bornage du regard se calcule après l'accrochage**, et contre la largeur
+*maximale* de l'œil — un clignement élargit de 26 %. Calculé avant, il laissait
+l'œil extérieur déborder d'exactement la cellule qu'il devait retenir.
+
+**Le halo remplissait ce que la forme creusait.** Trois ombres à 1/2,5/6 pt
+refermaient complètement le trou d'un anneau. Un kaomoji est un trait fin et
+supporte un large halo ; un visage de cellules pleines n'en supporte pas.
+
+**La grille de pixels est l'écart entre les cellules, pas un calque.**
+`PixelGrid` dessine un `Canvas` plein écran et le masque avec le contenu : deux
+passes hors écran par image, assez pour faire saccader le panneau. Rentrer
+chaque cellule de son propre bord donne la même image pour rien. Même chose pour
+les scanlines, passées de `.mask` à `.clipShape`.
+
+**La marche du regard ne peut pas être récursive.** Comparer le regard courant
+au précédent *décidé* rend la fonction récursive ; borner la récursion la fait
+se contredire selon qui l'appelle. Le pas impair sur un répertoire alterné rend
+la propriété structurelle au lieu de la faire vérifier.

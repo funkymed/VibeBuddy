@@ -8,43 +8,31 @@ public struct BuddyOverrides: Sendable, Equatable, Codable {
 
     /// One expression's edits. An absent field means "whatever the file says".
     public struct Expression: Sendable, Equatable, Codable {
-        public var frames: [String]?
         public var colour: String?
-        public var fontSize: Double?
-        public var framesPerSecond: Double?
+        public var eye: EyeSpec?
         public var motion: MotionKind?
 
-        public init(
-            frames: [String]? = nil, colour: String? = nil, fontSize: Double? = nil,
-            framesPerSecond: Double? = nil, motion: MotionKind? = nil
-        ) {
-            self.frames = frames; self.colour = colour; self.fontSize = fontSize
-            self.framesPerSecond = framesPerSecond; self.motion = motion
+        public init(colour: String? = nil, eye: EyeSpec? = nil, motion: MotionKind? = nil) {
+            self.colour = colour; self.eye = eye; self.motion = motion
         }
 
-        public var isEmpty: Bool {
-            frames == nil && colour == nil && fontSize == nil
-                && framesPerSecond == nil && motion == nil
-        }
+        public var isEmpty: Bool { colour == nil && eye == nil && motion == nil }
     }
 
     /// A buddy backed by no file. Stored whole: nothing underneath to merge with.
     public struct Created: Sendable, Equatable, Codable {
         public var name: String
         public var colour: String
-        public var fontSize: Double
-        public var framesPerSecond: Double
-        public var font: String?
+        public var face: BuddyManifest.FacePlate
         public var expressions: [String: Expression]
 
         public init(
-            name: String, colour: String = "#FFBB00", fontSize: Double = 15,
-            framesPerSecond: Double = 1, font: String? = nil,
+            name: String, colour: String = "#FFBB00",
+            face: BuddyManifest.FacePlate = BuddyManifest.FacePlate(),
             expressions: [String: Expression] = [:]
         ) {
-            self.name = name; self.colour = colour; self.fontSize = fontSize
-            self.framesPerSecond = framesPerSecond; self.font = font
-            self.expressions = expressions
+            self.name = name; self.colour = colour
+            self.face = face; self.expressions = expressions
         }
     }
 
@@ -95,23 +83,16 @@ public struct BuddyOverrides: Sendable, Equatable, Codable {
         var expressions = manifest.expressions
         for (name, edit) in forBuddy {
             let base = expressions[name]
-            let frames = edit.frames ?? base?.frames ?? []
-            // An edit that empties every frame would render nothing: fall back.
-            guard !frames.filter({ !$0.trimmingCharacters(in: .whitespaces).isEmpty }).isEmpty
-            else { continue }
+            guard let eye = edit.eye ?? base?.eye else { continue }
             expressions[name] = BuddyManifest.Expression(
-                frames: frames,
+                eye: eye,
                 motion: edit.motion ?? base?.motion ?? MotionKind.default(for: name),
-                colour: edit.colour ?? base?.colour,
-                fontSize: edit.fontSize.map { CGFloat($0) } ?? base?.fontSize,
-                framesPerSecond: edit.framesPerSecond ?? base?.framesPerSecond)
+                colour: edit.colour ?? base?.colour)
         }
 
         return BuddyManifest(
-            schema: manifest.schema, kind: manifest.kind, id: manifest.id,
-            name: manifest.name, colour: manifest.colour, fontSize: manifest.fontSize,
-            framesPerSecond: manifest.framesPerSecond, font: manifest.font,
-            expressions: expressions)
+            schema: manifest.schema, id: manifest.id, name: manifest.name,
+            colour: manifest.colour, face: manifest.face, expressions: expressions)
     }
 
     /// A manifest for a buddy that has no file.
@@ -119,22 +100,16 @@ public struct BuddyOverrides: Sendable, Equatable, Codable {
         guard let created = created[id] else { return nil }
         var expressions: [String: BuddyManifest.Expression] = [:]
         for (name, edit) in created.expressions {
-            let frames = edit.frames ?? []
-            guard !frames.isEmpty else { continue }
+            guard let eye = edit.eye else { continue }
             expressions[name] = BuddyManifest.Expression(
-                frames: frames,
+                eye: eye,
                 motion: edit.motion ?? MotionKind.default(for: name),
-                colour: edit.colour,
-                fontSize: edit.fontSize.map { CGFloat($0) },
-                framesPerSecond: edit.framesPerSecond)
+                colour: edit.colour)
         }
         guard expressions["idle"] != nil else { return nil }
         return BuddyManifest(
-            schema: BuddyManifest.supportedSchema, kind: .ascii, id: id,
-            name: created.name, colour: created.colour,
-            fontSize: CGFloat(created.fontSize),
-            framesPerSecond: created.framesPerSecond, font: created.font,
-            expressions: expressions)
+            schema: BuddyManifest.supportedSchema, id: id, name: created.name,
+            colour: created.colour, face: created.face, expressions: expressions)
     }
 
     // MARK: - Storage

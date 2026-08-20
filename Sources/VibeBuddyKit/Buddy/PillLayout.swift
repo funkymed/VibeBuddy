@@ -45,12 +45,9 @@ public struct PillLayout: Sendable, Equatable {
         let notch = geometry.notchSize
         // Measure across *every* expression, each at its own point size: sizing
         // to the frame on screen resizes the pill every second.
-        let left = buddy.map { manifest in
-            let widest = manifest.candidateFrames
-                .map { measure($0.text, size: $0.size, weight: .medium, family: manifest.font) }
-                .max() ?? 0
-            return widest + slotPadding * 2
-        } ?? emptySlotWidth
+        // A buddy declares its width instead of being measured: it draws no
+        // glyph, so there is nothing to run through AppKit.
+        let left = buddy.map { $0.face.width + slotPadding * 2 } ?? emptySlotWidth
 
         // An alert takes the right ear over from the counter, never stacks.
         let rightText = alertText ?? (sessionCount > 0 ? counterText(sessionCount) : nil)
@@ -75,12 +72,6 @@ public struct PillLayout: Sendable, Equatable {
         CGSize(
             width: max(0, leftWidth - PillLayout.slotPadding * 2),
             height: max(0, height - inset * 2))
-    }
-
-    @MainActor
-    public static func lineHeight(size: CGFloat, family: String?) -> CGFloat {
-        let resolved = font(size: size, weight: .medium, family: family)
-        return ceil(resolved.ascender - resolved.descender + resolved.leading)
     }
 
     /// Measured widths, keyed by everything that changes one.

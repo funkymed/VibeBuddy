@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// The buddy on screen: four characters and one clock.
+/// The buddy on screen: one face and one clock.
 /// See RFC-005, "Notes d'implémentation".
 public struct BuddyView: View {
 
@@ -12,6 +12,10 @@ public struct BuddyView: View {
     private let fit: CGSize?
 
     @State private var startedAt = Date()
+    /// The pose being left behind, so a change of expression deforms the face
+    /// instead of cutting to it. Nil once the morph has settled.
+    @State private var morphFrom: EyePose?
+    @State private var morphAt = Date()
 
     public init(
         manifest: BuddyManifest,
@@ -31,140 +35,101 @@ public struct BuddyView: View {
         manifest.expression(expression)
     }
 
-    /// Do not force `.still` on a multi-frame expression: frames advance on the
-    /// clock, so a stopped clock freezes it on frame one.
+    private var plate: BuddyManifest.FacePlate { manifest.face }
+
+    /// How long the face takes to reach a new pose. Deliberately brief: the
+    /// eyes move in snaps, and a slow morph between two of them would be the
+    /// one soft thing left on screen.
+    private static let morphDuration: Double = 0.12
+
+    /// Full rate while the face can move, nothing at all when it cannot.
+    ///
+    /// This was capped at `ambient` on the grounds that a face which only
+    /// changes every second or two would redraw the same picture three frames
+    /// out of four. That stopped being true when the eyes gained a travel:
+    /// during a saccade the picture changes on every frame, and at 8 Hz a
+    /// quarter-second crossing gets two of them — which reads as a cut, not as
+    /// a move.
+    ///
+    /// Following `budget.tier` was not enough either: it calls `idle` not busy,
+    /// and `idle` is precisely the expression whose eyes wander most.
+    ///
+    /// So the rate is decided from the face itself. One that never blinks, never
+    /// looks anywhere and carries no motion — `sleeping` — has nothing to
+    /// redraw and gets **no clock at all**, which is what keeps scenario A at
+    /// zero wakeups. Everything else gets the full rate, and SwiftUI skips the
+    /// redraw between saccades because the shape comes out equal.
     private var tier: AnimationBudget.Tier {
-        guard let settings else { return .still }
-        if budget.tier == .still { return .still }
-        let clock = manifest.rate(for: settings) <= AnimationBudget.Tier.ambient.rawValue
-            ? AnimationBudget.Tier.ambient.rawValue
-            : AnimationBudget.Tier.lively.rawValue
-        let wanted = settings.frames.count > 1
-            ? max(settings.motion.preferredTier.rawValue, clock)
-            : settings.motion.preferredTier.rawValue
-        return AnimationBudget.Tier(rawValue: min(wanted, budget.tier.rawValue)) ?? .ambient
+        guard budget.tier != .still else { return .still }
+        guard let spec = settings?.eye else { return .still }
+        let still = spec.blink == 0 && spec.gaze == .none
+            && (settings?.motion ?? MotionKind.none) == MotionKind.none
+        return still ? .still : .lively
     }
 
     private var colour: Color {
         Color(hex: settings?.colour ?? manifest.colour) ?? .primary
     }
 
-    /// Do not size from the current frame: the box changes each second and the
-    /// motion effects act around its centre, so the buddy drifts as it bounces.
-    private var reservedWidth: CGFloat {
-        guard let settings else { return 0 }
-        let size = manifest.size(for: settings)
-        return settings.frames
-            .map { PillLayout.measure($0, size: size, weight: .medium, family: manifest.font) }
-            .max() ?? 0
-    }
-
     /// Never above 1.
-    private func fitScale(naturalWidth: CGFloat) -> CGFloat {
-        guard let fit, fit.width > 0, fit.height > 0, let settings else { return 1 }
-        let size = manifest.size(for: settings)
-        let naturalHeight = PillLayout.lineHeight(size: size, family: manifest.font)
-        guard naturalWidth > 0, naturalHeight > 0 else { return 1 }
-        return min(1, fit.width / naturalWidth, fit.height / naturalHeight)
+    private var fitted: CGFloat {
+        guard let fit, fit.width > 0, fit.height > 0,
+              plate.width > 0, plate.height > 0
+        else { return 1 }
+        return min(1, fit.width / plate.width, fit.height / plate.height)
     }
 
     public var body: some View {
-        // Measured once per body, not once per frame: neither depends on
-        // `timeline.date`, and each `reservedWidth` walks every frame of the
-        // expression through `NSAttributedString`.
-        let width = reservedWidth
-        let fitted = fitScale(naturalWidth: width)
-
+        let scale = fitted
         return TimelineView(.animation(minimumInterval: interval, paused: tier == .still)) { timeline in
             let phase = tier == .still ? 0 : timeline.date.timeIntervalSince(startedAt)
             let motion = (settings?.motion ?? .none).transform(at: phase)
 
-            face(phase: phase)
-                .modifier(PixelGrid(colour: colour, pitch: pixelSize))
-                .frame(width: width > 0 ? width : nil, alignment: .leading)
+            face(phase: phase, now: timeline.date)
                 // Fit first, then motion. The other order would make a bouncing
-                // buddy grow past the box it was just fitted into.
-                .scaleEffect(fitted, anchor: .leading)
-                .frame(
-                    width: width > 0 ? width * fitted : nil,
-                    alignment: .leading)
+                // face grow past the box it was just fitted into.
+                .scaleEffect(scale, anchor: .leading)
+                .frame(width: plate.width * scale, height: plate.height * scale)
                 .scaleEffect(motion.scale)
-                .offset(x: motion.offset.width + motion.gaze.width * 0.4,
-                        y: motion.offset.height)
+                .offset(x: motion.offset.width, y: motion.offset.height)
         }
-        .onChange(of: expression) { startedAt = Date() }
+        .onChange(of: expression) { previous, _ in
+            morphFrom = manifest.expressions[previous.rawValue]?.eye.pose
+            morphAt = Date()
+            startedAt = Date()
+        }
         .allowsHitTesting(false)
     }
 
-    private func face(phase: Double) -> some View {
-        // Not monospaced: most monospaced families carry no advance width for
-        // these rare scripts and fall back per glyph.
-        PixelatedText(
-            text: settings?.frame(
-                at: phase,
-                secondsPerFrame: manifest.secondsPerFrame(for: settings)) ?? "",
-            colour: colour,
-            fontSize: manifest.size(for: settings),
-            pixelSize: pixelSize,
-            font: manifest.font
-        )
-            .fixedSize()
-            .shadow(color: colour.opacity(0.95), radius: 1.5)
-            .shadow(color: colour.opacity(0.55), radius: 4)
-            .shadow(color: colour.opacity(0.30), radius: 9)
+    @ViewBuilder
+    private func face(phase: Double, now: Date) -> some View {
+        if let spec = settings?.eye {
+            EyesFaceView(
+                spec: morphed(spec, now: now), plate: plate, colour: colour,
+                pixelSize: pixelSize, phase: phase)
+        } else {
+            Color.clear.frame(width: plate.width, height: plate.height)
+        }
     }
 
-    /// Device pixels per rendered pixel. Coarsens the bitmap, never the drawn
-    /// size; past 3 the kaomoji stop being legible, hence the clamp on the preference.
+    /// The pose on its way from the previous expression to this one.
+    private func morphed(_ spec: EyeSpec, now: Date) -> EyeSpec {
+        guard let from = morphFrom else { return spec }
+        let elapsed = now.timeIntervalSince(morphAt) / Self.morphDuration
+        guard elapsed < 1 else { return spec }
+        let t = max(0, elapsed)
+        var morphing = spec
+        morphing.pose = EyePose.lerp(from, spec.pose, CGFloat(1 - pow(1 - t, 2)))
+        return morphing
+    }
+
+    /// Device pixels per rendered pixel. Coarsens the raster, never the drawn
+    /// size; past 3 the face stops being legible, hence the clamp on the
+    /// preference.
     public static let defaultPixelSize: CGFloat = 2
 
-    /// The tier is a ceiling, not a target: ticking at the tier would wake the
-    /// view eight times to redraw identical glyphs (D3).
     private var interval: Double {
-        guard tier != .still else { return 1 }
-        let clock = 1 / tier.rawValue
-        guard (settings?.motion ?? MotionKind.none) == MotionKind.none else { return clock }
-        return max(clock, manifest.secondsPerFrame(for: settings))
-    }
-}
-
-/// A pixel grid over whatever it wraps.
-/// Keep the pitch equal to the bitmap's `pixelSize`: a grid at any other pitch
-/// beats against the blocks underneath and reads as a rendering fault.
-/// See RFC-005, "Notes d'implémentation".
-struct PixelGrid: ViewModifier {
-    let colour: Color
-    var pitch: CGFloat = BuddyView.defaultPixelSize
-
-    var lineWidth: CGFloat { max(0.5, pitch / 4) }
-
-    /// Light enough that the thin strokes of a kaomoji survive. An earlier 0.38
-    /// ate `ᓚ₍⑅^- .-^₎` outright.
-    static let darkness: Double = 0.30
-
-    func body(content: Content) -> some View {
-        content
-            .overlay {
-                Canvas { context, size in
-                    let ink = GraphicsContext.Shading.color(.black.opacity(Self.darkness))
-                    var x: CGFloat = 0
-                    while x < size.width {
-                        context.fill(
-                            Path(CGRect(x: x, y: 0, width: lineWidth, height: size.height)),
-                            with: ink)
-                        x += pitch
-                    }
-                    var y: CGFloat = 0
-                    while y < size.height {
-                        context.fill(
-                            Path(CGRect(x: 0, y: y, width: size.width, height: lineWidth)),
-                            with: ink)
-                        y += pitch
-                    }
-                }
-                .mask(content)
-                .allowsHitTesting(false)
-            }
+        tier == .still ? 1 : 1 / tier.rawValue
     }
 }
 
