@@ -1,55 +1,19 @@
 import Foundation
 
-/// The single source of truth for what agents are doing.
-///
-/// # Why one owner
-///
-/// The reference implementation keeps three, and they disagree: sessions derived
-/// from transcripts plus `libproc`, PIDs derived from a hook's socket peer, and
-/// permission modes indexed by working directory rather than by session. The
-/// result is matching on `cwd` for want of anything better, and an `lsof` call
-/// that contradicts a comment elsewhere in the same repository.
-///
-/// Here there is one owner and three *inputs*, each authoritative over exactly
-/// one thing:
-///
-/// - **the process** is the truth about liveness,
-/// - **the transcript** is the truth about content, mode and progress,
-/// - **the hook**, when RFC-006 lands, is the truth about identity — a PID tied
-///   to a session id rather than inferred from a shared directory.
-///
-/// Primary key is the session id. `cwd` is a secondary index and nothing more.
-///
-/// # "Event-driven" is a description, not a design
-///
-/// Transcript changes arrive from FSEvents. Process death emits **no filesystem
-/// event whatsoever**, so liveness stays a poll — lazily, 30 s at rest and 2 s
-/// while something is happening, rather than the reference's flat 1 Hz with a
-/// `fork` in it.
+/// Process death emits no filesystem event, so liveness stays a poll.
+/// See RFC-003, « Notes d'implémentation ».
 public actor SessionStore {
 
-    /// Contracted freshness, so nobody quietly reinstates a 1 Hz timer the first
-    /// time a status looks stale.
+    /// Contracted freshness. Do not reinstate a flat 1 Hz timer here.
     public static let activeLatency: TimeInterval = 2
     public static let restingLatency: TimeInterval = 30
 
-    /// How long an incremental refresh may go before a full walk is forced.
-    /// Bounds how stale the deleted-transcript case can get.
     public static let fullWalkInterval: TimeInterval = 120
 
-    /// A transcript untouched for longer than this is not shown at all. Claude
-    /// Code never deletes them, so without this the list is months of history.
     public static let staleAfter: TimeInterval = 15 * 60
 
-    /// Above this many prompt tokens a session is *proved* to be running with
-    /// the 1M window — a 200k window cannot hold more than 200k.
-    ///
-    /// This is a backstop, not the answer. It only fires once a session is
-    /// already past 200k, and until this release it was the only signal there
-    /// was: a session at 142k tokens on a 1M window was shown as 71 % full when
-    /// Claude Code's own status line said 14 %. The window now comes from the
-    /// settings — see `ContextWindowResolver` — and this catches what the
-    /// settings cannot see, such as a `/model` typed mid-session.
+    /// Above this many prompt tokens the 1M window is *proved*. Backstop only — a
+    /// session at 142k on 1M read 71 % instead of 14 % before `ContextWindowResolver`.
     public static let largeContextThreshold = 200_000
     public static let defaultContextWindow = ContextWindowResolver.defaultWindow
     public static let largeContextWindow = ContextWindowResolver.largeWindow
@@ -57,27 +21,14 @@ public actor SessionStore {
     private let root: String
     private var reader = JSONLTailReader()
 
-    /// Where liveness comes from: normalised cwd → running agent pids.
-    ///
-    /// Injectable because the alternative is untestable. Liveness comes from
-    /// real processes, and no test can conjure an agent running in a temporary
-    /// directory — so without this seam the alert path could only ever be
-    /// exercised by hand, from inside a session that is by definition busy
-    /// running the test.
+    /// See RFC-003, « Notes d'implémentation ».
     private let liveness: @Sendable () -> [String: [pid_t]]
 
-    /// Last non-zero context size per session.
-    ///
-    /// Sticky on purpose: a tail that happens to land on a user turn or a tool
-    /// result carries no `usage` block, and without this the context gauge drops
-    /// to zero and back on alternate reads. The reference implementation learned
-    /// the same lesson.
+    /// Sticky: a tail landing on a user turn carries no `usage`, and the gauge would
+    /// otherwise drop to zero and back on alternate reads.
     private var stickyTokens: [String: Int] = [:]
-    /// Once a session is seen above the threshold it is pinned to the large
-    /// window. Sessions do not shrink back, and flip-flopping the denominator
-    /// would make the gauge jump.
+    /// Sessions never shrink back; flip-flopping the denominator makes the gauge jump.
     private var stickyWindow: [String: Int] = [:]
-    /// Where the window actually comes from: the model named in the settings.
     private var windows = ContextWindowResolver()
 
     private var current: [AgentSession] = []
@@ -96,7 +47,6 @@ public actor SessionStore {
 
     public var sessions: [AgentSession] { current }
 
-    /// Live sessions only — a transcript alone never proves one.
     public var liveSessions: [AgentSession] { current.filter(\.isLive) }
 
     public func updates() -> AsyncStream<[AgentSession]> {
@@ -114,20 +64,11 @@ public actor SessionStore {
 
     // MARK: - Refresh
 
-    /// Paths seen on the last full walk, so an incremental refresh knows the
-    /// corpus without re-enumerating it.
     private var knownPaths: [String: (modified: Date, size: UInt64, created: Date)] = [:]
     private var lastFullWalk: Date = .distantPast
 
-    /// Rebuild from the three inputs.
-    ///
-    /// `changed` is the path list from FSEvents. When present, only those files
-    /// are re-stat'ed and the rest of the corpus is taken from the last full
-    /// walk — ~1 ms instead of ~17 ms on a 517-file corpus.
-    ///
-    /// A full walk still runs periodically, because the incremental path cannot
-    /// see a transcript that was *deleted*, and because FSEvents paths are a
-    /// hint rather than a guarantee.
+    /// `changed` is the FSEvents path list: re-stat only those, ~1 ms instead of ~17 ms on
+    /// a 517-file corpus. A full walk still runs: it cannot see a *deleted* transcript.
     @discardableResult
     public func refresh(now: Date = Date(), changed: [String]? = nil) -> [AgentSession] {
         let live = liveness()
@@ -142,7 +83,6 @@ public actor SessionStore {
         var sessions: [AgentSession] = []
         var seenPaths = Set<String>()
 
-        // Group by working directory so the capacity rule below can be applied.
         var byCwd: [String: [(path: String, tail: ParsedTail, modified: Date, created: Date)]] = [:]
         for candidate in candidates {
             seenPaths.insert(candidate.path)
@@ -152,9 +92,7 @@ public actor SessionStore {
 
         for (cwd, group) in byCwd {
             let pids = live[cwd] ?? []
-            // Freshest first, then keep at most as many as there are processes
-            // actually running here. mtime lies about liveness; the process
-            // count does not.
+            // Freshest first, capped at the live process count: mtime lies about liveness.
             let ranked = group.sorted { $0.modified > $1.modified }
             for (index, candidate) in ranked.enumerated() {
                 let isLive = index < pids.count
@@ -162,9 +100,8 @@ public actor SessionStore {
                 sessions.append(makeSession(
                     candidate: candidate,
                     cwd: cwd,
-                    // Positional pairing is a stopgap. It is arbitrary when two
-                    // agents share a directory, which is exactly what the hook's
-                    // session-to-PID mapping will fix in RFC-006.
+                    // Positional pairing is a stopgap (risk R8): arbitrary when two agents
+                    // share a directory.
                     pid: index < pids.count ? pids[index] : nil,
                     isLive: isLive
                 ))
@@ -194,9 +131,7 @@ public actor SessionStore {
         if tail.contextTokens > 0 { stickyTokens[sessionID] = tail.contextTokens }
         let tokens = stickyTokens[sessionID] ?? 0
         if tokens > Self.largeContextThreshold { stickyWindow[sessionID] = Self.largeContextWindow }
-        // The larger of what the settings say and what the tokens prove. They
-        // can only disagree in one direction — a session cannot hold more than
-        // its window — so `max` is the whole reconciliation.
+        // They can only disagree one way — no session holds more than its window.
         let window = max(stickyWindow[sessionID] ?? 0, windows.window(forProject: cwd))
 
         return AgentSession(
@@ -223,7 +158,6 @@ public actor SessionStore {
         )
     }
 
-    /// Re-stat only the paths FSEvents named, and reuse the rest.
     private func incremental(changed: [String], now: Date)
         -> [(path: String, tail: ParsedTail, modified: Date, created: Date)] {
         for path in changed where path.hasSuffix(".jsonl") {
@@ -249,17 +183,8 @@ public actor SessionStore {
         return out
     }
 
-    /// Walk the corpus and parse only what is recent enough to matter.
-    ///
-    /// The enumerator prefetches the attributes it is asked for, which turns one
-    /// `stat` per file into a batched read. The first version called
-    /// `attributesOfItem` per path instead — 517 separate syscalls on this
-    /// machine, measured at 30 ms a refresh. At the active cadence that is 1.5 %
-    /// of a core, and during an FSEvents burst it reaches the 3 % activity
-    /// budget on its own.
-    ///
-    /// The staleness check comes before the parse, so a cold corpus costs the
-    /// walk and nothing else.
+    /// The enumerator prefetches the attributes asked for, batching the `stat`s. Doing
+    /// it per path instead cost 517 syscalls, 30 ms a refresh, 1,5 % of a core.
     private func transcripts(now: Date) -> [(path: String, tail: ParsedTail, modified: Date, created: Date)] {
         let keys: [URLResourceKey] = [
             .contentModificationDateKey, .fileSizeKey, .creationDateKey, .isRegularFileKey,

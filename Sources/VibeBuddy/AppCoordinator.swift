@@ -1,17 +1,9 @@
 import AppKit
 import VibeBuddyKit
 
-/// Owns the object graph and the app's relationship with the system.
-///
-/// The reference implementation injects nine objects straight into a single
-/// SwiftUI view (`AppDelegate.swift:5-15`), which is the root cause of its
-/// 3 738-line view file. Here the coordinator holds the graph and hands out
-/// only what each layer needs.
-///
-/// Its second job is the one the reference never does at all: **stopping**.
-/// Nothing in that codebase ever calls `stop()`, so its timers keep firing with
-/// the lid shut. Sleep and screen lock suspend the wake coordinator here, which
-/// tears the shared timer down to zero.
+/// Owns the object graph and the app's relationship with the system. Sleep and
+/// screen lock suspend the wake coordinator, tearing the shared timer to zero.
+/// See RFC-002, « Notes d'implémentation ».
 @MainActor
 final class AppCoordinator: NSObject, NSApplicationDelegate {
 
@@ -22,8 +14,8 @@ final class AppCoordinator: NSObject, NSApplicationDelegate {
     private var sessions: SessionCoordinator?
     let usage = UsageState()
     let l10n = Localisation()
-    /// One store, three models — RFC-010. Splitting by *who observes what* is
-    /// what stops a buddy colour change from invalidating the window layout.
+    /// One store, three models — RFC-010: splitting by who observes what keeps
+    /// a buddy colour change from invalidating the window layout.
     let prefs = PreferencesStore()
     private(set) lazy var appearance = AppearancePrefs(store: prefs)
     private(set) lazy var layout = LayoutPrefs(store: prefs)
@@ -31,20 +23,15 @@ final class AppCoordinator: NSObject, NSApplicationDelegate {
     private let voice = VoiceAnnouncer()
     private var settings: SettingsWindow?
     private var buddyWatchers: [ProjectsWatcher] = []
-    /// Fired on every hot reload. Used by the bench to prove it happens.
     var onBuddyReload: ((String) -> Void)?
 
-    /// Until RFC-003 drives visibility from live sessions, the pill is shown on
-    /// launch so RFC-002 can be exercised at all.
     var showPillOnLaunch = true
     /// Which buddy to load. Nil means the built-in one.
     var buddyID: String? = "emoji"
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
-        // Before anything reads the support directory: the buddies in there are
-        // usually symbolic links into a working copy, and an app that silently
-        // stops seeing them has lost them as far as the user is concerned.
+        // Before anything reads the support directory.
         switch SupportDirectory.migrate() {
         case .notNeeded: break
         case let .moved(from):
@@ -75,8 +62,7 @@ final class AppCoordinator: NSObject, NSApplicationDelegate {
         )
         settings.onVisibilityChange = { [weak self, weak panel] open in
             panel?.suppressesHover = open
-            // Closing the window is one of the two moments where waiting a
-            // quarter second for a coalesced write is a real risk.
+            // A coalesced write must not be lost when the window closes.
             if !open {
                 self?.prefs.flush()
                 self?.applyLayoutPrefs()
@@ -106,9 +92,7 @@ final class AppCoordinator: NSObject, NSApplicationDelegate {
         let sessions = SessionCoordinator(wake: wake)
         sessions.onAlert = { [weak self] alert in
             guard let self else { return }
-            // The preference silences the *rendering*, never the reading: the
-            // state machine has already decided what happened, and a setting
-            // that changed that would make the panel and the alerts disagree.
+            // The preference silences the rendering, never the reading.
             guard self.notifications.allows(alert.kind) else {
                 PerfProbe.log.info("alerte tue par préférence: \(alert.kind.rawValue, privacy: .public)")
                 return
@@ -126,8 +110,6 @@ final class AppCoordinator: NSObject, NSApplicationDelegate {
         sessions.onChange = { [weak self] list in
             guard let self, let panel = self.panel else { return }
             let live = list.filter(\.isLive)
-            // A pending question outranks everything: it is the one state where
-            // nothing moves until the user acts.
             let activity: SessionActivity? = live.contains(where: \.awaitingAnswer) ? .awaiting
                 : (live.contains { $0.action != .none } ? .working
                 : (live.contains { $0.turnEnded } ? .finished : (live.isEmpty ? nil : .idle)))
@@ -148,9 +130,7 @@ final class AppCoordinator: NSObject, NSApplicationDelegate {
         sessions.start()
         self.sessions = sessions
 
-        // The only unconditional periodic wake in the app — RFC-001, D3. The
-        // coordinator ticks at `.lazy`; `UsageState` decides from there whether
-        // enough time has passed, so the cadence adapts without a second timer.
+        // The only unconditional periodic wake in the app — RFC-001, D3.
         wake.register(id: "usage", cadence: .lazy) { [weak self] in
             guard let self else { return }
             Task { @MainActor in
@@ -207,7 +187,6 @@ final class AppCoordinator: NSObject, NSApplicationDelegate {
             MainActor.assumeIsolated { self?.leaveLowPower("unlock") }
         }
 
-        // Screen layout changes invalidate the resolved notch.
         NotificationCenter.default.addObserver(
             forName: NSApplication.didChangeScreenParametersNotification,
             object: nil, queue: .main
@@ -224,15 +203,6 @@ final class AppCoordinator: NSObject, NSApplicationDelegate {
     }
 
     /// Reload the active buddy whenever its folder changes.
-    ///
-    /// A `.buddy` file is something a person edits by hand, in a text editor,
-    /// while watching the notch. Without this the loop is "edit, quit, relaunch"
-    /// — and worse, the obvious guess is that recompiling would help, which it
-    /// never does: the files live outside the binary entirely.
-    ///
-    /// Reuses `ProjectsWatcher` rather than adding a second FSEvents
-    /// implementation; it was written for transcripts but knows nothing about
-    /// them.
     private func watchBuddies() {
         buddyWatchers.forEach { $0.stop() }
         buddyWatchers = []
@@ -241,13 +211,9 @@ final class AppCoordinator: NSObject, NSApplicationDelegate {
         try? FileManager.default.createDirectory(
             atPath: root, withIntermediateDirectories: true)
 
-        // Watch where the files *really* are, not only where they appear.
-        //
-        // A buddy in the search path is often a symlink into a working copy —
-        // that is how anyone edits one seriously. FSEvents reports writes to the
-        // directory holding the actual bytes, so watching the link's folder sees
-        // nothing at all when the target changes. Resolving first is the whole
-        // difference between hot reload working and appearing to work.
+        // Resolve symlinks first: a buddy in the search path is usually a link
+        // into a working copy, and FSEvents reports writes to the directory
+        // holding the real bytes, never to the link's folder.
         var directories = Set([root])
         if let entries = try? FileManager.default.contentsOfDirectory(atPath: root) {
             for entry in entries where entry.hasSuffix(".buddy") {
@@ -271,21 +237,10 @@ final class AppCoordinator: NSObject, NSApplicationDelegate {
         }
     }
 
-    /// Load a buddy by id, falling back to the built-in one.
-    ///
-    /// Swapping is just a redraw: the renderer holds no state, so there is
-    /// nothing to tear down between manifests.
     /// Bring the terminal running `pid` to the front, on the right tab.
     ///
-    /// Off the main actor because an Apple Event is a round trip to another
-    /// process: on the main thread it would freeze the panel for as long as
-    /// iTerm2 takes to answer, and the panel is under the cursor at that exact
-    /// moment. `TerminalJumper` is a pure function of the pid, so nothing here
-    /// needs isolation.
-    ///
-    /// The message clears itself. A note that stayed would still be on screen
-    /// the next time the panel opened, describing something that happened
-    /// minutes ago.
+    /// Do not run on the main actor: an Apple Event is a round trip to another
+    /// process and would freeze the panel until iTerm2 answers.
     private func jump(to pid: pid_t) {
         let strings = l10n.strings
         Task.detached(priority: .userInitiated) {
@@ -305,8 +260,7 @@ final class AppCoordinator: NSObject, NSApplicationDelegate {
 
     private func loadBuddy(_ id: String?) {
         // A buddy created in the editor has no file, so the loader cannot find
-        // it — the layer holds it whole. Either way the overrides are applied
-        // afterwards, in the one place that knows the precedence.
+        // it. Overrides are applied afterwards either way.
         if let id, let created = appearance.overrides.manifest(forCreated: id) {
             panel?.setBuddy(appearance.resolved(created))
             panel?.setPixelSize(appearance.pixelSize)
@@ -321,8 +275,7 @@ final class AppCoordinator: NSObject, NSApplicationDelegate {
         }
     }
 
-    /// Push the panel-facing preferences. Called at launch and whenever the
-    /// settings window closes, which is when they can have changed.
+    /// Push the panel-facing preferences.
     private func applyLayoutPrefs() {
         sessions?.quietWhenTerminalFrontmost = notifications.quietWhenFrontmost
         panel?.setLayoutPrefs(
@@ -333,9 +286,8 @@ final class AppCoordinator: NSObject, NSApplicationDelegate {
 
     /// Delete every preference this app owns, then reload from defaults.
     ///
-    /// Keys are removed one by one rather than by wiping the domain: the domain
-    /// also holds system-managed entries for this bundle, and taking those with
-    /// it would be a bug that only shows up much later.
+    /// Do not wipe the domain: it also holds system-managed entries for this
+    /// bundle, and removing those breaks much later.
     private func resetEverything() {
         for key in PreferencesStore.allKeys { prefs.remove(key) }
         appearance = AppearancePrefs(store: prefs)

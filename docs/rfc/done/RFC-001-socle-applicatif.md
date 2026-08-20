@@ -170,3 +170,108 @@ log stream --predicate 'subsystem == "fr.funkylab.vibebuddy" AND category == "wa
 
 **Q3 — Faut-il suspendre aussi sur `NSWorkspace.screensDidSleepNotification` ?**
 Écran éteint mais machine active : cas fréquent en déport de session.
+
+## Notes d'implémentation
+
+Arbitrages déplacés depuis les commentaires du code lors du dégraissage du
+2026-08-20. Le code garde une ligne de renvoi vers cette section.
+
+### `WakeCoordinator.swift` — `WakeCoordinator`
+
+L'implémentation de référence fait tourner sept sources de réveil indépendantes —
+sondage des sessions à 1 Hz, sondage de la souris à 10 Hz, requêtes Accessibilité
+à 1 Hz, rafraîchissement de la consommation à 60 s, vérification de mise à jour
+toutes les 30 min, sondage des raccourcis à 2 s, plus dix-huit animations
+`repeatForever` — et n'appelle `stop()` sur aucune. Elles continuent de se
+déclencher fenêtre masquée, écran verrouillé, et sur batterie. Aucune n'est
+déraisonnable prise seule ; l'accumulation l'est, et rien dans cette architecture
+n'empêche d'en ajouter une huitième.
+
+D'où : une seule horloge, un seul propriétaire, un seul endroit à auditer. Un
+`Timer` créé ailleurs dans ce dépôt est un échec de revue, pas une optimisation
+manquée.
+
+Le minuteur est programmé avec une marge généreuse (25 % de l'intervalle), ce qui
+laisse le noyau fusionner nos réveils avec ceux déjà programmés sur le système.
+Un réveil fusionné est presque gratuit ; un réveil isolé est ce qui vide une
+batterie. En veille ou écran verrouillé, le minuteur est *annulé*, pas ralenti :
+à ce moment-là le budget est de zéro réveil, pas de peu.
+
+### `Cadence.swift` — `Cadence`
+
+Volontairement un ensemble fermé de quatre valeurs. Les intervalles arbitraires
+sont la façon dont une app finit avec sept minuteurs non coordonnés — l'état de
+l'implémentation de référence. Si un sous-système a besoin d'autre chose que ces
+quatre valeurs, c'est une conversation de conception, pas un paramètre.
+
+### `AnimationBudget.swift` — `AnimationBudget`
+
+L'implémentation de référence dépense son budget d'animation sans le voir :
+dix-huit appels `withAnimation(...).repeatForever` répartis dans
+`BuddyFace.swift`, chacun installant un `CADisplayLink` implicite qui n'est jamais
+démonté — ni quand la vue sort de l'écran, ni quand la fenêtre se masque.
+`withAnimation` a l'air gratuit au point d'appel, et c'est exactement pour ça que
+ça s'accumule.
+
+Ici le mouvement a un seul cadran, et il est observable. Une vue qui veut animer
+demande ce qu'elle a le droit de dépenser ; quand la réponse est `0`, elle dessine
+une image fixe et n'installe aucune horloge.
+
+### `PreferencesStore.swift` — `PreferencesStore`
+
+**Pourquoi pas `@AppStorage`.** `@AppStorage` n'a aucun chemin de migration.
+L'implémentation de référence en a eu besoin dès qu'elle a changé la façon de
+stocker une position de fenêtre, et l'a écrit à la main
+(`BuddyPreferences.swift:79-91`) ; un store incapable de versionner ses propres
+clés se contente de reporter ce travail sur la première personne qui le heurte.
+
+**Écritures fusionnées.** La référence écrit dans `UserDefaults` depuis le
+`didSet` de vingt propriétés (`NotchWindow.swift:505-507`), c'est-à-dire une
+écriture synchrone **par image** pendant le déplacement d'une fenêtre. Ici un
+changement marque une clé sale et programme un seul vidage ; une rafale de
+changements se réduit à une écriture.
+
+### `NotchFrameSolver.swift` — `NotchFrameSolver`
+
+Pur et sans type AppKit au-delà de `CGRect`, pour que chaque règle de
+positionnement — bornage, aimantation, règle d'affleurement sur écran à encoche —
+soit testable sans écran branché. Dans l'implémentation de référence cette
+arithmétique vit à l'intérieur de la sous-classe `NSPanel`, et c'est pour ça que
+ses cas limites ont été corrigés avec des drapeaux plutôt qu'avec des tests.
+
+### `PanelMetrics.swift` — `PanelTiming.contentRevealFraction`
+
+Fraction de l'animation d'ouverture qui doit s'écouler avant que le contenu du
+panneau soit révélé (0,62).
+
+Les insérer dès le début paraît faux pour une raison qui mérite d'être nommée :
+la forme est encore à la hauteur de la pastille, donc une mise en page pleine
+taille apparaît dans quelque chose de bien trop petit pour elle, puis le cadre
+rattrape. Attendre que la croissance soit presque finie fait arriver le contenu
+dans un espace qui le contient déjà.
+
+À la fermeture, le contenu est retiré *d'abord*, avant que le cadre rétrécisse :
+laisser un panneau mis en page se faire écraser dans une pastille se lit comme un
+effondrement, pas comme une fermeture.
+
+### `LayoutPrefs.swift` — `LayoutPrefs.showPillWithoutSession`
+
+D7 dit que ce réglage doit être à *off* par défaut. Il est à **on** ici, et c'est
+une divergence délibérée plutôt qu'un oubli : l'app a toujours affiché la
+pastille, et la faire disparaître silencieusement à la mise à jour se lirait comme
+un plantage plutôt que comme un nouveau défaut. Le réglage existe ; le défaut
+bougera le jour où l'app sera livrée à quelqu'un qui n'a jamais vu l'ancien
+comportement.
+
+### `Strings.swift` — `Strings`
+
+**Pourquoi une `struct` plutôt que des fichiers `.strings`.** Une clé manquante
+dans un `.strings` est un raté à l'exécution : l'app affiche la clé brute, ou
+bascule silencieusement dans une autre langue, et personne ne le remarque avant
+un utilisateur. Ici chaque langue est une instance de la même structure, donc
+**ajouter une chaîne sans la traduire ne compile pas**.
+
+Le compromis est réel : ce n'est pas un fichier qu'un traducteur peut éditer. À
+deux langues dans un outil personnel, c'est le bon sens de l'échange ; le jour où
+une troisième arrive avec quelqu'un d'autre pour l'écrire, le catalogue peut
+passer en `.strings` sans que les sites d'appel changent.

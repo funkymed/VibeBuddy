@@ -2,17 +2,8 @@ import Foundation
 
 /// Every user-facing string, in every language.
 ///
-/// # Why a struct rather than `.strings` files
-///
-/// A missing key in a `.strings` file is a runtime miss: the app shows the raw
-/// key, or silently falls back to another language, and nobody notices until a
-/// user does. Here every language is an instance of the same struct, so
-/// **adding a string without translating it does not compile**.
-///
-/// The trade is real: this is not a file a translator can edit. At two
-/// languages in a personal tool that is the right way round, and the day a
-/// third arrives with someone else writing it, the catalogue can move to
-/// `.strings` without the call sites changing.
+/// Every language is an instance of the same struct, so adding a string without
+/// translating it does not compile. See RFC-001, "Notes d'implémentation".
 public struct Strings: Sendable {
 
     // Header
@@ -20,14 +11,12 @@ public struct Strings: Sendable {
     public let sessionsIdle: @Sendable (Int) -> String
     public let sessionsWorking: @Sendable (Int) -> String
     public let sessionsWaiting: @Sendable (Int) -> String
-    /// Bare state word, for the header's compact fraction — the count is the
-    /// fraction itself, so the label must not carry one of its own.
+    /// Bare state word: the header's compact fraction supplies the count.
     public let stateWorking: String
     public let stateIdle: String
     public let stateAwaiting: String
     public let stateFinished: String
     public let stateFailed: String
-    /// A session whose process is gone. History, not a state to act on.
     public let stateEnded: String
     public let quit: String
 
@@ -39,14 +28,11 @@ public struct Strings: Sendable {
     public let since: @Sendable (String) -> String
     public let sessionHistory: @Sendable (Int) -> String
     public let contextTooltip: @Sendable (Int, Int) -> String
-    /// Tooltip on a live row, saying what a click does.
     public let jumpHint: String
     /// Shown when the click found the terminal but not the tab — under tmux, or
     /// on an emulator with no scripting dictionary.
     public let jumpNoTab: String
-    /// Shown when no terminal could be found at all.
     public let jumpNoTerminal: String
-    /// Shown when the scripting call itself failed, permission included.
     public let jumpFailed: @Sendable (String) -> String
 
     // Usage
@@ -55,7 +41,6 @@ public struct Strings: Sendable {
     public let usageWeek: String
     public let usageLoading: String
     public let usageRateLimited: String
-    /// How old the reading on screen is. Shown only past a couple of minutes.
     public let usageAge: @Sendable (String) -> String
     public let usageSignedOut: String
 
@@ -70,7 +55,6 @@ public struct Strings: Sendable {
     // Alerts
     public let alertFinished: String
     public let alertFailed: String
-    /// Right ear of the pill when the agent is waiting on an answer.
     public let alertWaiting: String
 
     public static let french = Strings(

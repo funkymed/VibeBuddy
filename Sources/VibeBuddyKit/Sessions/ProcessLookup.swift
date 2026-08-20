@@ -1,18 +1,11 @@
 import Foundation
 import Darwin
 
-/// Thin wrappers over `libproc`.
-///
-/// macOS has no `/proc`, so these are the only way to enumerate processes and
-/// read their name, path and working directory. Adapted from Notch-Pilot
-/// (MIT) — the most directly reusable piece of that project.
+/// Thin wrappers over `libproc`: macOS has no `/proc`, so these are the only way to
+/// enumerate processes and read their name, path and cwd. From Notch-Pilot (MIT).
 public enum ProcessLookup {
 
-    /// Every process visible to the current user.
-    ///
-    /// Sized generously and retried once: the count can grow between asking how
-    /// much room is needed and filling the buffer, and a short read would
-    /// silently drop the processes that did not fit.
+    /// Retried once: the count can grow between sizing and filling, and a short read drops.
     public static func allPIDs() -> [pid_t] {
         var capacity = 4096
         for _ in 0..<2 {
@@ -29,24 +22,20 @@ public enum ProcessLookup {
         return []
     }
 
-    /// `p_comm`, the 16-character accounting name.
-    ///
-    /// Falls back to `sysctl` for the same reason `parent(of:)` uses it:
-    /// `proc_name` is privilege-gated and returns nothing for setuid processes
-    /// such as `login`, which sits in the chain of every login-shell terminal.
+    /// `p_comm`, the 16-character accounting name. Do not rely on `proc_name` alone:
+    /// it is privilege-gated and returns nothing for setuid `login`.
     public static func name(of pid: pid_t) -> String? {
         var buffer = [CChar](repeating: 0, count: Int(MAXPATHLEN))
         let r = buffer.withUnsafeMutableBufferPointer {
             proc_name(pid, $0.baseAddress, UInt32(MAXPATHLEN))
         }
         if r > 0 {
-            let name = String(cString: buffer)
+            let name = Self.string(from: buffer)
             if !name.isEmpty { return name }
         }
         return sysctlName(of: pid)
     }
 
-    /// Accounting name from the kernel's process table, readable for any pid.
     static func sysctlName(of pid: pid_t) -> String? {
         var mib: [Int32] = [CTL_KERN, KERN_PROC, KERN_PROC_PID, pid]
         var info = kinfo_proc()
@@ -61,7 +50,6 @@ public enum ProcessLookup {
         }
     }
 
-    /// Full path of the backing executable.
     public static func path(of pid: pid_t) -> String? {
         let capacity = Int(MAXPATHLEN) * 4
         var buffer = [CChar](repeating: 0, count: capacity)
@@ -69,25 +57,17 @@ public enum ProcessLookup {
             proc_pidpath(pid, $0.baseAddress, UInt32(capacity))
         }
         guard r > 0 else { return nil }
-        return String(cString: buffer)
+        return Self.string(from: buffer)
     }
 
-    /// Parent pid, via `sysctl` rather than `proc_pidinfo`.
-    ///
-    /// `proc_pidinfo(PROC_PIDTBSDINFO)` is the obvious call and it is the wrong
-    /// one: it fails on processes we lack privileges for. That is not an edge
-    /// case here — every iTerm2 session started through a login shell has a
-    /// setuid-root `login` in its chain, so the walk from an agent up to its
-    /// terminal stops two hops short, every time.
-    ///
-    /// Measured on this machine: the chain is
-    /// `claude → zsh → login → iTerm2 Application → iTerm2`, and `proc_pidinfo`
-    /// returns nothing for `login`. `sysctl(KERN_PROC_PID)` reads the same field
-    /// from the kernel's process table and is not privilege-gated — it is what
-    /// `ps` itself uses.
-    ///
-    /// The reference implementation walks the chain with `proc_pidinfo`, so it
-    /// carries this blind spot.
+    /// `String(cString:)` is deprecated: it walks past the end without a terminator.
+    static func string(from buffer: [CChar]) -> String {
+        let bytes = buffer.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }
+        return String(decoding: bytes, as: UTF8.self)
+    }
+
+    /// Do not use `proc_pidinfo(PROC_PIDTBSDINFO)`: it fails without privileges. Measured
+    /// chain `claude → zsh → login → iTerm2` stops two hops short at setuid `login`.
     public static func parent(of pid: pid_t) -> pid_t? {
         var mib: [Int32] = [CTL_KERN, KERN_PROC, KERN_PROC_PID, pid]
         var info = kinfo_proc()
@@ -98,20 +78,8 @@ public enum ProcessLookup {
         return parent > 0 ? parent : nil
     }
 
-    /// Controlling terminal of a process, as `/dev/ttys004`.
-    ///
-    /// This is the one identifier a terminal emulator and the kernel agree on.
-    /// A tab has no name worth matching — titles are set by shells, prompts and
-    /// programs, and two tabs in the same project share a working directory —
-    /// but exactly one tab owns a given pty. iTerm2 and Terminal both publish it
-    /// (`tty` on their session and tab classes), so the match is an equality
-    /// rather than a guess.
-    ///
-    /// `sysctl` again, for the reason `parent(of:)` gives: `proc_pidinfo` is
-    /// privilege-gated and the chains here run through setuid `login`.
-    ///
-    /// Nil when the process has no controlling terminal — a daemon, or an agent
-    /// launched from something other than a shell.
+    /// Controlling terminal, as `/dev/ttys004` — the only identity an emulator and the
+    /// kernel agree on: titles lie, two tabs share a cwd, but one tab owns a given pty.
     public static func tty(of pid: pid_t) -> String? {
         var mib: [Int32] = [CTL_KERN, KERN_PROC, KERN_PROC_PID, pid]
         var info = kinfo_proc()
@@ -125,12 +93,8 @@ public enum ProcessLookup {
         return short.isEmpty ? nil : "/dev/" + short
     }
 
-    /// Working directory, via `PROC_PIDVNODEPATHINFO`.
-    ///
-    /// This is the load-bearing call. A transcript with a fresh timestamp proves
-    /// nothing about liveness — a session that exited cleanly leaves one behind
-    /// for as long as anyone cares to look. The working directory of a running
-    /// process is the only thing that cannot lie.
+    /// Working directory, via `PROC_PIDVNODEPATHINFO`. The load-bearing call: a fresh
+    /// transcript timestamp proves nothing, a running process's cwd cannot lie.
     public static func cwd(of pid: pid_t) -> String? {
         var info = proc_vnodepathinfo()
         let size = Int32(MemoryLayout<proc_vnodepathinfo>.size)
@@ -146,11 +110,8 @@ public enum ProcessLookup {
         }
     }
 
-    /// Strip `/private` and trailing slashes.
-    ///
-    /// Without this the cwd reported by `libproc` and the one written in a
-    /// transcript compare unequal for the same directory — `/private/tmp/x`
-    /// against `/tmp/x` — and every session in a temp directory looks dead.
+    /// Strip `/private` and trailing slashes: otherwise `libproc`'s cwd and the
+    /// transcript's compare unequal (`/private/tmp/x` vs `/tmp/x`) and look dead.
     public static func normalise(_ path: String) -> String {
         var s = path
         if s.hasPrefix("/private/") { s = String(s.dropFirst(8)) }
@@ -158,13 +119,8 @@ public enum ProcessLookup {
         return s
     }
 
-    /// Live agent processes, grouped by normalised working directory.
-    ///
-    /// Matching is by executable name *or* path: Claude Code installs versioned
-    /// binaries under `…/claude/versions/…`, so the accounting name alone misses
-    /// them. Matching `node` — as the reference's terminal jumper does — is
-    /// deliberately avoided: it catches every unrelated Node process in the same
-    /// directory.
+    /// Live agent processes, grouped by normalised cwd. Match on executable name *or*
+    /// path (`…/claude/versions/…`). Do not match `node`: it catches unrelated processes.
     public static func agentPIDs(provider: AgentProvider = .claudeCode) -> [String: [pid_t]] {
         var result: [String: [pid_t]] = [:]
         for pid in allPIDs() {

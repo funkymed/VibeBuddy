@@ -2,30 +2,16 @@ import AppKit
 
 /// Where the notch is, resolved once.
 ///
-/// # Why this exists
-///
-/// The reference implementation computes this twice, with two different rules:
-/// `AppDelegate.swift:98-112` reads `NSScreen.main`, while
-/// `NotchWindow.swift:85-102` walks the screen list looking for a notched one.
-/// They disagree whenever the user types in a window on a second display —
-/// `NSScreen.main` follows *keyboard focus*, not hardware — and the pill jumps
-/// screens or renders at the wrong width.
-///
-/// One resolver, one rule: the notched screen wins, and keyboard focus is never
-/// consulted.
+/// Do not resolve it from `NSScreen.main`: that follows keyboard focus, not
+/// hardware, so the pill jumps screens when the user types on a second display.
 public struct NotchGeometry: Equatable, Sendable {
 
-    /// Display the pill belongs to.
     public let screenID: CGDirectDisplayID
     public let screenFrame: CGRect
-    /// Size of the hardware notch, or nil on a display without one.
     public let notchSize: CGSize?
 
     public var hasNotch: Bool { notchSize != nil }
 
-    /// Height the collapsed pill should occupy. On a notched display it matches
-    /// the notch so the pill flows out of the hole; elsewhere it is a plain
-    /// menu-bar-height strip.
     public var pillHeight: CGFloat { notchSize?.height ?? 24 }
 
     public init(screenID: CGDirectDisplayID, screenFrame: CGRect, notchSize: CGSize?) {
@@ -36,11 +22,6 @@ public struct NotchGeometry: Equatable, Sendable {
 
     // MARK: - Resolution
 
-    /// Resolve against the current screen layout.
-    ///
-    /// Preference order: the caller's remembered display if it still exists and
-    /// still has a notch, then any notched display, then the first display.
-    /// `NSScreen.main` is never consulted — see the type comment.
     @MainActor
     public static func resolve(preferredScreenID: CGDirectDisplayID? = nil) -> NotchGeometry? {
         let screens = NSScreen.screens
@@ -69,10 +50,9 @@ public struct NotchGeometry: Equatable, Sendable {
 
     /// Notch size for a screen, or nil if it has none.
     ///
-    /// A notched display reports a non-zero top safe-area inset *and* splits its
-    /// menu bar into two auxiliary areas with a gap between them. The gap is the
-    /// notch. Checking only `safeAreaInsets.top` would also match displays with
-    /// a rounded-corner inset and no notch at all.
+    /// Do not test `safeAreaInsets.top` alone: it also matches displays with a
+    /// rounded-corner inset and no notch. The notch is the gap between the two
+    /// auxiliary menu-bar areas.
     @MainActor
     public static func notchSize(of screen: NSScreen) -> CGSize? {
         let topInset = screen.safeAreaInsets.top
@@ -89,8 +69,6 @@ public struct NotchGeometry: Equatable, Sendable {
         )
     }
 
-    /// Pure form of the notch-width computation, so the arithmetic is testable
-    /// without a display attached.
     public static func notchSize(
         screenWidth: CGFloat,
         leftAreaWidth: CGFloat,

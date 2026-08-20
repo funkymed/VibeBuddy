@@ -3,20 +3,7 @@ import VibeBuddyKit
 
 /// The settings window: a sidebar, and one section at a time.
 ///
-/// # Why segmented rather than one form
-///
-/// What shipped first was a single `Form` with two sections. Everything the open
-/// RFCs are about to add — login item, alerts per event, voice, terminal jump,
-/// usage, diagnostics — lands in that same form, and a form of twenty
-/// heterogeneous rows is the UI version of the monolith RFC-010 spends its first
-/// page criticising in the *model*.
-///
-/// # One section mounted at a time
-///
-/// `NavigationSplitView` builds only the selected detail, so the buddy editor's
-/// timeline does not exist while someone is reading the About page. That is the
-/// whole animation budget of this window: one clock, in the one place where
-/// motion is the subject.
+/// See RFC-010, "Notes d'implémentation".
 struct SettingsShell: View {
 
     @Bindable var l10n: Localisation
@@ -27,11 +14,6 @@ struct SettingsShell: View {
     let onLanguageChange: () -> Void
     let onReset: () -> Void
 
-    /// Sections with nothing behind them are not listed at all.
-    ///
-    /// A section that promises a subject and delivers an empty page is worse
-    /// than one that is absent — same rule as the panel, which shows no heatmap
-    /// because RFC-009 does not exist.
     enum Tab: String, CaseIterable, Identifiable {
         case general, buddy, notifications, sessions, display, advanced, about
         var id: String { rawValue }
@@ -52,9 +34,6 @@ struct SettingsShell: View {
         }
     }
 
-    /// Persisted so reopening the window returns where it was left. A settings
-    /// window that always reopens on page one makes changing two related
-    /// settings a navigation exercise.
     @AppStorage("vibebuddy.settings.tab") private var selectedRaw: String = Tab.general.rawValue
 
     private var selection: Binding<Tab> {
@@ -108,65 +87,6 @@ struct SettingsShell: View {
             AdvancedSection(l10n: l10n, onReset: onReset)
         case .about:
             AboutSection(l10n: l10n, appearance: appearance)
-        }
-    }
-}
-
-/// A titled group of rows, used by every section.
-///
-/// Here rather than in each section so the sections cannot drift apart
-/// visually — seven files each inventing their own spacing is how a settings
-/// window ends up looking assembled rather than designed.
-struct SettingsGroup<Content: View>: View {
-    let title: String
-    @ViewBuilder var content: Content
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(title)
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(.secondary)
-            VStack(alignment: .leading, spacing: 0) { content }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 4)
-                .background(RoundedRectangle(cornerRadius: 10).fill(.quaternary.opacity(0.4)))
-        }
-    }
-}
-
-/// One row: a label, an optional explanation, and a control.
-struct SettingsRow<Control: View>: View {
-    let title: String
-    var hint: String?
-    @ViewBuilder var control: Control
-
-    var body: some View {
-        HStack(alignment: .center, spacing: 16) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title).font(.system(size: 13))
-                if let hint {
-                    Text(hint)
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-            Spacer(minLength: 12)
-            control
-        }
-        .padding(.vertical, 10)
-    }
-}
-
-/// A section's page: a scroll view with consistent padding.
-struct SettingsPage<Content: View>: View {
-    @ViewBuilder var content: Content
-
-    var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 22) { content }
-                .padding(22)
-                .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 }

@@ -1,14 +1,8 @@
 import AppKit
 import VibeBuddyKit
 
-/// Translucent ghost showing where the pill will land if released now.
-///
-/// Without it a drag is a guess: the magnets fire on release, so the user only
-/// discovers the snap after committing to it. The ghost turns that into a
-/// preview — and it is also the only feedback that a magnet is in reach at all.
-///
-/// Created lazily and torn down at the end of every drag: a second window that
-/// lingers is a second window costing memory for nothing.
+/// Translucent ghost showing where the pill lands if released now — the magnets
+/// fire on release. Created lazily and torn down at the end of every drag.
 @MainActor
 final class SnapPreviewPanel {
 
@@ -17,7 +11,7 @@ final class SnapPreviewPanel {
     /// Show the ghost at `fraction`, or hide it when the drag is not near a magnet.
     func show(fraction: CGFloat, size: CGSize, geometry: NotchGeometry) {
         let snapped = NotchFrameSolver.snap(fraction: fraction, size: size, geometry: geometry)
-        // No magnet in reach — nothing to preview, so don't distract with one.
+        // No magnet in reach — nothing to preview.
         guard abs(snapped - fraction) > 0.0001 else {
             hide()
             return
@@ -45,7 +39,6 @@ final class SnapPreviewPanel {
         p.isOpaque = false
         p.backgroundColor = .clear
         p.hasShadow = false
-        // Just below the pill, so the ghost never covers what is being dragged.
         p.level = .statusBar
         p.ignoresMouseEvents = true
         p.collectionBehavior = [.canJoinAllSpaces, .stationary, .fullScreenAuxiliary]

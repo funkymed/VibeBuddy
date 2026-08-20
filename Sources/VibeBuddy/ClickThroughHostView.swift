@@ -1,24 +1,16 @@
 import AppKit
 import SwiftUI
 
-/// Hosts SwiftUI and filters hit-tests so clicks on transparent parts of the
-/// window reach whatever is underneath — the menu bar, in practice.
-///
-/// The window is deliberately wider than the pill it draws, so the
-/// collapsed↔expanded transition doesn't jump horizontally. Without this filter
-/// the invisible margins would swallow menu-bar clicks: the user would click the
-/// clock and nothing would happen. The reference implementation hit this exact
-/// bug (its comment cites the issue) and solved it the same way.
+/// Hosts SwiftUI and filters hit-tests so clicks on the window's transparent
+/// margins reach the menu bar. Without it, clicking the clock does nothing.
 final class ClickThroughHostView<Content: View>: NSView {
 
     /// The region of the window that should absorb clicks.
     enum HitRegion: Equatable {
-        /// Absorb nothing — the window is effectively not there.
         case none
-        /// Absorb everything: the expanded panel really does fill its frame.
         case full
-        /// Absorb a horizontal strip of `width`, centred, shifted by `offsetX`
-        /// so the region tracks the pill when SwiftUI draws it off-centre.
+        /// Horizontal strip of `width`, centred, shifted by `offsetX` so the
+        /// region tracks the pill when SwiftUI draws it off-centre.
         case strip(width: CGFloat, offsetX: CGFloat)
     }
 
@@ -48,43 +40,17 @@ final class ClickThroughHostView<Content: View>: NSView {
         refreshTracking()
     }
 
-    /// Rebuild the tracking rect whenever the view resizes.
-    ///
-    /// **This is the fix for "the panel opens before the pointer reaches it,
-    /// but only after it has been opened once."** The rect handed to
-    /// `NSTrackingArea` is in view coordinates and does not follow a resize,
-    /// and `layout()` is not called for a plain frame change on a view that
-    /// drives no Auto Layout. So the sequence was:
-    ///
-    /// 1. the panel expands — region `.full`, tracking 560×460;
-    /// 2. it collapses — `hitRegion` becomes `.strip` **while the window is
-    ///    still 460 tall**, so the strip is built 460 tall;
-    /// 3. the window shrinks to 38, and nothing rebuilds the rect.
-    ///
-    /// From then on a column twelve times taller than the pill armed the hover,
-    /// which reads exactly as "it opens before I touch it". Resizing is the
-    /// event that matters here, so it is the one that rebuilds.
+    /// Do not remove: an `NSTrackingArea` rect is in view coordinates and does
+    /// not follow a resize, and `layout()` is not called for a plain frame
+    /// change. A strip built while the window was 460 tall kept arming hover
+    /// after it shrank to 38 — see RFC-002, « Notes d'implémentation ».
     override func setFrameSize(_ newSize: NSSize) {
         super.setFrameSize(newSize)
         refreshTracking()
     }
 
-    /// Track hover on the drawn region only.
-    ///
-    /// The objection to `NSTrackingArea` was that it follows the *window*, which
-    /// is far wider than the pill — so it would fire across the transparent
-    /// margins. That is only true of the convenience that tracks `bounds`.
-    /// `NSTrackingArea(rect:)` takes an explicit rect, and `absorbingRect` is
-    /// exactly the region that draws.
-    ///
-    /// Being event-driven, this costs **nothing** while the pointer is still —
-    /// unlike polling `NSEvent.mouseLocation`, which turned out to be a
-    /// window-server round trip rather than the cheap local read it looks like.
-    /// Rebuild the tracking rect against the current bounds.
-    ///
-    /// Exposed because the panel needs it once the frame has settled: the
-    /// region is chosen before the window resizes, so nothing else guarantees
-    /// the rect describes the size the window ended up with.
+    /// Rebuild the tracking rect against the current bounds. The panel needs it
+    /// once the frame has settled: the region is chosen before the resize.
     func refreshTrackingNow() { refreshTracking() }
 
     private func refreshTracking() {
@@ -106,11 +72,8 @@ final class ClickThroughHostView<Content: View>: NSView {
     override func mouseEntered(with event: NSEvent) { onHoverChange?(true) }
     override func mouseExited(with event: NSEvent) { onHoverChange?(false) }
 
-    /// Rect currently absorbing clicks, in view coordinates.
-    ///
-    /// Clamped to `bounds`: a strip wider than the view would let the pointer
-    /// arm the hover from outside the window entirely, and a strip is only ever
-    /// meant to be the drawn part of it.
+    /// Rect currently absorbing clicks, in view coordinates. Clamped to
+    /// `bounds`: a wider strip would arm the hover from outside the window.
     var absorbingRect: CGRect {
         switch hitRegion {
         case .none:

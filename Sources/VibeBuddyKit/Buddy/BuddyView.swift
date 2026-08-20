@@ -1,45 +1,16 @@
 import SwiftUI
 
 /// The buddy on screen: four characters and one clock.
-///
-/// # One clock, and it can stop
-///
-/// A single `TimelineView`, paused whenever the budget says `still`. The
-/// reference implementation instead scatters eighteen
-/// `withAnimation(...).repeatForever` calls across its faces, each installing a
-/// `CADisplayLink` that is never torn down — not when the view leaves the
-/// screen, not when the window hides. `withAnimation` reads as free at the call
-/// site, which is exactly why it accumulates.
-///
-/// Here the clock is visible in one place and `AnimationBudget` owns its rate.
-/// Hidden means rate zero, and zero means no clock at all.
-///
-/// # Why text
-///
-/// A monospaced glyph at 12 pt is the one thing macOS renders sharply at this
-/// size, because hinting exists for exactly that. The two formats this replaced
-/// — beziers, then a pixel grid — were both drawn by hand at poster scale and
-/// resolved to a smudge in a 20 pt strip.
+/// See RFC-005, "Notes d'implémentation".
 public struct BuddyView: View {
 
     private let manifest: BuddyManifest
     private let expression: BuddyExpression
     @Bindable private var budget: AnimationBudget
-    /// Device pixels backing one rendered pixel. A preference rather than a
-    /// constant since RFC-010: it changes how coarse the face looks, never how
-    /// large it is drawn.
     private let pixelSize: CGFloat
-    /// Box the face must stay inside, when the caller knows one.
-    ///
-    /// The pill's ear is capped (`PillLayout.maxSlotWidth`) and the notch's
-    /// height is fixed by the hardware, so a manifest asking for 40 pt has to
-    /// give way somewhere. Scaling is the only option that keeps the face a
-    /// face: clipping cuts a kaomoji in half, and a half kaomoji reads as a
-    /// rendering fault rather than as an expression.
+    /// Box the face must stay inside; the face is scaled to it, never clipped.
     private let fit: CGSize?
 
-    /// When the current expression began, so transient motions play from their
-    /// start rather than from wherever a shared clock happened to be.
     @State private var startedAt = Date()
 
     public init(
@@ -60,13 +31,8 @@ public struct BuddyView: View {
         manifest.expression(expression)
     }
 
-    /// The lower of what the motion needs and what the budget allows.
-    ///
-    /// An animated expression needs a clock even when its motion is `.none`:
-    /// frames advance on their own rate, so `still` would freeze it on frame
-    /// one. The tier has to clear that rate — a buddy asking for twelve images
-    /// per second on an eight-hertz clock drops every third frame, which reads
-    /// as stuttering rather than as fast.
+    /// Do not force `.still` on a multi-frame expression: frames advance on the
+    /// clock, so a stopped clock freezes it on frame one.
     private var tier: AnimationBudget.Tier {
         guard let settings else { return .still }
         if budget.tier == .still { return .still }
@@ -83,18 +49,8 @@ public struct BuddyView: View {
         Color(hex: settings?.colour ?? manifest.colour) ?? .primary
     }
 
-    /// Width reserved for the face: the widest frame of the *current*
-    /// expression, at its own point size.
-    ///
-    /// Without it the box tracks each frame's own width, so it changes once a
-    /// second as the animation cycles. Left-anchoring hides that at the left
-    /// edge, but the motion effects — scale, offset, shake — act around the box
-    /// centre, so a box that breathes makes the buddy drift while it is
-    /// supposed to be bouncing in place.
-    ///
-    /// Reserved per expression rather than across the whole buddy: the slot
-    /// already holds the global maximum, so anything wider here would just be
-    /// padding the layout has accounted for twice.
+    /// Do not size from the current frame: the box changes each second and the
+    /// motion effects act around its centre, so the buddy drifts as it bounces.
     private var reservedWidth: CGFloat {
         guard let settings else { return 0 }
         let size = manifest.size(for: settings)
@@ -103,11 +59,7 @@ public struct BuddyView: View {
             .max() ?? 0
     }
 
-    /// How much the face has to shrink to sit inside `fit`.
-    ///
-    /// Never above 1: a face smaller than its box is drawn at its own size. The
-    /// widest frame of the *current* expression decides, so the scale holds for
-    /// a whole animation instead of pulsing once a second.
+    /// Never above 1.
     private var fitScale: CGFloat {
         guard let fit, fit.width > 0, fit.height > 0, let settings else { return 1 }
         let size = manifest.size(for: settings)
@@ -141,20 +93,9 @@ public struct BuddyView: View {
         .allowsHitTesting(false)
     }
 
-    /// The glyphs, with a neon bloom.
-    ///
-    /// Three stacked shadows rather than one: a single wide shadow reads as a
-    /// blur, while a tight bright halo over a wide dim one reads as something
-    /// emitting light. The tightest is the same colour at full strength — that
-    /// is what makes the strokes look thicker and hotter than they are.
-    ///
-    /// Shadows are cheap here: this is a handful of glyphs, so the blur applies
-    /// to a few points rather than to a bitmap.
     private func face(phase: Double) -> some View {
-        // The default system font, not monospaced: these faces are kaomoji built
-        // from rare scripts and combining marks, and a monospaced face has no
-        // advance width for most of them — it falls back per glyph and the
-        // alignment ends up worse. Width is handled by measuring, not the font.
+        // Not monospaced: most monospaced families carry no advance width for
+        // these rare scripts and fall back per glyph.
         PixelatedText(
             text: settings?.frame(
                 at: phase,
@@ -170,22 +111,12 @@ public struct BuddyView: View {
             .shadow(color: colour.opacity(0.30), radius: 9)
     }
 
-    /// Device pixels backing one rendered pixel, when nobody says otherwise.
-    ///
-    /// This coarsens the bitmap; it does **not** change how large the face is
-    /// drawn. Raising it makes the blocks chunkier at the same size, and past
-    /// about three the kaomoji stop being legible — which is why the preference
-    /// that overrides it is clamped rather than free.
+    /// Device pixels per rendered pixel. Coarsens the bitmap, never the drawn
+    /// size; past 3 the kaomoji stop being legible, hence the clamp on the preference.
     public static let defaultPixelSize: CGFloat = 2
 
-    /// How often the timeline is allowed to tick.
-    ///
-    /// The tier is a ceiling, not a target. A face whose motion is `.none`
-    /// changes only when its frame changes, so ticking at the tier would wake
-    /// the view eight times to redraw the same glyphs — the whole point of D3
-    /// is that nobody gets to spend wakeups they have no use for. Anything that
-    /// actually moves does need the full rate, because its transform is
-    /// continuous in phase.
+    /// The tier is a ceiling, not a target: ticking at the tier would wake the
+    /// view eight times to redraw identical glyphs (D3).
     private var interval: Double {
         guard tier != .still else { return 1 }
         let clock = 1 / tier.rawValue
@@ -195,35 +126,13 @@ public struct BuddyView: View {
 }
 
 /// A pixel grid over whatever it wraps.
-///
-/// # Grid, not scanlines
-///
-/// The first version drew horizontal lines only. That is a CRT — and it read as
-/// exactly that: stripes. A pixel display is a *matrix*, so the separation has
-/// to run both ways or the eye never assembles the cells into squares.
-///
-/// # Masked to the glyphs
-///
-/// Ruling the whole pill would only band the black background behind the face.
-/// Masking to the content means the grid rides the lit glyphs, which is where a
-/// real matrix shows its structure.
-///
-/// # Pitch follows the pixel size
-///
-/// The face underneath is already rasterised into blocks of `pixelSize`. A grid
-/// at any other pitch beats against those blocks and reads as a rendering fault
-/// rather than as structure — so the two are the same number by construction,
-/// not by coincidence.
+/// Keep the pitch equal to the bitmap's `pixelSize`: a grid at any other pitch
+/// beats against the blocks underneath and reads as a rendering fault.
+/// See RFC-005, "Notes d'implémentation".
 struct PixelGrid: ViewModifier {
     let colour: Color
-    /// Points between one grid line and the next. Follows the bitmap's own
-    /// coarseness by construction: any other pitch beats against the blocks
-    /// underneath and reads as a rendering fault.
     var pitch: CGFloat = BuddyView.defaultPixelSize
 
-    /// Thickness of the separation. A quarter of the pitch keeps the cell
-    /// clearly larger than its border — beyond about a third the grid stops
-    /// being a separation and becomes the subject.
     var lineWidth: CGFloat { max(0.5, pitch / 4) }
 
     /// Light enough that the thin strokes of a kaomoji survive. An earlier 0.38

@@ -4,18 +4,7 @@ import VibeBuddyKit
 
 /// Choose a buddy, and edit every one of its expressions.
 ///
-/// # The layer, not the file
-///
-/// Edits go to `BuddyOverrides` in preferences; the `.buddy` file is never
-/// written. That was arbitrated on 2026-08-20 (RFC-010 §3) and it costs
-/// something real — an edit no longer travels with the file — which is why
-/// `Exporter` exists two rows below.
-///
-/// # Live, or it is not an editor
-///
-/// Every change re-resolves the manifest and pushes it to the notch, so the
-/// buddy on screen is the buddy being edited. An editor whose result only shows
-/// after a relaunch is a text field with extra steps.
+/// See RFC-010, "Notes d'implémentation".
 struct BuddySection: View {
     @Bindable var l10n: Localisation
     @Bindable var appearance: AppearancePrefs
@@ -38,19 +27,28 @@ struct BuddySection: View {
         SettingsPage {
             picker
             if let manifest {
-                preview(manifest)
+                BuddyPreviewStrip(
+                    manifest: manifest, expressions: declared(in: manifest),
+                    pixelSize: appearance.pixelSize, selection: $selectedExpression)
                 expressionPicker(manifest)
                 ExpressionEditorView(
                     l10n: l10n, appearance: appearance,
                     manifest: manifest, expression: selectedExpression,
                     onChange: { onBuddyChange(appearance.buddyID) })
-                actions(manifest)
+                BuddyActionsRow(
+                    strings: s,
+                    hasEdits: appearance.overrides.hasEdits(for: manifest.id),
+                    isCreated: appearance.overrides.created[manifest.id] != nil,
+                    onDuplicate: { duplicate(manifest) },
+                    onExport: { export(manifest) },
+                    onReset: { reset(manifest) },
+                    onDelete: { delete(manifest) })
             }
             if let note {
-                Text(note).font(.system(size: 11)).foregroundStyle(.secondary)
+                Text(note).font(.caption).foregroundStyle(.secondary)
             }
             Text(s.buddyFolder)
-                .font(.system(size: 11))
+                .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -62,43 +60,20 @@ struct BuddySection: View {
     private var picker: some View {
         SettingsGroup(title: s.activeBuddy) {
             SettingsRow(title: s.activeBuddy) {
-                Picker("", selection: Binding(
-                    get: { appearance.buddyID },
-                    set: { appearance.buddyID = $0; onBuddyChange($0) }
-                )) {
+                Picker(s.activeBuddy, selection: $appearance.buddyID) {
                     ForEach(available, id: \.id) { manifest in
                         Text(manifest.name).tag(manifest.id)
                     }
                 }
                 .labelsHidden()
                 .frame(width: 200)
+                .onChange(of: appearance.buddyID) { onBuddyChange(appearance.buddyID) }
             }
         }
-    }
-
-    /// Through `BuddyView`, like everywhere else: an editor previewing its
-    /// subject with a different renderer is previewing something the app never
-    /// shows. This is the one place the animation budget runs `lively` — the
-    /// speed field cannot be judged from a still frame.
-    private func preview(_ manifest: BuddyManifest) -> some View {
-        HStack(spacing: 18) {
-            ForEach(declared(in: manifest), id: \.self) { expression in
-                BuddyView(
-                    manifest: manifest, expression: expression,
-                    budget: BuddyEditorBudget.shared, pixelSize: appearance.pixelSize)
-                    .fixedSize()
-                    .opacity(expression == selectedExpression ? 1 : 0.45)
-                    .onTapGesture { selectedExpression = expression }
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 16)
-        .padding(.vertical, 14)
-        .background(RoundedRectangle(cornerRadius: 10).fill(.black))
     }
 
     private func expressionPicker(_ manifest: BuddyManifest) -> some View {
-        Picker("", selection: $selectedExpression) {
+        Picker(s.expressions, selection: $selectedExpression) {
             ForEach(declared(in: manifest), id: \.self) { expression in
                 Text(label(for: expression, manifest: manifest)).tag(expression)
             }
@@ -107,31 +82,11 @@ struct BuddySection: View {
         .pickerStyle(.segmented)
     }
 
-    private func actions(_ manifest: BuddyManifest) -> some View {
-        HStack(spacing: 10) {
-            Button(s.duplicate) { duplicate(manifest) }
-            Button(s.export) { export(manifest) }
-            Spacer()
-            if appearance.overrides.hasEdits(for: manifest.id) {
-                Button(s.resetBuddy, role: .destructive) {
-                    appearance.overrides.resetAll(of: manifest.id)
-                    onBuddyChange(appearance.buddyID)
-                }
-            }
-            if appearance.overrides.created[manifest.id] != nil {
-                Button(s.deleteBuddy, role: .destructive) { delete(manifest) }
-            }
-        }
-    }
-
     // MARK: - Actions
 
     private func reload() {
         var found = BuddyLoader.available()
-        // Buddies created in the app have no file, so the loader cannot see
-        // them. They are appended here rather than taught to the loader: the
-        // loader's job is the disk, and giving it a second source would put the
-        // merge rule in two places.
+        // Buddies created in the app have no file, so the loader cannot see them.
         for id in appearance.overrides.created.keys.sorted() {
             if let manifest = appearance.overrides.manifest(forCreated: id) {
                 found.append(manifest)
@@ -140,8 +95,7 @@ struct BuddySection: View {
         available = found
     }
 
-    /// Duplicating copies the *resolved* manifest — file plus edits — because
-    /// that is what the user sees and therefore what they mean by "this one".
+    /// Duplicates the *resolved* manifest: file plus edits.
     private func duplicate(_ manifest: BuddyManifest) {
         let id = uniqueID(from: manifest.id)
         var created = BuddyOverrides.Created(
@@ -156,8 +110,9 @@ struct BuddySection: View {
         }
         appearance.overrides.created[id] = created
         reload()
+        // Do not call `onBuddyChange` here: the id moves, so the picker's
+        // `onChange` already fires and the buddy would reload twice.
         appearance.buddyID = id
-        onBuddyChange(id)
     }
 
     private func delete(_ manifest: BuddyManifest) {
@@ -165,6 +120,12 @@ struct BuddySection: View {
         appearance.overrides.resetAll(of: manifest.id)
         reload()
         appearance.buddyID = available.first?.id ?? BuiltInBuddy.id
+    }
+
+    /// Drops the whole override layer. The id does not move, so the redraw has
+    /// to be asked for here.
+    private func reset(_ manifest: BuddyManifest) {
+        appearance.overrides.resetAll(of: manifest.id)
         onBuddyChange(appearance.buddyID)
     }
 
@@ -204,9 +165,8 @@ struct BuddySection: View {
 
 /// The editor's own animation budget, held at `lively`.
 ///
-/// A separate instance from the app's: the pill's budget follows visibility and
-/// activity, and borrowing it here would either freeze the preview or keep the
-/// notch animating because a window is open somewhere.
+/// Keep it separate from the pill's: sharing one either freezes the preview or
+/// keeps the notch animating because a window is open somewhere.
 @MainActor
 enum BuddyEditorBudget {
     static let shared: AnimationBudget = {

@@ -2,11 +2,8 @@ import Foundation
 
 /// The settings window's own catalogue.
 ///
-/// Kept apart from `Strings` because the window is a different surface with a
-/// different lifetime: the panel's vocabulary is read a hundred times a day and
-/// must stay tiny, this one is read when someone opens a window. Same rule
-/// though — a `struct`, not a `.strings` file, so a string added without a
-/// translation does not compile.
+/// Apart from `Strings` because the surfaces differ in lifetime. Same rule: a
+/// `struct`, so a string added without a translation does not compile.
 public struct SettingsStrings: Sendable {
 
     public struct Section: Sendable {

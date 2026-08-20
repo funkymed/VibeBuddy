@@ -1,15 +1,10 @@
 import Foundation
 
-/// Finds and validates buddies, and never returns nothing.
-///
-/// A manifest is a file the user can edit, copy, or receive from their company.
-/// Every failure mode here — missing, malformed, wrong schema, empty — resolves
-/// to the built-in buddy. An app that shows no face because a JSON file has a
-/// trailing comma is worse than one that shows the wrong face.
+/// Finds and validates buddies, and never returns nothing: every failure mode
+/// resolves to the built-in buddy rather than to no face at all.
 public struct BuddyLoader: Sendable {
 
-    /// Why a manifest could not be used. A value rather than a trap: a bad file
-    /// must degrade to the built-in buddy, never take the app down.
+    /// Why a manifest could not be used. A value, never a trap.
     public enum LoadError: Error, CustomStringConvertible, Equatable {
         case notFound
         case invalidJSON(String)
@@ -25,7 +20,6 @@ public struct BuddyLoader: Sendable {
     }
 
 
-    /// Where buddies live, discovered at launch.
     public static var searchPath: String {
         (SupportDirectory.path as NSString).appendingPathComponent("buddies")
     }
@@ -70,7 +64,6 @@ public struct BuddyLoader: Sendable {
         return found
     }
 
-    /// Read and validate one buddy file. Errors are values, never traps.
     public static func read(path: String) -> Result<BuddyManifest, LoadError> {
         guard let data = FileManager.default.contents(atPath: path),
               let text = String(data: data, encoding: .utf8)
@@ -93,17 +86,11 @@ public struct BuddyLoader: Sendable {
     }
 }
 
-/// The buddy that ships in the binary.
-///
-/// Written as a manifest rather than as a special case, so the format is
-/// exercised by the default path on every launch. A format only used by
-/// third parties is a format that breaks quietly.
+/// The buddy that ships in the binary, written in the same `.buddy` text format
+/// as any other so the format is exercised on every launch.
 public enum BuiltInBuddy {
     public static let id = "orb"
 
-    /// The built-in buddy, written in the same `.buddy` text format as any
-    /// other — so the format is exercised by the default path on every launch.
-    /// A format only third parties use is a format that breaks quietly.
     public static let text = """
     # VibeBuddy — buddy par défaut
     # une image par ligne, une seconde par image
@@ -142,8 +129,7 @@ public enum BuiltInBuddy {
     """
 
     public static let manifest: BuddyManifest = {
-        // Parsing cannot fail: the text is a literal in this file and covered by
-        // a test. If it ever does, an empty face beats a launch crash.
+        // Cannot fail: the text is a literal here and covered by a test.
         BuddyFile.parse(text, id: id, name: "Orb").manifest ?? BuddyManifest.empty
     }()
 }

@@ -1,16 +1,7 @@
 import AppKit
 import VibeBuddyKit
 
-// Entry point.
-//
-// `--bench <mode> <seconds>` measures; `--info` reports. Neither is needed to
-// run the app: launched from a terminal it runs until Ctrl-C, and from the
-// panel until the power button.
-//
-// There used to be a `--demo <seconds>` flag that quit on a timer. It existed
-// because *I* was launching the app detached from tooling and losing track of
-// it — not a problem anyone running it from a shell has. Scaffolding for a
-// difficulty of my own making, removed.
+// Entry point. `--bench <mode> <seconds>`, `--hover` and `--info` are optional.
 
 let args = CommandLine.arguments
 

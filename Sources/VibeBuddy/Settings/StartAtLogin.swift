@@ -4,15 +4,10 @@ import ServiceManagement
 
 /// The login item, and an honest answer when there cannot be one.
 ///
-/// `SMAppService.mainApp` needs a bundle. This app is currently a bare binary in
-/// `.build/release` — RFC-011 is what turns it into a `.app` — so registering
-/// throws, and a toggle that silently fails is worse than one that says why.
-///
-/// The reference implementation has the other half of this lesson
-/// (`BuddyPreferences.swift:453-456`): `didSet` does not fire from `init`, so a
-/// stored `true` never reaches the system on launch and the setting quietly
-/// lies. Reading the live status rather than the stored flag is the fix, and it
-/// is why `state()` asks `SMAppService` instead of `UserDefaults`.
+/// `SMAppService.mainApp` needs a bundle: registering throws on the bare binary
+/// in `.build/release`. Do not report the state from a stored flag: `didSet`
+/// never fires from `init`, so a stored `true` never reaches the system and the
+/// toggle lies. Always read the live `SMAppService` status.
 enum StartAtLogin {
 
     struct State: Equatable {

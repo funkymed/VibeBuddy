@@ -254,3 +254,131 @@ find ~/.claude/projects -name '*.jsonl' -newermt '-15 minutes' | wc -l
 **Q3 — `contextWindow` : garder l'inférence sticky à 190k ?**
 La règle de la référence (`:59-70`) pin la fenêtre à 1M dès qu'une session
 dépasse 190k tokens. Heuristique, mais aucune autre source ne donne l'info.
+
+## Notes d'implémentation
+
+Pavés d'arbitrage déplacés depuis le code lors de la coupe des commentaires
+(2026-08-20). Le code garde à leur place une ligne de renvoi vers cette section.
+
+### `SessionStore.swift` / `actor SessionStore` — pourquoi un seul propriétaire
+
+L'implémentation de référence en tient trois, et ils se contredisent : des
+sessions dérivées des transcripts et de `libproc`, des PID dérivés du pair
+socket d'un hook, et des modes de permission indexés par répertoire de travail
+plutôt que par session. Le résultat est un appariement sur `cwd` faute de mieux,
+et un appel `lsof` qui contredit un commentaire ailleurs dans le même dépôt.
+
+Ici il y a un propriétaire et trois *entrées*, chacune faisant autorité sur
+exactement une chose :
+
+- **le processus** est la vérité sur la vivacité,
+- **le transcript** est la vérité sur le contenu, le mode et la progression,
+- **le hook**, quand RFC-006 arrivera, est la vérité sur l'identité — un PID lié
+  à un identifiant de session plutôt que déduit d'un répertoire partagé.
+
+La clé primaire est l'identifiant de session. `cwd` est un index secondaire, rien
+de plus.
+
+« Événementiel » est une description, pas une conception : les changements de
+transcript arrivent par FSEvents, mais la mort d'un processus n'émet **aucun
+événement filesystem**. La vivacité reste donc un sondage — paresseux, 30 s au
+repos et 2 s en activité, plutôt que le 1 Hz plat avec un `fork` dedans de la
+référence.
+
+### `SessionStore.swift` / `liveness` — pourquoi la vivacité est injectable
+
+L'alternative est intestable. La vivacité vient de vrais processus, et aucun test
+ne peut faire apparaître un agent tournant dans un répertoire temporaire — sans
+cette couture, le chemin d'alerte ne pourrait être exercé qu'à la main, depuis
+une session par définition occupée à exécuter le test.
+
+### `TranscriptParser.swift` / `TranscriptParser` — ce que le format contient
+
+Observé sur Claude Code 2.1.234, pas repris de l'implémentation de référence, qui
+est antérieure à plusieurs de ces types et les manque :
+
+| type | porte |
+|---|---|
+| `user` / `assistant` | messages, `usage`, blocs `tool_use` |
+| `permission-mode` | `permissionMode` — **le mode est dans le transcript** |
+| `system` / `turn_duration` | le tour est terminé, avec `durationMs` |
+| `system` / `stop_hook_summary` | un hook Stop s'est exécuté |
+| `started` / `result` | cycle de vie des sous-agents, clé `agentId` |
+| `attachment`, `file-history-snapshot`, `file-history-delta`, `last-prompt`, `mode`, `queue-operation` | connus, inutilisés |
+
+Trois d'entre eux comptent, et tous trois sont des choses que la référence
+obtient d'événements de hook dont aucun n'est nécessaire : `permission-mode`,
+`turn_duration`, et le couple `started`/`result` qui suit les sous-agents.
+
+Les deux derniers n'étaient pas dans cette liste au moment de l'écrire. Ils sont
+apparus parce que les types non reconnus sont *comptés* plutôt qu'ignorés — la
+parade au risque R9 se payant dès son premier passage.
+
+### `TranscriptParser.swift` / `ParsedTail.awaitingQuestion`
+
+Lu depuis un bloc `tool_use` dont l'outil pose une question et dont l'id n'a
+aucun `tool_result` correspondant plus récent. **C'est dans le transcript**, tout
+comme le mode de permission et la frontière de tour avant lui — le hook n'a
+jamais été nécessaire pour ça. Ce pour quoi le hook reste nécessaire, c'est une
+demande de *permission* en attente, qui se résout interactivement et n'est écrite
+qu'une fois terminée.
+
+### `JSONLTailReader.swift` / `JSONLTailReader` — une valeur, pas un acteur
+
+C'était un acteur. Cela forçait `SessionStore` — lui-même un acteur — soit à
+l'attendre au milieu d'un rafraîchissement, produisant un instantané assemblé à
+partir de plusieurs instants, soit à tenir un second cache. Il tenait un second
+cache, et il y avait alors deux caches pour un seul travail.
+
+Une structure possédée par `SessionStore` hérite gratuitement de l'isolation de
+cet acteur, et un rafraîchissement lit un moment cohérent.
+
+### `ContextWindowResolver.swift` / `ContextWindowResolver`
+
+La fenêtre ne peut pas être lue là où les tokens sont lus. C'est un fait sur la
+*configuration*, et ce fichier est le seul endroit qui y répond — D1 s'applique à
+la fenêtre autant qu'au reste.
+
+Coût : trois `stat` par résolution, et une analyse seulement quand l'un des
+fichiers a réellement changé. Rien ne tourne au repos : le store demande pendant
+qu'il parcourt déjà les transcripts.
+
+### `TerminalFocusProbe.swift` / `TerminalFocusProbe` — où il vit, et pourquoi
+
+Il appartient à RFC-003, pas à la vue sessions qui le veut aussi. Le placer avec
+la vue ferait dépendre la RFC permissions de la RFC sessions, ce qui est un cycle
+de dépendances en puissance. Il est ici parce que ce module possède déjà
+`ProcessLookup` et les PID.
+
+Il existe pour que RFC-007 puisse rester silencieuse : interrompre quelqu'un avec
+une demande de permission dans la notch alors que le terminal qui la pose est
+juste devant lui, c'est du bruit.
+
+### `SessionGroup.swift` / `SessionGroup` — pourquoi grouper
+
+Claude Code ne supprime jamais un transcript, et un projet en accumule : cinq
+lancements dans le même répertoire produisent cinq entrées, dont quatre
+terminées. Affichées à plat, une seule après-midi de travail enterre la session
+réellement en cours sous son propre historique — l'inverse de ce à quoi sert un
+tableau de bord.
+
+Grouper par répertoire de travail est la bonne clé plutôt que par identifiant de
+session : ce que l'utilisateur pense être « ma session notch », c'est le
+répertoire, et les identifiants changent à chaque redémarrage.
+
+La préférence de *ne pas* grouper passe quand même par `SessionGroup`, plutôt que
+la vue ne se dote d'un second chemin pour les sessions nues : les badges de la
+ligne, son égalité et son saut lisent tous un groupe, et deux formes pour la même
+ligne, c'est ainsi qu'une liste finit avec deux comportements.
+
+### `TerminalJumper.swift` / `TerminalJumper` — tmux, et le coût
+
+Sous tmux, le terminal de contrôle de l'agent est le pty du volet, pas celui de
+l'émulateur : aucune session iTerm2 ne le porte et l'appariement échoue. Le repli
+active alors l'application sans sélectionner d'onglet, ce qui est honnête — c'est
+ce que `⌘Tab` aurait fait — plutôt que d'en sélectionner un mauvais. Demander à
+tmux coûte trois sous-processus au moment du clic : c'est RFC-008 T6.
+
+Coût : rien au repos. Sur un clic : un `sysctl`, un parcours de chaîne parente et
+un Apple Event. L'événement réclame la permission d'automatisation, que macOS
+demande une fois, et seulement la première fois qu'on clique sur une ligne.

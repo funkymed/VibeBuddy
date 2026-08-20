@@ -295,3 +295,84 @@ aucun événement d'entrée.
 **Q3 — Que fait la fenêtre quand aucun écran n'a de notch ?**
 Le README de la référence dit « fonctionne aussi sur les écrans non encochés ».
 Position et hauteur de repli à définir.
+
+## Notes d'implémentation
+
+Pavés d'arbitrage déplacés depuis le code lors de la coupe des commentaires
+(2026-08-20). Le code garde à leur place une ligne de renvoi vers cette section.
+
+### `NotchPanel.suppressesHover` — une seule surface à la fois
+
+La première version maintenait le panneau **ouvert** pendant que la fenêtre de
+réglages était affichée, pour ne pas faire perdre le contexte à l'utilisateur.
+C'était faux deux fois : le panneau est au niveau `.statusBar` (25) et une
+fenêtre flottante à `.floating` (3), donc le panneau épinglé recouvrait
+simplement les réglages qu'il venait d'ouvrir — et deux surfaces qui se disputent
+le même écran valent moins qu'une seule.
+
+Il se replie désormais. Une surface à la fois, et le survol reste inerte pour que
+la pastille ne se redéploie pas sous la fenêtre de réglages.
+
+### `NotchPanel.applyState` — la garde de mi-animation
+
+`frame.size == carrier` n'est **pas** une raison de sauter le changement de
+cadre. En cours d'animation la fenêtre passe momentanément par toutes les tailles
+intermédiaires, dont celle vers laquelle on repart. Traiter ce cas comme « on y
+est déjà » était le bug : un repli demandé pendant que l'ouverture grandissait
+encore prenait le raccourci, l'ouverture continuait dessous, et la fenêtre
+finissait à la taille panneau alors que l'état disait pastille. Les zones de
+survol sont lues sur la fenêtre : une bande de 38 pt devenait une colonne de
+460 pt, ce qui arme le panneau bien avant que le pointeur n'atteigne le noir — et
+seulement après une première ouverture.
+
+### `NotchPanel.canBecomeKey` — jamais key, jamais main
+
+`.nonactivatingPanel` seul empêche l'app de s'activer au clic, mais le panneau
+volerait quand même le statut *key* à l'éditeur ou au terminal en dessous — c'est
+précisément ce que l'utilisateur est en train de regarder. Le prix : aucun
+raccourci clavier ne peut fonctionner dans le panneau ; les boutons, si, puisque
+les événements souris ne dépendent pas du statut key.
+
+### `ClickThroughHostView.setFrameSize` — la séquence du rectangle périmé
+
+Correctif de « le panneau s'ouvre avant que le pointeur ne l'atteigne, mais
+seulement après l'avoir ouvert une fois ». Le rectangle confié à `NSTrackingArea`
+est en coordonnées de vue et ne suit pas un redimensionnement ; `layout()` n'est
+pas appelé pour un simple changement de cadre sur une vue qui ne pilote aucun
+Auto Layout. La séquence était :
+
+1. le panneau s'ouvre — région `.full`, suivi 560×460 ;
+2. il se replie — `hitRegion` devient `.strip` **alors que la fenêtre fait encore
+   460 de haut**, donc la bande est construite à 460 ;
+3. la fenêtre rétrécit à 38, et rien ne reconstruit le rectangle.
+
+Dès lors une colonne douze fois plus haute que la pastille armait le survol.
+C'est le redimensionnement qui compte ici, donc c'est lui qui reconstruit.
+
+### `HoverProbe` — pourquoi ce sondage existe encore
+
+L'arbitrage complet (moniteur global vs `NSTrackingArea` vs sondage, les trois
+versions et leurs mesures) est en §6, Q2. Résumé : le suivi événementiel de
+`ClickThroughHostView` est le mécanisme ; ce sondage n'est plus qu'un filet, à
+cadence `.idle`, pour les cas qu'une tracking area rate vraiment — un curseur
+téléporté par un raccourci ou par `CGWarpMouseCursorPosition` n'émet aucun
+événement d'entrée.
+
+### `NotchShellView.pillContent` — trois slots, aucun décalage propre
+
+Le détail chiffré est en §6, « Le système de slots, et le décalage qu'on oublie ».
+Les slots sont posés en un seul `HStack` plutôt qu'en deux overlays décalés
+indépendamment ; ils ne portent aucun décalage propre, c'est `body` qui positionne
+la pastille entière, de sorte que la forme et son contenu bougent ensemble.
+
+### `AppCoordinator` — le coordinateur tient le graphe, et sait s'arrêter
+
+L'implémentation de référence injecte neuf objets directement dans une unique vue
+SwiftUI (`AppDelegate.swift:5-15`), ce qui est la cause première de son fichier de
+vue de 3 738 lignes. Ici le coordinateur tient le graphe et ne distribue à chaque
+couche que ce dont elle a besoin.
+
+Sa seconde fonction est celle que la référence n'assure jamais : **arrêter**.
+Rien n'y appelle `stop()`, donc ses timers continuent de battre capot fermé. La
+veille et le verrouillage de l'écran suspendent ici le `WakeCoordinator`, ce qui
+démonte le timer partagé jusqu'à zéro.

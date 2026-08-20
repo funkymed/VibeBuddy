@@ -2,19 +2,15 @@ import Foundation
 
 /// Where alerts go.
 ///
-/// A bus rather than a direct call into the UI, for one reason stated up front
-/// in RFC-012: a phone relay is planned. With a bus that is a second subscriber;
-/// with direct calls it is an edit to every site that raises an alert.
-///
-/// The cost of being right about this today is about forty lines.
+/// A bus, not a direct call into the UI: RFC-012 plans a phone relay, which is
+/// a second subscriber here and an edit to every raise site otherwise.
 @MainActor
 public final class AlertBus {
 
     private var subscribers: [UUID: AsyncStream<SessionAlert>.Continuation] = [:]
     private(set) public var delivered: [SessionAlert] = []
 
-    /// Retained history, for a diagnostics panel and for a viewer that opens
-    /// after the fact. Bounded — this is not a log.
+    /// Retained history, for diagnostics and late viewers. Bounded, not a log.
     public static let historyLimit = 50
 
     public init() {}

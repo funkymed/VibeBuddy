@@ -1,18 +1,12 @@
 import Foundation
 
-/// Which language the interface speaks.
-///
-/// `.system` is the default and follows macOS. It is a distinct case rather
-/// than "whatever we resolved at launch": someone who changes their system
-/// language expects the app to follow, and storing the resolved value would
-/// freeze it forever.
+/// Which language the interface speaks. `.system` stores the case, not the
+/// resolved value, so the app follows a system language change.
 public enum AppLanguage: String, Sendable, Equatable, CaseIterable, Codable {
     case system
     case french = "fr"
     case english = "en"
 
-    /// Name shown in the picker, in its own language — a French speaker looking
-    /// for their language scans for "Français", not for "French".
     public var displayName: String {
         switch self {
         case .system:  return "Système"
@@ -21,11 +15,8 @@ public enum AppLanguage: String, Sendable, Equatable, CaseIterable, Codable {
         }
     }
 
-    /// The concrete language this resolves to.
-    ///
-    /// Anything that is not French falls back to English rather than to a
-    /// partial match: a Portuguese user gets a language they can probably read,
-    /// not a half-translated interface.
+    /// The concrete language this resolves to. Anything that is not French falls
+    /// back to English rather than to a partial match.
     public func resolved(preferred: [String] = Locale.preferredLanguages) -> AppLanguage {
         switch self {
         case .french, .english: return self

@@ -2,25 +2,12 @@ import Foundation
 
 /// Reads the OAuth token and asks Anthropic for the real numbers.
 ///
-/// # The keychain detour
+/// Do not use `SecItemCopyMatching`: the `Claude Code-credentials` ACL lists
+/// `/usr/bin/security`, the binary Claude Code used to write the token, so that
+/// path reads silently while our own binary prompts for the login password.
+/// Verified 2026-08-19: no prompt, endpoint answers 200 in 0.32 s.
 ///
-/// The obvious call is `SecItemCopyMatching`. It is the wrong one: the
-/// `Claude Code-credentials` item carries an ACL listing the binaries allowed to
-/// read it, and `/usr/bin/security` is on that list *because Claude Code used
-/// that binary to write the token in the first place*. Reading through the same
-/// path succeeds silently; reading from our own binary presents a different
-/// identity and prompts the user for their login password.
-///
-/// Verified on 2026-08-19: the token reads with no prompt, and the endpoint
-/// answers 200 in 0.32 s.
-///
-/// This depends on an implementation detail of another program (risk R4), so it
-/// sits behind `CredentialSource` — replacing it is one file, not a hunt.
-///
-/// # No refreshing, ever
-///
-/// Claude Code owns the refresh token and rewrites the keychain itself. A second
-/// refresher racing it is how a user gets signed out.
+/// Never refresh the token: Claude Code owns it; a racing refresher signs out.
 public actor UsageClient {
 
     public static let endpoint = URL(string: "https://api.anthropic.com/api/oauth/usage")!
@@ -54,8 +41,6 @@ public actor UsageClient {
                 return .rateLimited(retryAfter: retry)
             }
             if http.statusCode == 401 {
-                // The cached token outlived its usefulness; drop it so the next
-                // attempt re-reads whatever Claude Code has written since.
                 cachedToken = nil
                 return .noCredentials
             }
@@ -77,11 +62,7 @@ public actor UsageClient {
     }
 }
 
-/// Where the OAuth token comes from.
-///
-/// A protocol with one real implementation, so the keychain hack can be swapped
-/// without touching anything else the day Anthropic changes how it stores
-/// credentials — and so tests never touch the real keychain.
+/// Where the OAuth token comes from. A seam (risk R4); tests never touch it.
 public protocol CredentialSource: Sendable {
     func read() -> (token: String, expiresAt: Date)?
 }
@@ -90,8 +71,7 @@ public struct KeychainCredentials: CredentialSource {
     public init() {}
 
     public func read() -> (token: String, expiresAt: Date)? {
-        // The account-scoped entry holds refreshed tokens; the null-account one
-        // dates from the initial login. Newest first.
+        // Account-scoped entry first: it holds refreshed tokens.
         readEntry(account: NSUserName()) ?? readEntry(account: nil)
     }
 

@@ -1,11 +1,8 @@
 import Foundation
 import Observation
 
-/// What the pill and the panel show, and how they behave.
-///
-/// Separate from `AppearancePrefs` for the reason that model states: these are
-/// read by the window and the panel, and a buddy colour change must not make
-/// either of them recompute a frame.
+/// What the pill and the panel show, and how they behave. Read by the window
+/// and the panel, never by the buddy renderer.
 @MainActor
 @Observable
 public final class LayoutPrefs {
@@ -19,13 +16,8 @@ public final class LayoutPrefs {
 
     @ObservationIgnored private let store: PreferencesStore
 
-    /// Keep the pill on screen when nothing is running.
-    ///
-    /// D7 says this should default to off. It defaults to **on** here, and that
-    /// is a deliberate divergence rather than an oversight: the app has always
-    /// shown the pill, and silently making it disappear on upgrade would read as
-    /// a crash rather than as a new default. The toggle exists; the default
-    /// moves the day the app ships to someone who never saw the old behaviour.
+    /// Keep the pill on screen when nothing is running. Defaults to on, which
+    /// diverges from D7 — see RFC-001, "Notes d'implémentation".
     public var showPillWithoutSession: Bool {
         didSet { store.set(showPillWithoutSession, forKey: Keys.showPillWithoutSession) }
     }
@@ -35,12 +27,10 @@ public final class LayoutPrefs {
         didSet { store.set(groupByDirectory, forKey: Keys.groupByDirectory) }
     }
 
-    /// Clicking a live row brings its terminal forward.
     public var jumpOnClick: Bool {
         didSet { store.set(jumpOnClick, forKey: Keys.jumpOnClick) }
     }
 
-    /// Show the two usage gauges at the foot of the panel.
     public var showUsage: Bool {
         didSet { store.set(showUsage, forKey: Keys.showUsage) }
     }

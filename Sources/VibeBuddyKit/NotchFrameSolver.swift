@@ -1,65 +1,38 @@
 import CoreGraphics
 
 /// Turns (screen, anchor, desired size) into a window frame.
-///
-/// Pure and free of AppKit types beyond `CGRect`, so every positioning rule —
-/// clamping, snapping, the notched-screen flush rule — is testable without a
-/// display attached. In the reference implementation this arithmetic lives
-/// inside the `NSPanel` subclass, which is why its edge cases were fixed with
-/// flags instead of tests.
+/// See RFC-001, "Notes d'implémentation".
 public enum NotchFrameSolver {
 
-    /// Distance from the screen edge kept for non-centred anchors.
     public static let edgePadding: CGFloat = 10
 
-    /// Vertical breathing room for anchors that are not the hardware notch.
-    /// The notch anchor itself stays flush at 0 so the pill appears to flow out
-    /// of the cutout rather than hang below it.
+    /// The notch anchor stays flush at 0 so the pill flows out of the cutout.
     public static let floatingTopGap: CGFloat = 2
 
-    /// Horizontal positions the pill snaps to, as a fraction of usable width.
     public static let snapFractions: [CGFloat] = [0, 0.5, 1]
 
-    /// How close (in points) a drag must land to a snap fraction to be caught.
     public static let snapThreshold: CGFloat = 60
 
-    /// Default width of one content slot flanking the notch.
-    ///
-    /// Sized for the buddy — RFC-005 settled on 56×35 pt for the tigreboite
-    /// manifest — plus a little breathing room.
+    /// 56×35 pt for the tigreboite buddy (RFC-005), plus breathing room.
     public static let defaultSlotWidth: CGFloat = 64
 
-    /// Height of the pill on a display that has no notch to match.
     public static let floatingPillHeight: CGFloat = 26
 
-    /// Size of the collapsed pill.
-    ///
-    /// **The pill is derived from the notch, never a constant.** A pill exactly
-    /// as wide and tall as the cutout is black-on-black: perfectly correct, and
-    /// invisible. This was only caught by looking at a screenshot — no unit test
-    /// or memory measurement can see it.
-    ///
-    /// So the pill spans `leftSlot + notchWidth + rightSlot`: the middle lands
-    /// on the hardware cutout and stays empty, and the content lives in the two
-    /// ears that overhang it. Height matches the notch exactly, so the whole
-    /// thing reads as one shape flowing out of the hole.
+    /// Size of the collapsed pill. Do not hardcode it: a pill exactly as wide and
+    /// tall as the cutout is black-on-black, correct and invisible. Derive it from
+    /// the notch — `leftSlot + notchWidth + rightSlot`, height equal to the notch.
     public static func pillSize(
         geometry: NotchGeometry,
         leftSlot: CGFloat = defaultSlotWidth,
         rightSlot: CGFloat = defaultSlotWidth
     ) -> CGSize {
         guard let notch = geometry.notchSize else {
-            // No cutout to hug: a plain floating lozenge.
             return CGSize(width: leftSlot + rightSlot + 40, height: floatingPillHeight)
         }
         return CGSize(width: leftSlot + notch.width + rightSlot, height: notch.height)
     }
 
-    /// Frame for a window of `size`, anchored at `fraction` across `geometry`.
-    ///
-    /// `fraction` is 0 at the left edge and 1 at the right, measured on the
-    /// space the window can occupy — so the window is always fully on screen
-    /// without the caller clamping anything.
+    /// Frame for a window of `size` at `fraction` (0 = left edge, 1 = right).
     public static func frame(
         size: CGSize,
         geometry: NotchGeometry,
@@ -69,7 +42,6 @@ public enum NotchFrameSolver {
         let f = clampFraction(fraction)
 
         let isCentred = abs(f - 0.5) < 0.001
-        // Flush to the top edge only when the pill sits on the notch itself.
         let gap = (geometry.hasNotch && isCentred) ? 0 : floatingTopGap
         let padding = isCentred ? 0 : edgePadding
 
@@ -84,8 +56,6 @@ public enum NotchFrameSolver {
         f.isFinite ? min(max(f, 0), 1) : 0.5
     }
 
-    /// Fraction corresponding to a window whose left edge sits at `originX`.
-    /// The inverse of `frame(size:geometry:fraction:)`, used while dragging.
     public static func fraction(
         forOriginX originX: CGFloat,
         size: CGSize,
@@ -97,11 +67,9 @@ public enum NotchFrameSolver {
         return clampFraction((originX - screen.minX - edgePadding) / usable)
     }
 
-    /// Snap a dragged fraction to the nearest magnet, if close enough.
-    ///
-    /// The threshold is expressed in points rather than in fraction units so it
-    /// feels identical on a 13" laptop and a 34" ultrawide — a fixed fraction
-    /// would make magnets four times stickier on the wide display.
+    /// Snap a dragged fraction to the nearest magnet, if close enough. Threshold
+    /// in points, not fraction units: a fixed fraction would make magnets four
+    /// times stickier on a 34" ultrawide than on a 13" laptop.
     public static func snap(
         fraction: CGFloat,
         size: CGSize,

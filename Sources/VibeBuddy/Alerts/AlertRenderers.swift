@@ -2,18 +2,12 @@ import AppKit
 import AVFoundation
 import VibeBuddyKit
 
-/// Speaks an alert, and only builds a speech engine if it ever has to.
-///
-/// The reference implementation holds a `static let shared` created at launch
-/// (`VoiceAnnouncer.swift:10`). `AVSpeechSynthesizer` allocates an audio engine
-/// of several megabytes on first use, and the preference is off by default — so
-/// that instance is pure cost for almost everyone. Here the synthesiser is built
-/// on the first announcement and never before.
+/// Do not build the synthesiser eagerly: `AVSpeechSynthesizer` allocates a
+/// multi-megabyte audio engine on first use, and the preference is off by default.
 @MainActor
 final class VoiceAnnouncer {
 
-    /// Two identical alerts inside this window are one announcement. Speech is
-    /// the slowest possible way to say the same thing twice.
+    /// Two identical alerts inside this window are one announcement.
     static let debounce: TimeInterval = 4
 
     private var synthesiser: AVSpeechSynthesizer?
@@ -34,11 +28,8 @@ final class VoiceAnnouncer {
     }
 }
 
-/// A tap on the trackpad when something happens.
-///
-/// Does nothing on hardware without a Force Touch trackpad, which is correct and
-/// needs no check: `NSHapticFeedbackManager` already resolves to a no-op
-/// performer there.
+/// A tap on the trackpad. No hardware check needed: `NSHapticFeedbackManager`
+/// resolves to a no-op performer without a Force Touch trackpad.
 enum Haptics {
     @MainActor
     static func tap() {

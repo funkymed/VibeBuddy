@@ -2,10 +2,6 @@ import SwiftUI
 import VibeBuddyKit
 
 /// Which build is reading the files on disk.
-///
-/// It earns its page for the reason the panel's identity line earns its row:
-/// buddies and preferences outlive a build, and the first useful question when
-/// one behaves oddly is which binary is reading them.
 struct AboutSection: View {
     @Bindable var l10n: Localisation
     @Bindable var appearance: AppearancePrefs
@@ -15,16 +11,16 @@ struct AboutSection: View {
     var body: some View {
         SettingsPage {
             VStack(alignment: .leading, spacing: 6) {
-                Text(AppName.display).font(.system(size: 20, weight: .semibold))
+                Text(AppName.display).font(.title2.weight(.semibold))
                 Text(AppVersion.short)
-                    .font(.system(size: 12, design: .monospaced))
+                    .font(.callout.monospaced())
                     .foregroundStyle(.secondary)
             }
 
             SettingsGroup(title: s.about.title) {
                 SettingsRow(title: s.activeBuddy) {
                     Text(appearance.buddyID)
-                        .font(.system(size: 12, design: .monospaced))
+                        .font(.callout.monospaced())
                         .foregroundStyle(.secondary)
                 }
                 Divider()

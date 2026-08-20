@@ -1,13 +1,8 @@
 import AppKit
 import VibeBuddyKit
 
-/// Prints the regions that arm the hover, for each state, without a mouse.
-///
-/// Written because "the panel opens before the pointer reaches it" is a claim
-/// about three rects that only exist at runtime — the window frame, the
-/// tracking rect, and the polled screen rect — and reasoning about them from
-/// the source produced a fix that did not fix it. Driving the states and
-/// printing the three is the only way to see which one lags.
+/// Prints the three rects that arm the hover — window frame, tracking rect,
+/// polled screen rect — for each state, without a mouse.
 @MainActor
 enum HoverDiagnostics {
 
@@ -16,8 +11,7 @@ enum HoverDiagnostics {
         app.setActivationPolicy(.accessory)
 
         let panel = NotchPanel(wake: WakeCoordinator(), budget: AnimationBudget())
-        // With the buddy and a session count the real app has: the pill's width
-        // comes from them, so a bare panel measures a shape nobody ever sees.
+        // The pill's width comes from these: a bare panel measures nothing real.
         var loader = BuddyLoader()
         panel.setBuddy(loader.load(
             id: UserDefaults.standard.string(forKey: "vibebuddy.buddy") ?? "emoji").manifest)
@@ -34,14 +28,11 @@ enum HoverDiagnostics {
         panel.debugSetState(.pill)
         report(panel, "replié — animation en cours")
 
-        // The collapse is animated, so the interesting rect is the one *after*
-        // the frame has finished moving. That is exactly the window in which a
-        // stale tracking rect survives.
+        // A stale tracking rect survives exactly until the frame settles.
         settle(1.2)
         report(panel, "replié — animation terminée")
 
-        // The two setters the real app calls while collapsed. Each one resizes
-        // the pill, and a region that does not follow is a region that arms the
+        // Both setters resize the pill; a region that does not follow arms the
         // hover outside the black.
         panel.setSessionCount(0)
         settle(0.3)
@@ -54,14 +45,9 @@ enum HoverDiagnostics {
         exit(0)
     }
 
-    /// The rect the view actually paints, found by scanning the rendered
-    /// bitmap for anything that is not transparent.
-    ///
-    /// This is the only measurement that answers the user's complaint in the
-    /// user's terms. Every other number here comes from the same layout code
-    /// the hover regions come from, so they agree with each other by
-    /// construction and would agree even if both were wrong. The pixels cannot
-    /// lie about where the black is.
+    /// The rect the view actually paints, scanned from the rendered bitmap.
+    /// Every other number here comes from the same layout code as the hover
+    /// regions, so they agree with each other even when both are wrong.
     static func paintedRect(of view: NSView) -> CGRect {
         guard view.bounds.width > 1, view.bounds.height > 1,
               let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds)

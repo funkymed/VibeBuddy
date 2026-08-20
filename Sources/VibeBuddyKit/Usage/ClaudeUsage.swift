@@ -2,15 +2,9 @@ import Foundation
 
 /// Live limit utilisation, as Anthropic's own billing page reports it.
 ///
-/// Every field is optional, deliberately. Verified against the live endpoint on
-/// 2026-08-19: the response carries windows this build has never heard of —
-/// `tangelo`, `nimbus_quill`, `omelette_promotional`, `cinder_cove` — most of
-/// them null. Names appear and disappear as plans change, so a parser that
-/// insists on a shape breaks the day one is renamed.
-///
-/// A missing window renders as "unavailable", never as zero. Showing 0 % when
-/// the truth is unknown is worse than showing nothing, because 0 % looks like
-/// good news.
+/// Every field is optional. Verified 2026-08-19: the response carries windows
+/// this build has never heard of (`tangelo`, `cinder_cove`), most of them null.
+/// Render a missing one as "unavailable", never zero: 0 % looks like good news.
 public struct ClaudeUsage: Sendable, Equatable, Codable {
 
     public struct Window: Sendable, Equatable, Codable {
@@ -26,9 +20,7 @@ public struct ClaudeUsage: Sendable, Equatable, Codable {
         public var fraction: Double { min(1, max(0, utilisation / 100)) }
     }
 
-    /// The rolling five-hour session limit.
     public let fiveHour: Window?
-    /// The weekly limit across all models.
     public let sevenDay: Window?
     public let sevenDaySonnet: Window?
     public let sevenDayOpus: Window?
@@ -46,11 +38,7 @@ public struct ClaudeUsage: Sendable, Equatable, Codable {
         self.fetchedAt = fetchedAt
     }
 
-    /// Parse whatever of the response we recognise.
-    ///
-    /// Unknown keys are ignored rather than rejected: this endpoint is not a
-    /// public contract, and the alternative to ignoring them is showing nothing
-    /// the day a new one appears.
+    /// Unknown keys are ignored, not rejected: this is not a public contract.
     public static func parse(_ json: [String: Any], now: Date = Date()) -> ClaudeUsage {
         ClaudeUsage(
             fiveHour: window(json["five_hour"]),
@@ -79,13 +67,10 @@ public struct ClaudeUsage: Sendable, Equatable, Codable {
     }
 }
 
-/// What happened when we asked.
 public enum UsageOutcome: Sendable, Equatable {
     case success(ClaudeUsage)
-    /// Throttled. `retryAfter` is what the server asked for, honoured rather
-    /// than guessed — hammering a rate limiter is how a token gets blocked.
+    /// Throttled. Honour `retryAfter`: hammering a rate limiter blocks a token.
     case rateLimited(retryAfter: TimeInterval)
-    /// No token, or an expired one. Claude Code refreshes its own; we only read.
     case noCredentials
     case failed(String)
 }

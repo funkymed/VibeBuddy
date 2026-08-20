@@ -381,3 +381,97 @@ Recommandation : derrière une préférence, **off par défaut**.
 PEEK=1 ./scripts/perfcheck.sh A 600; PEEK=0 ./scripts/perfcheck.sh A 600
 column -s, -t docs/perf/*-010-A.csv
 ```
+
+## Notes d'implémentation
+
+Pavés d'arbitrage déplacés depuis le code (2026-08-20), repris tels quels.
+
+### `Sources/VibeBuddy/Settings/SettingsShell.swift` — `struct SettingsShell`
+
+**Pourquoi segmenté plutôt qu'un seul formulaire.** Ce qui a été livré d'abord
+était un unique `Form` à deux sections. Tout ce que les RFC ouvertes s'apprêtent
+à ajouter — élément de démarrage, alertes par événement, voix, saut vers le
+terminal, utilisation, diagnostics — atterrit dans ce même formulaire, et un
+formulaire de vingt lignes hétérogènes est la version UI du monolithe que la
+RFC-010 passe sa première page à critiquer dans le *modèle*.
+
+**Une seule section montée à la fois.** `NavigationSplitView` ne construit que le
+détail sélectionné : la timeline de l'éditeur de buddy n'existe pas pendant qu'on
+lit la page À propos. C'est tout le budget d'animation de cette fenêtre : une
+horloge, au seul endroit où le mouvement est le sujet.
+
+**Dynamic Type ici, tailles fixes dans la pastille.** Chaque texte de cette
+fenêtre utilise un style sémantique (`.body`, `.caption`, `.callout`, `.title2`),
+donc quelqu'un qui a agrandi la taille de texte système est suivi. La pastille ne
+peut pas en faire autant : la notch fait 38 pt de haut, une dimension matérielle
+qu'aucune préférence ne déplace, donc les tailles du buddy viennent de son
+manifeste et restent en points.
+
+### `Sources/VibeBuddy/Settings/SettingsShell.swift` — `SettingsShell.Tab`
+
+Les sections qui n'ont rien derrière elles ne sont pas listées du tout. Une
+section qui promet un sujet et livre une page vide est pire qu'une section
+absente — même règle que le panneau, qui n'affiche pas de heatmap parce que la
+RFC-009 n'existe pas.
+
+### `Sources/VibeBuddy/Settings/SettingsWindow.swift` — `final class SettingsWindow`
+
+Une vraie fenêtre macOS, délibérément différente du panneau de la notch. La
+RFC-010 a tranché : les préférences ne vivent **pas** dans la pastille. Le
+panneau se replie dès que le curseur en sort, et une surface de préférences qui
+disparaît pendant qu'on tend la main vers la souris est hostile. Les préférences
+se parcourent, se comparent et se reprennent — elles veulent une fenêtre qu'on
+peut redimensionner et laisser ouverte.
+
+Elle **peut** aussi devenir key, contrairement à `NotchPanel`, donc les champs de
+texte et la navigation clavier fonctionnent ici. C'est l'autre moitié de la
+raison de les séparer.
+
+L'app est un accessoire sans barre de menus, donc `⌘,` n'atteint rien. La seule
+entrée est l'engrenage dans l'en-tête du panneau.
+
+Fenêtre redimensionnable : une barre latérale plus un éditeur de buddy ne tient
+pas dans un 520×360 fixe, et les sections diffèrent assez en hauteur pour qu'une
+taille unique soit fausse pour la plupart d'entre elles.
+
+### `Sources/VibeBuddy/Settings/Sections/BuddySection.swift` — `struct BuddySection`
+
+**La couche, pas le fichier.** Les édits vont dans `BuddyOverrides` (préférences) ;
+le fichier `.buddy` n'est jamais écrit. Arbitré le 2026-08-20 (RFC-010 §3), et
+cela coûte quelque chose de réel — un édit ne voyage plus avec le fichier — ce
+qui est la raison d'être de l'`Exporter` deux lignes plus bas.
+
+**Vivant, sinon ce n'est pas un éditeur.** Chaque changement re-résout le
+manifeste et le pousse vers la notch, donc le buddy à l'écran est le buddy en
+cours d'édition. Un éditeur dont le résultat n'apparaît qu'après un relancement
+est un champ de texte avec des étapes en plus.
+
+### `Sources/VibeBuddy/Settings/BuddyEditor/BuddyActionsRow.swift` — `struct BuddyActionsRow`
+
+La ligne décide seulement de ce qui est *offert* ; chaque action est une méthode
+de la section qui possède le manifeste et le magasin d'overrides, passée en
+closure. Garder le travail hors d'un corps de vue est ce qui permet à ces actions
+de rester lisibles — et testables — à côté de l'état qu'elles modifient.
+
+Les deux boutons destructifs sont conditionnels pour des raisons différentes :
+réinitialiser n'a pas de sens quand il n'y a rien à réinitialiser, et supprimer
+est refusé sur un buddy venu d'un fichier, puisque l'app n'écrit jamais dans les
+fichiers `.buddy`.
+
+### `Sources/VibeBuddy/Settings/BuddyEditor/BuddyPreviewStrip.swift` — `struct BuddyPreviewStrip`
+
+Via `BuddyView`, comme partout ailleurs : un éditeur qui prévisualise son sujet
+avec un autre moteur de rendu prévisualise quelque chose que l'app n'affiche
+jamais. C'est le seul endroit où le budget d'animation tourne en `lively` — le
+champ de vitesse ne se juge pas sur une image fixe.
+
+### `Sources/VibeBuddy/Settings/BuddyEditor/ExpressionEditorView.swift` — `struct ExpressionEditorView`
+
+**Chaque champ est à trois états.** Un champ est soit édité, soit hérité du
+fichier. « Hérité » est affiché plutôt que silencieusement pré-rempli, pour que
+réinitialiser soit un acte visible et non une conjecture sur la valeur qui était
+là à l'origine.
+
+**Un vocabulaire fermé, donc un menu** (champ *motion*). Le manifeste choisit un
+mouvement, il n'en décrit jamais un — laisser une préférence porter un script
+mettrait un évaluateur d'expressions dans la boucle de rendu.

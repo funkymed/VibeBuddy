@@ -244,3 +244,299 @@ fc-list : family | grep -i mono | sort -u | head -20
 **Q7 — Le halo doit-il être réglable ?**
 Trois ombres codées en dur aujourd'hui. Sur un fond clair — pastille flottante
 hors encoche — le halo pourrait être de trop.
+
+## Notes d'implémentation
+
+Arbitrages retirés du code le 2026-08-20 lors de la coupe des commentaires. Le
+code ne garde que les mesures chiffrées et les avertissements de bug ; ce qui
+suit explique *pourquoi*, pas *quoi*.
+
+### `BuddyView` (type)
+
+**Une seule horloge, et elle peut s'arrêter.** Un unique `TimelineView`, mis en
+pause dès que le budget dit `still`. L'implémentation de référence disperse à la
+place dix-huit appels `withAnimation(...).repeatForever` dans ses visages, chacun
+installant un `CADisplayLink` qui n'est jamais démonté — ni quand la vue quitte
+l'écran, ni quand la fenêtre se cache. `withAnimation` a l'air gratuit au point
+d'appel, et c'est exactement pour ça que ça s'accumule. Ici l'horloge est
+visible en un seul endroit et `AnimationBudget` possède sa cadence : caché
+signifie cadence zéro, et zéro signifie pas d'horloge du tout.
+
+**Pourquoi du texte.** Un glyphe monospace à 12 pt est la seule chose que macOS
+rend nettement à cette taille, parce que le hinting existe précisément pour ça.
+Les deux formats remplacés — béziers, puis grille de pixels — étaient dessinés à
+la main à l'échelle d'une affiche et se résolvaient en tache dans une bande de
+20 pt.
+
+### `BuddyView.fit` / `BuddyView.fitScale`
+
+L'oreille de la pastille est plafonnée (`PillLayout.maxSlotWidth`) et la hauteur
+de l'encoche est fixée par le matériel : un manifeste qui demande 40 pt doit
+céder quelque part. La mise à l'échelle est la seule option qui garde un visage
+un visage — rogner coupe un kaomoji en deux, et un demi-kaomoji se lit comme un
+défaut de rendu, pas comme une expression. Jamais au-dessus de 1 : un visage plus
+petit que sa boîte est dessiné à sa taille. C'est l'image la plus large de
+l'expression *courante* qui décide, pour que l'échelle tienne toute une animation
+au lieu de pulser une fois par seconde.
+
+### `BuddyView.tier`
+
+Une expression animée a besoin d'une horloge même quand son mouvement est
+`.none` : les images avancent à leur propre cadence. Le palier doit dépasser
+cette cadence — un buddy qui demande douze images par seconde sur une horloge à
+huit hertz perd une image sur trois, ce qui se lit comme un bégaiement, pas comme
+de la vitesse.
+
+### `BuddyView.reservedWidth`
+
+Réservé par expression plutôt que sur tout le buddy : l'emplacement porte déjà le
+maximum global, donc tout ce qui serait plus large ici ne ferait que payer deux
+fois une marge que la mise en page a déjà comptée.
+
+### `BuddyView.interval`
+
+Le palier est un plafond, pas une cible. Un visage dont le mouvement est `.none`
+ne change que lorsque son image change ; ticker au palier réveillerait la vue
+huit fois pour redessiner les mêmes glyphes — tout l'intérêt de D3 est que
+personne ne dépense des réveils dont il n'a pas l'usage. Ce qui bouge vraiment a
+besoin de la cadence pleine, parce que sa transformation est continue en phase.
+
+### `BuddyView.face(phase:)`
+
+Trois ombres empilées plutôt qu'une : une seule ombre large se lit comme un flou,
+tandis qu'un halo serré et vif par-dessus un halo large et sourd se lit comme
+quelque chose qui émet de la lumière. La plus serrée est la même couleur à pleine
+force — c'est elle qui fait paraître les traits plus épais et plus chauds qu'ils
+ne sont. Les ombres sont bon marché ici : une poignée de glyphes, donc le flou
+s'applique à quelques points et non à un bitmap.
+
+### `PixelGrid` (BuddyView.swift)
+
+**Grille, pas scanlines.** La première version ne traçait que des lignes
+horizontales. C'est un tube cathodique — et ça se lisait exactement comme ça : des
+rayures. Un afficheur à pixels est une *matrice*, donc la séparation doit courir
+dans les deux sens ou l'œil n'assemble jamais les cellules en carrés.
+
+**Masquée sur les glyphes.** Régler toute la pastille ne ferait que zébrer le
+fond noir derrière le visage. Masquer sur le contenu fait chevaucher la grille
+aux glyphes allumés, là où une vraie matrice montre sa structure.
+
+**`lineWidth`** — un quart du pas garde la cellule nettement plus grande que sa
+bordure ; au-delà d'environ un tiers, la grille cesse d'être une séparation et
+devient le sujet.
+
+### `PixelatedText` (type)
+
+**Pourquoi ce détour par un bitmap.** Rien dans SwiftUI ne quantifie le texte.
+`Canvas` rasterise *après* sa transformation, donc agrandir à l'intérieur produit
+des glyphes lisses à la résolution finale ; `.drawingGroup()` rasterise à
+l'échelle native. Les deux donnent un visage lisse plus gros, pas un visage plus
+carré.
+
+**Et pourquoi c'est quand même bon marché.** Rasteriser à chaque image serait du
+gaspillage : le bitmap est mis en cache et reconstruit seulement quand le texte,
+la couleur ou la taille changent — au plus une fois par seconde, puisque c'est la
+cadence de l'animation. Le mouvement par-dessus (échelle, décalage) s'applique à
+l'image en cache et ne coûte rien. Teinter le bitmap plutôt que d'y cuire la
+couleur signifie qu'un changement de couleur ne coûte aucune rasterisation.
+
+### `PillLayout` (type)
+
+La pastille est centrée à l'écran et l'encoche aussi, ce qui rend la mise en page
+naïve fausse dès que les oreilles diffèrent en largeur : centrer la *pastille*
+décale l'emplacement du milieu de la moitié de la différence. Le correctif est de
+décaler l'ensemble de `(droite - gauche) / 2`, ce que renvoie
+`notchAlignmentOffset`.
+
+**Pourquoi les largeurs sont mesurées plutôt que déclarées.** L'implémentation de
+référence code en dur 56 pt pour son buddy et 84 pour son affichage de
+consommation. Ça marche jusqu'à ce qu'un buddy ait un visage de cinq caractères,
+ou qu'une taille de police change dans un manifeste — le contenu déborde alors
+d'un emplacement dimensionné pour autre chose. Ici chaque emplacement est mesuré
+sur ce qu'il contient réellement.
+
+### `PillLayout.slotPadding`
+
+Ramené de 10 à 6 quand les oreilles sont devenues symétriques : la symétrie
+complète la plus étroite jusqu'à la plus large, donc la marge est désormais payée
+deux fois du côté qui n'a rien à montrer. Six points dégagent encore l'encoche —
+les glyphes n'atteignent jamais le bord — et la pastille cesse de paraître
+gonflée.
+
+### `PillLayout.maxSlotWidth`
+
+Sans plafond, la pastille est définie par son contenu : un manifeste avec un long
+visage à 40 pt — que l'éditeur d'expressions rend trivial à produire — fait une
+pastille plus large que l'encoche de l'écran et transforme le tableau de bord en
+bandeau. Au-delà, c'est le *buddy* qui cède, réduit à l'emplacement qu'on lui
+donne (`BuddyView`, `fit:`).
+
+### `PillLayout.resolve` — oreilles égales
+
+Mesurer chaque oreille sur son propre contenu rendait la pastille bancale — un
+buddy de quatre glyphes à gauche, `×2` à droite — et le correctif était alors de
+décaler toute la pastille pour que son trou tombe encore sur l'encoche
+(`notchAlignmentOffset`). Ça marche géométriquement et ça a l'air faux : l'encoche
+est symétrique, et une forme qui dépasse davantage d'un côté se lit comme mal
+alignée même quand elle est exactement alignée. Des oreilles égales coûtent
+quelques points de largeur du côté le plus étroit et achètent une forme
+symétrique par construction — l'offset vaut alors zéro, il n'est pas corrigé.
+
+Une alerte prend l'oreille droite à la place du compteur : les deux disent la
+même sorte de chose, et les empiler ferait grandir la pastille deux fois.
+
+### `PillLayout.measure`
+
+Mesuré via AppKit plutôt qu'estimé au nombre de caractères : une police monospace
+a quand même des chasses propres à chaque fonte, et deviner produit un
+emplacement soit rogné soit rembourré de quelques points sur toute machine ayant
+un défaut différent.
+
+### `BuddyFile` (type) — pourquoi pas JSON
+
+Un buddy est une poignée de kaomoji. En JSON ils arrivent en échappements
+`"\u{1D5D3}"` et en guillemets qui semblent déséquilibrés, et en éditer un revient
+à compter des antislashs. Le format est ce que quelqu'un écrit quand on lui
+demande de décrire un buddy sur une serviette en papier — d'où il vient
+littéralement :
+
+```
+font: Menlo
+size: 14
+speed: 2          # images par seconde ; 1 par défaut
+
+sleeping (blue #00BBFF)
+ᓚ₍⑅^- .-^₎ -ᶻ 𝗓 𐰁
+ᓚ₍⑅^- .-^₎ -𐰁 ᶻ 𝗓
+
+working (green #55FF55) 17 4
+(ᵕ • ᴗ •)
+```
+
+Une image par ligne, une seconde par image par défaut. Une ligne vide termine une
+section. Le nom de couleur devant l'hexa est ignoré — il est là pour l'humain.
+
+Les deux nombres de l'en-tête d'expression sont **positionnels** — taille
+d'abord, vitesse ensuite — donc une expression qui ne veut qu'une autre vitesse
+énonce quand même sa taille. Des suffixes nommés étaient l'alternative et
+transforment un format de serviette en petit langage ; un en-tête avec deux
+nombres se lit encore à voix haute.
+
+Un `font` absent signifie la police système, ce qui est le bon défaut : elle
+compose les replis glyphe par glyphe, et aucune famille installée seule ne couvre
+les écritures rares dont ces visages sont faits.
+
+Une valeur hors bornes tombe dans le rapport « ligne non comprise » plutôt que
+d'être bornée : un fichier qui demande 200 images par seconde est une erreur, et
+en dessiner silencieusement 30 la cache jusqu'à ce que quelqu'un se demande
+pourquoi le buddy l'ignore. La vitesse accepte une décimale parce que « une demi-
+image par seconde » se demande vraiment ; la taille non, parce qu'une taille de
+corps fractionnaire ne se demande pas.
+
+### `BuddyFile` — `MotionKind.default(for:)`
+
+Ces visages s'animent en changeant d'image, donc le mouvement par-dessus est
+volontairement retenu : un visage qui rebondit *et* défile se lit comme cassé,
+pas comme vivant.
+
+### `BuddyManifest` (type) — comment on en est arrivé là
+
+Ça a commencé en chemins de Bézier avec un rig d'yeux, puis c'est devenu une
+grille de pixels. Les deux marchaient à taille d'affiche et perdaient leur sens à
+la taille qui compte. Le buddy se rend dans une bande d'environ 20 pt de haut : à
+cette échelle une courbe fait trois pixels gris antialiasés, et une grille 38×24
+affichée à 0,5 pt par cellule fait un pixel physique par cellule — techniquement
+net, pratiquement une tache. Le texte est la seule chose que macOS rend bien à
+11 pt, parce que c'est *à ça* que sert le hinting.
+
+`=^^=` est aussi lisible dans le manifeste, diffable en revue, et tapable par
+quiconque veut un buddy. Le format pixel demandait une chaîne hexa de 900
+cellules et un outil pour l'écrire.
+
+Le coût est réel et mérite d'être nommé : pas de dégradés, pas de contrôle au
+pixel, et le visage dépend de la police installée. Accepté.
+
+### `BuddyManifest.framesPerSecond` et les surcharges d'expression
+
+Exprimé en cadence plutôt qu'en délai pour que « plus grand » veuille dire « plus
+rapide », ce qu'attend quelqu'un qui écrit `speed: 4` dans un fichier texte. Le
+moteur de rendu veut l'inverse et le calcule en un seul endroit.
+
+Les surcharges par expression existent parce que ces visages diffèrent énormément
+en densité : un chat qui dort en traînant des `zzz` et un clignement de quatre
+glyphes ne veulent ni la même taille de corps pour peser pareil à l'écran, ni la
+même cadence — un `zzz` qui s'éloigne veut être plus lent que le buddy auquel il
+appartient, pas seulement plus court.
+
+### `BuddyManifest.validate` — plus de contrôle de largeur
+
+Il existait pour empêcher la pastille de changer de taille entre états, et c'était
+la bonne règle pour des visages de quatre caractères. Ces expressions sont des
+animations de largeurs très différentes, donc des largeurs égales ne sont plus ni
+atteignables ni souhaitables. La mise en page résout le problème à la place, en
+mesurant une fois l'image la plus large de toutes les expressions.
+
+### `BuddyManifest.candidateFrames` — coût
+
+Mesurer environ vingt-cinq chaînes courtes quand la mise en page se résout, ce qui
+arrive sur un changement de géométrie ou d'état, pas à chaque image.
+
+### `BuddyManifest.minimumFrameRate` / `maximumFrameRate`
+
+Le plancher est une image toutes les vingt secondes — en dessous, une animation
+est indiscernable d'un visage fixe et ne coûte qu'une horloge. Le plafond est le
+palier `lively` : demander plus serait une cadence que le budget refuse de
+dessiner, donc le fichier promettrait ce que le rendu ignore en silence.
+
+### `BuiltInBuddy` (BuddyLoader.swift)
+
+Écrit comme un manifeste plutôt que comme un cas particulier, pour que le format
+soit exercé par le chemin par défaut à chaque lancement. Un format que seuls des
+tiers utilisent est un format qui casse en silence.
+
+### `BuddyOverrides` (type) — deux sources de vérité
+
+D1 demande une source de vérité unique par fait, et cette couche l'enfreint
+sciemment : ce à quoi ressemble un buddy vient maintenant d'un fichier *et* de
+cette couche. L'arbitrage (2026-08-20) l'a accepté en échange de ne jamais écrire
+dans un fichier que l'utilisateur maintient à la main — R1 est le même risque un
+dossier plus loin.
+
+L'atténuation est que la règle de précédence vit dans `apply(to:)` et nulle part
+ailleurs. Aucune vue, aucun chargeur, aucun moteur de rendu n'a le droit de la
+re-dériver.
+
+L'échappatoire est `BuddyExportWriter`, qui aplatit couche et fichier en un
+`.buddy` autonome. Sans lui une édition ne pourrait jamais être partagée, ce qui
+fermerait en douce la direction « un buddy par entreprise » ; avec lui, le partage
+devient délibéré au lieu d'impossible.
+
+### `BuddyExportWriter` (type et `write`)
+
+C'est le contrepoids au stockage des éditions dans les préférences. Ce qu'il écrit
+est le fichier que l'éditeur *aurait* écrit : couche et fichier déjà fusionnés,
+plus rien à réconcilier.
+
+`overwrite` est explicite parce que la destination évidente d'un export est le
+fichier d'où vient le buddy — et remplacer silencieusement un fichier écrit à la
+main est exactement ce que la couche de préférences existe pour éviter.
+
+### `MotionKind` (type) — vocabulaire fermé
+
+Un manifeste **choisit** un mouvement ; il n'en décrit jamais un. C'est la ligne
+qui garde ceci sûr et bon marché :
+
+- **Sûr** — un manifeste est un fichier sur le disque. Lui laisser porter un
+  script mettrait un évaluateur d'expressions tiers dans la boucle de rendu d'une
+  app dont toute la prémisse est zéro réveil au repos.
+- **Bon marché** — le budget d'animation est garantissable pour *n'importe quel*
+  buddy, parce que chaque mouvement ici est une fonction pure de la phase, bornée
+  par construction.
+
+Les amplitudes restent petites délibérément : la hauteur de l'encoche est un
+plafond dur, et un buddy qui déborde est rogné plutôt qu'expressif.
+
+Le vocabulaire : `none` immobile (`sleeping`), `breathe` montée et descente lente,
+`pulse` battement plus vif et plus fort, `dart` petits sauts du regard (deux
+fréquences pour ne pas se lire comme un métronome), `bounce` ressort court amorti
+pour les arrivées, `shake` frisson latéral bref amorti pour les échecs.

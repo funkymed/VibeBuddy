@@ -1,91 +1,50 @@
 import Foundation
 
-/// What the tail of a transcript says about a session.
 public struct ParsedTail: Sendable, Equatable {
     public var cwd: String?
     public var model: String?
     public var permissionMode: String?
     public var sessionID: String?
     public var agentVersion: String?
-    /// Reasoning effort, from a top-level `effort` field on assistant entries.
-    /// Also mirrored in `~/.claude/settings.json` as `effortLevel`, but the
-    /// transcript is per-session and the settings file is global.
     public var effort: String?
     public var gitBranch: String?
     public var action: ToolAction = .none
     /// Human label for the running tool — "édition", "commande"…
     public var status: String = ""
     /// What the tool is pointed at: a file name, a command, a pattern.
-    /// The difference between "édition" and "édition de NotchPanel.swift".
     public var subject: String?
-    /// The most recent tool result came back as an error.
-    ///
-    /// Read from `is_error` on a `tool_result` block. This is the `failed`
-    /// signal, and like turn completion and permission mode it is in the
-    /// transcript rather than behind a hook.
     public var lastResultWasError: Bool = false
     public var contextTokens: Int = 0
     public var lastTimestamp: Date?
-    /// True when the most recent meaningful entry is a completed turn — the
-    /// agent is done and waiting, not working.
     public var turnEnded: Bool = false
-    /// The agent asked the user something and no answer has come back.
-    ///
-    /// Read from a `tool_use` block whose tool asks a question and whose id has
-    /// no matching `tool_result` anywhere newer. **This is in the transcript**,
-    /// like the permission mode and the turn boundary before it — the hook was
-    /// never needed for it. What the hook is still needed for is a pending
-    /// *permission* prompt, which is resolved interactively and written only
-    /// once it is over.
+    /// A question `tool_use` whose id has no matching `tool_result` anywhere newer.
+    /// See RFC-003, « Notes d'implémentation ».
     public var awaitingQuestion: Bool = false
-    /// The question being waited on, for the row to show.
     public var question: String?
     public var lastTurnDurationMs: Int?
-    /// Subagent lifecycle seen in the window, from `started` / `result` entries.
-    ///
-    /// Tracked so a subagent finishing is never read as the turn finishing —
-    /// that mistake would fire an alert on every delegation (RFC-012).
-    /// Whether a tool result has already been seen while scanning backwards.
     var sawResult = false
-    /// Tool uses already answered, collected while scanning backwards.
-    ///
-    /// The scan runs newest-first, so a result is always seen *before* the use
-    /// it answers. That ordering is what makes this a set membership test rather
-    /// than a second pass.
     var answered: Set<String> = []
+    /// Counted so a finishing subagent is never read as the turn finishing: that
+    /// mistake alerts on every delegation.
     public var subagentsStarted: Int = 0
     public var subagentsFinished: Int = 0
 
-    /// Subagents still running in the observed window.
     public var subagentsRunning: Int { max(0, subagentsStarted - subagentsFinished) }
-    /// Entry types the parser did not recognise, with counts.
-    ///
-    /// The transcript format is not a contract (risk R9): a renamed key empties
-    /// the app silently. Counting what we failed to read turns a silent
-    /// degradation into a number a diagnostics panel can show.
+    /// Entry types the parser did not recognise, with counts. The format is not a
+    /// contract (risk R9): counting failures turns silent degradation into a number.
     public var unrecognised: [String: Int] = [:]
 
     public init() {}
 }
 
-/// Tools whose `tool_use` means the agent has stopped and is waiting for a
-/// person.
-///
-/// A closed list on purpose. Any pending `tool_use` looks identical in the
-/// transcript — a `Bash` still running and a question nobody answered are both
-/// "a use with no result" — so only tools that are *defined* as questions can
-/// be read as a wait. Guessing from elapsed time would turn every slow command
-/// into a false alert.
+/// Closed list by construction: a pending `Bash` and an unanswered question look the
+/// same in the transcript. Do not infer a wait from elapsed time.
 public enum QuestionTools {
 
-    /// `AskUserQuestion` is the direct case; `ExitPlanMode` is the same thing in
-    /// disguise — the agent stops until the plan is approved or rejected.
     public static let names: Set<String> = ["AskUserQuestion", "ExitPlanMode"]
 
     public static func asks(_ tool: String) -> Bool { names.contains(tool) }
 
-    /// A short label for the row: the first question asked, or the tool's own
-    /// meaning when it carries no text.
     public static func summary(tool: String, input: [String: Any]) -> String? {
         if let questions = input["questions"] as? [[String: Any]],
            let first = questions.first {
@@ -97,36 +56,10 @@ public enum QuestionTools {
     }
 }
 
-/// Reads the tail of a Claude Code transcript.
-///
-/// Pure: `Data` in, `ParsedTail` out. No file access, so it can be tested
-/// against fixtures rather than against whatever happens to be on the machine.
-///
-/// # What the format actually contains
-///
-/// Observed on Claude Code 2.1.234, not taken from the reference implementation,
-/// which predates several of these and misses them:
-///
-/// | type | carries |
-/// |---|---|
-/// | `user` / `assistant` | messages, `usage`, `tool_use` blocks |
-/// | `permission-mode` | `permissionMode` — **the mode is in the transcript** |
-/// | `system` / `turn_duration` | the turn ended, with `durationMs` |
-/// | `system` / `stop_hook_summary` | a Stop hook ran |
-/// | `started` / `result` | subagent lifecycle, keyed by `agentId` |
-/// | `attachment`, `file-history-snapshot`, `file-history-delta`, `last-prompt`, `mode`, `queue-operation` | known, unused |
-///
-/// Three of these matter, and all three are things the reference implementation
-/// obtains from hook events that none of them needs: `permission-mode`,
-/// `turn_duration`, and the `started`/`result` pair that tracks subagents.
-///
-/// The last two were not in this list when it was written. They surfaced because
-/// unrecognised types are *counted* rather than dropped — the R9 parade paying
-/// for itself on its first run.
+/// Reads a transcript tail: `Data` in, `ParsedTail` out. Entry types and what each
+/// carries: see RFC-003, « Notes d'implémentation ».
 public enum TranscriptParser {
 
-    /// How far back to look. Entries are scanned newest-first and the first
-    /// value found for each field wins, so this only bounds the worst case.
     public static let maxLines = 80
 
     public static func parse(_ data: Data) -> ParsedTail {
@@ -142,7 +75,6 @@ public enum TranscriptParser {
 
             let type = entry["type"] as? String ?? ""
 
-            // Fields that can appear on almost any entry.
             take(&out.cwd, entry["cwd"] as? String)
             take(&out.sessionID, (entry["sessionId"] ?? entry["session_id"]) as? String)
             take(&out.agentVersion, entry["version"] as? String)
@@ -160,8 +92,6 @@ public enum TranscriptParser {
             case "system":
                 absorbSystem(entry, into: &out)
             case "started":
-                // A subagent began. Counted so delegation can be shown, and so a
-                // finishing subagent is never mistaken for a finishing turn.
                 out.subagentsStarted += 1
             case "result":
                 out.subagentsFinished += 1
@@ -182,15 +112,13 @@ public enum TranscriptParser {
     private static func absorbMessage(
         _ entry: [String: Any], into out: inout ParsedTail, isAssistant: Bool
     ) {
-        // Also carried inline on user/assistant entries, alongside the dedicated
-        // `permission-mode` records.
+        // Also carried inline here, not only on dedicated `permission-mode` entries.
         take(&out.permissionMode, entry["permissionMode"] as? String)
 
         guard let message = entry["message"] as? [String: Any] else { return }
         take(&out.model, (message["model"] as? String).flatMap { $0.isEmpty ? nil : $0 })
 
-        // Context size: the last assistant turn's prompt tokens. Cache reads and
-        // creations count — they are part of what the model was sent.
+        // Cache reads and creations count: they are part of what the model was sent.
         if isAssistant, out.contextTokens == 0,
            let usage = message["usage"] as? [String: Any] {
             let input = usage["input_tokens"] as? Int ?? 0
@@ -204,23 +132,18 @@ public enum TranscriptParser {
         for block in content {
             switch block["type"] as? String {
             case "tool_result":
-                // Newest-first, so the first result seen is the latest one.
                 if !out.sawResult {
                     out.sawResult = true
                     out.lastResultWasError = (block["is_error"] as? Bool) ?? false
                 }
                 if let id = block["tool_use_id"] as? String { out.answered.insert(id) }
-            // Once the scan has passed a turn boundary, everything older
-            // belongs to a turn that is already over. Letting one of its tool
-            // uses set the current action makes a finished session look busy
-            // forever — and silences the alert that says it finished.
+            // Past a turn boundary the tool uses belong to a finished turn: letting one
+            // set the action makes a done session look busy forever.
             case "tool_use" where out.action == .none && !out.turnEnded:
                 let name = block["name"] as? String ?? ""
                 let input = block["input"] as? [String: Any] ?? [:]
-                // A question with no answer behind it. Checked before the
-                // action, because `ExitPlanMode` classifies as planning and
-                // would otherwise read as work in progress rather than as a
-                // wait — the one distinction this whole feature is about.
+                // Before the action: `ExitPlanMode` classifies as planning, and would
+                // otherwise read as work in progress rather than as a wait.
                 if QuestionTools.asks(name),
                    let id = block["id"] as? String, !out.answered.contains(id),
                    !out.awaitingQuestion {
@@ -241,9 +164,6 @@ public enum TranscriptParser {
     private static func absorbSystem(_ entry: [String: Any], into out: inout ParsedTail) {
         switch entry["subtype"] as? String {
         case "turn_duration":
-            // Only meaningful if nothing newer has happened — the loop runs
-            // newest-first, so reaching this before any tool use means the turn
-            // really is the latest thing in the transcript.
             if out.action == .none && !out.turnEnded {
                 out.turnEnded = true
                 out.lastTurnDurationMs = entry["durationMs"] as? Int
@@ -260,12 +180,8 @@ public enum TranscriptParser {
         slot = value
     }
 
-    /// Claude Code writes fractional seconds; some entries do not. Both formats
-    /// have to be accepted or half the timestamps silently become nil.
-    ///
-    /// `ISO8601DateFormatter` is not `Sendable`, so it cannot be a shared static
-    /// under Swift 6. Built per call instead — this runs at most once per parse,
-    /// on a bounded tail, and correctness beats saving an allocation.
+    /// `ISO8601DateFormatter` is not `Sendable`, so no shared static under Swift 6.
+    /// Both the fractional and the plain form occur; accept both or half go nil.
     public static func date(from string: String) -> Date? {
         let fractional = ISO8601DateFormatter()
         fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]

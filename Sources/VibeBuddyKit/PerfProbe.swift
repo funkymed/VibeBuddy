@@ -4,26 +4,18 @@ import os
 
 /// Self-measurement of the numbers RFC-001 puts a budget on.
 ///
-/// Everything here is read from inside the process via `task_info`, which means
-/// no `sudo`, no `powermetrics`, and — importantly — no subprocess. A probe that
-/// spawned `ps` to measure itself would be measuring the thing it added.
-///
-/// The governing metric is **idle wakeups**, not CPU percentage. A process
-/// sitting at 0.4 % CPU while waking 70 times a second drains a battery and
-/// trips no percentage-based threshold anywhere.
+/// Read from inside the process via `task_info`: no `sudo`, no subprocess — a
+/// probe that spawned `ps` would be measuring what it added. The governing
+/// metric is idle wakeups, not CPU: 0.4 % CPU at 70 wakeups/s drains a battery
+/// and trips no percentage-based threshold.
 public struct PerfSample: Sendable, Equatable {
-    /// Resident set size, bytes.
     public let residentBytes: UInt64
-    /// Physical footprint, bytes. This is what macOS actually charges the
-    /// process, and what Activity Monitor shows as "Memory". On Apple Silicon it
-    /// diverges from RSS enough to matter.
+    /// Physical footprint, bytes — what macOS charges the process and shows as
+    /// "Memory". On Apple Silicon it diverges from RSS enough to matter.
     public let footprintBytes: UInt64
-    /// Cumulative CPU time, seconds (user + system).
     public let cpuSeconds: Double
-    /// Cumulative wakeups charged to this task since launch.
     public let interruptWakeups: UInt64
-    /// Cumulative wakeups that happened while the system was otherwise idle —
-    /// the expensive kind, and the one the budget is written against.
+    /// Cumulative wakeups that happened while the system was otherwise idle.
     public let idleWakeups: UInt64
     public let uptime: TimeInterval
 
@@ -52,7 +44,6 @@ public enum PerfProbe {
         )
     }
 
-    /// One CSV row. Header is emitted by `csvHeader`.
     public static func csvRow(_ s: PerfSample, label: String) -> String {
         String(
             format: "%@,%.1f,%.2f,%.2f,%.3f,%llu,%llu",

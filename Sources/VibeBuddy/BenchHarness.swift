@@ -2,45 +2,26 @@ import AppKit
 import SwiftUI
 import VibeBuddyKit
 
-/// The measurement that decides question D5.
-///
-/// RFC-001 sets a provisional RSS ceiling of 40 MB, and the open question is
-/// whether an `NSPanel` hosting SwiftUI can live under it at all. An empty
-/// AppKit shell is typically 45–60 MB before a single feature exists, and no
-/// amount of optimising the *contents* recovers that.
-///
-/// So this measures two things and reports the delta:
-///
-/// - `shell`  — `NSApplication` running, no window. The floor.
-/// - `panel`  — plus an `NSPanel` hosting an empty `NSHostingView`. The floor
-///              that actually matters, since the pill is permanently on screen.
-///
-/// Whatever the numbers say, they are the numbers. The point of running this
-/// before writing any feature is that the budget is still free to set.
+/// Measures the D5 floor against RFC-001's 40 MB ceiling: an empty AppKit shell
+/// is typically 45–60 MB before a single feature exists.
 @MainActor
 enum BenchHarness {
 
     enum Mode: String {
-        /// NSApplication only, no window. The floor.
+        /// `NSApplication` only, no window. The floor.
         case shell
-        /// A bare NSPanel + empty NSHostingView. The D5 measurement.
+        /// A bare `NSPanel` + empty `NSHostingView`. The D5 measurement.
         case panel
-        /// The real NotchPanel showing its pill, hover probe running. What the
-        /// user actually pays for once RFC-002 lands.
+        /// The real `NotchPanel` showing its pill, hover probe running.
         case pill
-        /// The real NotchPanel, created but hidden. Must cost nothing at all —
-        /// this is the measurement the reference implementation would fail,
-        /// since it never stops a timer.
+        /// The real `NotchPanel`, created but hidden. Must cost nothing at all.
         case hidden
-        /// Scenario C: the pill on screen with hover tracking live. Since hover
-        /// went event-driven this is the same shape as `.pill`; it stays as a
-        /// separate label so the CSVs keep their scenario names.
+        /// Scenario C. Same shape as `.pill` since hover went event-driven; kept
+        /// as a separate label so the CSVs keep their scenario names.
         case interaction
         /// The session pipeline alone: FSEvents plus the lazy liveness poll.
-        /// What RFC-003 costs on top of the window.
         case sessions
-        /// The whole app, coordinator included — the only mode that exercises
-        /// buddy hot reload, the settings window and the alert path together.
+        /// The whole app, coordinator included.
         case app
     }
 
@@ -72,12 +53,11 @@ enum BenchHarness {
             }
             appCoordinator = coordinator
         case .sessions:
+            // No `AppCoordinator` here: alerts are printed, never rendered.
             let wake = WakeCoordinator()
             let coordinator = SessionCoordinator(wake: wake)
-            // Detection latency, measured against the transcript's own mtime
-            // rather than against a wall clock the harness controls: the gap
-            // between "the agent wrote something" and "the app reacted" is the
-            // only number that describes this app rather than the measurement.
+            // Latency is measured against the transcript's own mtime, not a wall
+            // clock the harness controls.
             nonisolated(unsafe) var seen = Set<String>()
             coordinator.onChange = { list in
                 let now = Date()
@@ -99,8 +79,7 @@ enum BenchHarness {
             }
             coordinator.start()
             sessionCoordinator = coordinator
-            // Report suppressions too: without them, "no alert" is
-            // indistinguishable from "the policy did its job".
+            // Without this, "no alert" and "policy did its job" look alike.
             nonisolated(unsafe) var reported = 0
             let suppressionTimer = DispatchSource.makeTimerSource(queue: .main)
             suppressionTimer.schedule(deadline: .now() + 3, repeating: 3)
@@ -124,8 +103,8 @@ enum BenchHarness {
         ))
         print(PerfProbe.csvHeader)
 
-        // Sample every 5 s, matching perfcheck.sh. The sampler itself is a
-        // wakeup, so it is counted and subtracted in the summary below.
+        // Every 5 s, matching perfcheck.sh. The sampler is itself a wakeup, so
+        // it is subtracted in the summary below.
         let interval: TimeInterval = 5
         var samples: [PerfSample] = []
 
@@ -160,9 +139,7 @@ enum BenchHarness {
         exit(0)
     }
 
-    /// An `NSPanel` configured the way RFC-002 will configure it, hosting an
-    /// empty SwiftUI view. Measuring a bare `NSWindow` would understate the
-    /// real floor.
+    /// Configured as RFC-002 configures it: a bare `NSWindow` understates the floor.
     private static func makeEmptyPanel() -> NSPanel {
         let panel = NSPanel(
             contentRect: NSRect(x: 0, y: 0, width: 200, height: 32),
@@ -221,8 +198,7 @@ enum BenchHarness {
     }
 }
 
-/// Intentionally empty. Anything drawn here would be measured as part of the
-/// floor.
+/// Intentionally empty: anything drawn here is measured as part of the floor.
 private struct EmptyPillView: View {
     var body: some View { Color.clear }
 }

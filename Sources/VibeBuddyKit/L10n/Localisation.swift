@@ -1,11 +1,8 @@
 import Foundation
 import Observation
 
-/// The current language, and the strings that go with it.
-///
-/// Observable so a change in preferences redraws the interface immediately
-/// rather than at the next launch — a language picker that needs a restart is a
-/// language picker people distrust.
+/// The current language, and the strings that go with it. Observable so a
+/// change in preferences redraws the interface rather than waiting for a relaunch.
 @MainActor
 @Observable
 public final class Localisation {
@@ -19,9 +16,7 @@ public final class Localisation {
 
     public init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
-        // First launch has nothing stored, so `.system` applies and the
-        // resolution below follows macOS. Detection is therefore not a separate
-        // step — it is what `.system` *means*.
+        // Nothing stored means `.system`, which is what following macOS means.
         let stored = defaults.string(forKey: Self.storageKey)
             .flatMap(AppLanguage.init(rawValue:)) ?? .system
         self.language = stored
@@ -35,17 +30,12 @@ public final class Localisation {
         defaults.set(language.rawValue, forKey: Self.storageKey)
     }
 
-    /// What `.system` currently resolves to. Shown next to the picker so the
-    /// user knows what "Système" means for them today.
+    /// What `.system` currently resolves to. Shown next to the picker.
     public var effective: AppLanguage { language.resolved() }
 
     public var locale: Locale { language.locale }
 
-    /// The settings window's catalogue, in the same language as the panel.
-    ///
-    /// Separate struct, same resolution — a window that stayed English while the
-    /// panel spoke French would look like a bug, and the two catalogues have no
-    /// reason to ever disagree about which language is active.
+    /// The settings window's catalogue, resolved the same way as the panel's.
     public var settings: SettingsStrings {
         effective == .french ? .french : .english
     }

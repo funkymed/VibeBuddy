@@ -1,40 +1,12 @@
 import Foundation
 import CoreServices
 
-/// Watches `~/.claude/projects` and reports that something changed.
-///
-/// # Why this replaces a timer
-///
-/// The reference implementation polls once a second, forever: it walks the whole
-/// project tree and shells out to `pgrep` on every tick, whether or not anything
-/// happened. Measured on this machine, the `pgrep` alone is 11.34 ms per tick —
-/// 1.13 % of a core, permanently, to learn nothing most of the time.
-///
-/// FSEvents inverts that. The kernel already knows when those files change; the
-/// process sleeps until they do and costs nothing in between.
-///
-/// # It reports which files changed
-///
-/// `kFSEventStreamCreateFlagFileEvents` makes the callback carry actual paths
-/// rather than just directories, and passing them on is what lets a consumer
-/// re-read three files instead of walking five hundred. Measured here: a full
-/// walk of the corpus costs ~17 ms, an incremental update costs ~1 ms.
-///
-/// The paths are still only a hint. Events coalesce, a path can appear twice in
-/// one batch, and a file may already have changed again by the time it is read.
-/// Consumers must treat the list as "at least these moved", never as "only
-/// these".
-///
-/// # What it cannot do
-///
-/// It cannot replace process polling. **The death of a process emits no
-/// filesystem event** — that part stays periodic, just lazily so. "Event-driven"
-/// is a description of this class, not of the RFC.
+/// Replaces a 1 Hz poll: the `pgrep` alone cost 11,34 ms per tick, 1,13 % of a core.
+/// `kFSEventStreamCreateFlagFileEvents` carries real paths, so a consumer re-reads
+/// three files (~1 ms) instead of walking five hundred (~17 ms).
+/// Treat the list as "at least these moved", never "only these": events coalesce.
 public final class ProjectsWatcher: @unchecked Sendable {
 
-    /// Coalescing window handed to FSEvents. A tool writing steadily produces a
-    /// burst of events; one second turns that burst into one wake-up without
-    /// making the UI feel behind.
     public static let latency: CFTimeInterval = 1.0
 
     private var stream: FSEventStreamRef?
@@ -55,17 +27,13 @@ public final class ProjectsWatcher: @unchecked Sendable {
             retain: nil, release: nil, copyDescription: nil
         )
 
-        // The callback is a C function pointer and cannot capture, so `self`
-        // travels through the context's `info` pointer.
         let callback: FSEventStreamCallback = { _, info, count, paths, _, _ in
             guard let info else { return }
             let watcher = Unmanaged<ProjectsWatcher>.fromOpaque(info).takeUnretainedValue()
 
-            // `eventPaths` is a C `char **` unless kFSEventStreamCreateFlagUseCFTypes
-            // is set, in which case it is a CFArray of CFStrings. Reading it the
-            // wrong way is not a type error — it is a wild pointer sent an
-            // Objective-C message, which crashes in objc_msgSend. This callback
-            // reads it as the C array it actually is.
+            // `eventPaths` is a C `char **` unless kFSEventStreamCreateFlagUseCFTypes is
+            // set, where it is a CFArray of CFStrings. Reading it the wrong way is not a
+            // type error but a wild pointer sent an ObjC message: crash in objc_msgSend.
             let cStrings = paths.bindMemory(to: UnsafePointer<CChar>?.self, capacity: count)
             var list: [String] = []
             list.reserveCapacity(count)
@@ -83,9 +51,7 @@ public final class ProjectsWatcher: @unchecked Sendable {
             [path] as CFArray,
             FSEventStreamEventId(kFSEventStreamEventIdSinceNow),
             Self.latency,
-            // `NoDefer` fires at the *start* of the coalescing window rather than
-            // the end, so the first change of a burst is seen immediately and the
-            // rest are absorbed. Without it every update pays the full second.
+            // `NoDefer` fires at the *start* of the window: without it every update pays a second.
             FSEventStreamCreateFlags(
                 kFSEventStreamCreateFlagFileEvents | kFSEventStreamCreateFlagNoDefer
             )

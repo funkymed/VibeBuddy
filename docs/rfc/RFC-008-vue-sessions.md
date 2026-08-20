@@ -198,3 +198,72 @@ report si le calendrier dérape.
 
 **Q3 — Combien de sessions afficher ?** La référence plafonne à 8
 (`NotchContentView.swift:1358`). Au-delà, faut-il paginer ou tronquer ?
+
+## Notes d'implémentation
+
+Pavés d'arbitrage déplacés depuis le code (`Sources/VibeBuddy/Panel/`) lors de la
+coupe des commentaires. Le code garde une ligne de renvoi vers cette section.
+
+### `PanelContentView` (type)
+
+Délibérément court. La décision D2 de la RFC-001 plafonne une vue à 200 lignes,
+parce que l'équivalent de l'implémentation de référence en fait 3 738 et que
+chaque `@Published` de l'app la réévalue entièrement. L'en-tête et la ligne de
+session vivent dans leurs propres fichiers pour la même raison.
+
+Ce qui n'y est pas n'est pas simulé : le panneau de référence affiche aussi les
+pourcentages d'utilisation live, une heatmap d'activité et une liste d'outils
+toujours autorisés. Ce sont RFC-004, RFC-009 et RFC-007, aucune écrite. Elles
+sont absentes plutôt que bouchonnées.
+
+### `PanelContentView.identityLine`
+
+Qui l'on est, et quel build. Cette ligne remplace le champ de filtre qui se
+trouvait là. Le groupement par répertoire a supprimé l'encombrement que le filtre
+servait à trancher — six lignes d'un même projet devenues une — donc une boîte de
+recherche sur trois ou quatre lignes était du mobilier tenant lieu de
+fonctionnalité.
+
+La version gagne sa place : les buddies et les réglages sont des fichiers sur
+disque qui survivent à un build, et savoir quel build les lit est la première
+chose dont on a besoin quand l'un d'eux se comporte bizarrement.
+
+### `PanelHeader` (type)
+
+Le buddy est répété ici plutôt que de disparaître à l'ouverture du panneau. Il est
+l'identité de l'app, et le perdre au déploiement ferait passer le panneau pour une
+autre fenêtre plutôt que pour le même objet déplié.
+
+### `PanelHeader.counterChip`
+
+« En cours » sur « vivantes », et non « vivantes » sur « total ». Le total
+comptait des transcripts plutôt que des agents : un projet avec un après-midi
+d'historique affichait `1 / 9`, et le neuf ne voulait rien dire — l'historique est
+déjà visible sous forme de badge `×n` sur sa ligne. « En cours sur vivantes »
+répond à la question qu'on pose réellement à l'en-tête : combien des agents
+démarrés font quelque chose.
+
+### `PointingHandCursor` (type)
+
+Pourquoi ce n'est pas automatique : AppKit donne une flèche aux contrôles
+standards, pas une main — sur macOS la main pointée signifie « lien », et un
+bouton n'est pas un lien. Le panneau est l'exception qui vaut la peine : c'est un
+HUD flottant au-dessus des autres apps, ses lignes ne portent aucun ornement de
+bouton, et rien d'autre à l'écran ne dit qu'une ligne est cliquable. Le curseur
+est l'affordance.
+
+### `SessionRow.detail`
+
+Ce qui suit la pastille d'état : l'outil en vol, puis depuis combien de temps la
+session est ouverte. La pastille porte déjà l'état grossier, donc ceci n'est que
+le détail — `python3 - <<'PY'` est ce qui distingue deux sessions toutes deux
+« en cours ». Une question en attente le remplace entièrement : une ligne lisant
+« planification · ExitPlanMode · <question> » enterre la partie qui appelle une
+réponse.
+
+### `UsageBar` (type)
+
+Des points plutôt qu'une barre continue. À cette largeur, le remplissage d'une
+barre représente quelques pixels d'écart entre 15 % et 25 %, là où un point plein
+se compte d'un coup d'œil — la lecture est « deux sur dix », pas « environ un
+cinquième ».

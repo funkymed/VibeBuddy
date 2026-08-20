@@ -4,16 +4,7 @@ import VibeBuddyKit
 
 /// A real macOS window, deliberately unlike the notch panel.
 ///
-/// RFC-010 settled this: settings do **not** live in the pill. The panel folds
-/// away the moment the cursor leaves it, and a settings surface that vanishes
-/// while you reach for your mouse is hostile. Settings are browsed, compared and
-/// revisited — they want a window you can resize and leave open.
-///
-/// It also **can** become key, unlike `NotchPanel`, so text fields and keyboard
-/// navigation work here. That is the other half of the reason to separate them.
-///
-/// The app is an accessory with no menu bar, so `⌘,` reaches nothing. The only
-/// way in is the gear in the panel header.
+/// See RFC-010, "Notes d'implémentation".
 @MainActor
 final class SettingsWindow {
 
@@ -66,9 +57,6 @@ final class SettingsWindow {
         let hosting = NSHostingController(rootView: view)
         let window = NSWindow(contentViewController: hosting)
         window.title = AppName.display
-        // Resizable now: a sidebar plus a buddy editor does not fit a fixed
-        // 520x360, and the sections differ enough in height that a single size
-        // would be wrong for most of them.
         window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
         window.setContentSize(NSSize(width: 820, height: 560))
         window.isReleasedWhenClosed = false
@@ -86,14 +74,8 @@ final class SettingsWindow {
 
     /// Put the window in front and keep it there.
     ///
-    /// An `.accessory` app has no Dock icon and cannot be raised the usual way,
-    /// so activating explicitly is what stops the window opening *behind*
-    /// whatever the user was looking at.
-    ///
-    /// **The level has to clear the pill, not merely float.** `.floating` is 3
-    /// and `.statusBar` — where the notch panel lives — is 25, so a "floating"
-    /// settings window opens *underneath* the very pill that opened it. One
-    /// above the panel is the only value that works.
+    /// Do not use `.floating` (3): it is below `.statusBar` (25) where the notch
+    /// panel lives, so the window opens underneath the pill that opened it.
     private func bringToFront(_ window: NSWindow) {
         window.level = NSWindow.Level(rawValue: NSWindow.Level.statusBar.rawValue + 1)
         window.makeKeyAndOrderFront(nil)

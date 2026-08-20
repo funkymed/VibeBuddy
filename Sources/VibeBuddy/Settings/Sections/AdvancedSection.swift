@@ -30,8 +30,6 @@ struct AdvancedSection: View {
                 }
             }
         }
-        // A destructive action behind a confirmation, because it deletes edits
-        // that took someone time and that no file holds.
         .confirmationDialog(s.resetEverything, isPresented: $confirming) {
             Button(s.resetEverything, role: .destructive, action: onReset)
         } message: {

@@ -1,11 +1,5 @@
 import Foundation
 
-/// Maps a tool name and its input to a coarse action.
-///
-/// Pure and free of I/O so the danger heuristics can be tested exhaustively —
-/// they are the part where a false positive is expensive. A buddy that panics at
-/// `rm -rf .build` teaches the user to ignore it, which costs more than the
-/// warning was ever worth.
 public enum ToolActionClassifier {
 
     public static func classify(tool: String, input: [String: Any]) -> ToolAction {
@@ -28,15 +22,8 @@ public enum ToolActionClassifier {
         }
     }
 
-    /// What the tool is being pointed at.
-    ///
-    /// This is the difference between a pill that says "editing" and one that
-    /// says "editing NotchPanel.swift". The priority order is taken from the
-    /// reference implementation, which had already worked out that every tool
-    /// puts its subject under a different key and that there is no common one.
-    ///
-    /// Paths are reduced to their last component: the pill has ~64 pt for this,
-    /// and a full path would be truncated to its least informative half.
+    /// Every tool puts its subject under a different key; there is no common one. Paths
+    /// reduce to their last component: the pill has ~64 pt and truncates the rest.
     public static func subject(tool: String, input: [String: Any]) -> String? {
         if let command = input["command"] as? String, !command.isEmpty {
             return String(command.prefix(80))
@@ -58,9 +45,6 @@ public enum ToolActionClassifier {
         return nil
     }
 
-    /// Human label for a tool, for the status slot.
-    ///
-    /// French, because it is user-facing — the codebase is English, the UI is not.
     public static func label(tool: String) -> String {
         switch tool.lowercased() {
         case "bash", "bashoutput": return "commande"
@@ -81,11 +65,8 @@ public enum ToolActionClassifier {
         }
     }
 
-    /// Commands worth widening the buddy's eyes at.
-    ///
-    /// Tuned for precision over recall on purpose. Every pattern below either
-    /// destroys data outside the project or hands over the machine; anything
-    /// merely untidy is left alone.
+    /// Commands worth widening the buddy's eyes at. Precision over recall: every pattern
+    /// here destroys data outside the project or hands over the machine.
     public static func isDangerous(_ command: String) -> Bool {
         let c = command.lowercased()
 
@@ -106,11 +87,8 @@ public enum ToolActionClassifier {
         "history -c",
     ]
 
-    /// Download piped straight into a shell — `curl … | sh`, `wget … | bash`.
-    ///
-    /// Matching the literal string `"curl | sh"` does not work: a real command
-    /// carries a URL between the two, which is exactly the case a test caught.
-    /// So the two halves are checked independently, on either side of a pipe.
+    /// Download piped into a shell. Do not match the literal `"curl | sh"`: a real command
+    /// carries a URL between the two. Check the halves on either side of the pipe.
     private static func pipesDownloadToShell(_ c: String) -> Bool {
         let parts = c.split(separator: "|", omittingEmptySubsequences: false)
         guard parts.count >= 2 else { return false }
@@ -125,12 +103,8 @@ public enum ToolActionClassifier {
         return false
     }
 
-    /// `rm -rf` is only alarming depending on what follows it.
-    ///
-    /// The reference implementation gets this right and it is worth keeping: the
-    /// character *after* the target is checked, so `rm -rf .build` and
-    /// `rm -rf ./node_modules` stay quiet while `rm -rf /` and `rm -rf ~` do not.
-    /// Without that check every project cleanup trips the alarm.
+    /// `rm -rf` is only alarming depending on what follows. Check the operand *after* the
+    /// flags: without it `rm -rf .build` trips the alarm on every project cleanup.
     private static func hasDangerousRemoval(_ c: String) -> Bool {
         guard c.contains("rm ") else { return false }
         let recursive = c.contains("-rf") || c.contains("-fr")

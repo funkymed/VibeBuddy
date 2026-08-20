@@ -3,13 +3,6 @@ import Foundation
 import Observation
 
 /// What the buddy looks like.
-///
-/// One of three preference models rather than one big one. The reference keeps
-/// twenty heterogeneous settings in a single class, so a colour change
-/// invalidates everything watching the window position — which is why it has to
-/// filter four publishers by hand (`NotchWindow.swift:177-192`). Splitting by
-/// *who observes what* is the fix, and it only works if the split is real: this
-/// model is read by the buddy renderer and by nothing else.
 @MainActor
 @Observable
 public final class AppearancePrefs {
@@ -22,27 +15,19 @@ public final class AppearancePrefs {
 
     @ObservationIgnored private let store: PreferencesStore
 
-    /// Which manifest is active. The key is the historical one, unchanged: it
-    /// is already on every machine that has run this app.
+    /// Which manifest is active. Historical key, unchanged: already on disk.
     public var buddyID: String {
         didSet { store.set(buddyID, forKey: Keys.buddyID) }
     }
 
-    /// Backing storage. Private because the clamp is not optional.
     private var storedPixelSize: Double
 
-    /// Device pixels backing one rendered pixel. Higher is blockier.
+    /// Device pixels backing one rendered pixel, bounded to 1…3: past three the
+    /// kaomoji stop being legible.
     ///
-    /// Bounded rather than free: past about three the kaomoji stop being
-    /// legible, and a preference that can make the buddy unreadable is a
-    /// preference that will.
-    ///
-    /// Computed rather than `didSet`-clamped, and that is not style. Under
-    /// `@Observable` a stored property becomes a computed one wrapping the
-    /// registrar, so assigning to it from inside its own `didSet` re-enters the
-    /// setter instead of being ignored the way it would be on a plain stored
-    /// property. The first version of this clamped in `didSet` and recursed
-    /// until the stack ran out — a test crashed the whole runner with SIGSEGV.
+    /// Do not clamp in `didSet`. Under `@Observable` a stored property becomes a
+    /// computed one, so assigning from inside its own `didSet` re-enters the
+    /// setter and recurses until the stack runs out (SIGSEGV in a test).
     public var pixelSize: Double {
         get { storedPixelSize }
         set {
@@ -53,7 +38,6 @@ public final class AppearancePrefs {
         }
     }
 
-    /// Per-expression edits, layered over whatever the `.buddy` file says.
     public var overrides: BuddyOverrides {
         didSet { persistOverrides() }
     }
@@ -70,7 +54,6 @@ public final class AppearancePrefs {
         store.set(data, forKey: Keys.overrides)
     }
 
-    /// A manifest with the user's edits applied.
     public func resolved(_ manifest: BuddyManifest) -> BuddyManifest {
         overrides.apply(to: manifest)
     }

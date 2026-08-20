@@ -1,9 +1,7 @@
 import AppKit
 import VibeBuddyKit
 
-/// `--info` — what the app resolved about this machine, and what it currently
-/// costs. Exists so the geometry and wake budget can be checked against reality
-/// rather than trusted, and so a slowness report comes with numbers attached.
+/// `--info` — what the app resolved about this machine, and what it costs now.
 @MainActor
 enum Diagnostics {
 
@@ -135,7 +133,7 @@ enum Diagnostics {
         let sem = DispatchSemaphore(value: 0)
         nonisolated(unsafe) var live: [AgentSession] = []
         let t0 = Date()
-        // Detached: a plain Task starts on the current actor, and the main
+        // Detached: a plain `Task` starts on the current actor, and the main
         // thread is about to block on the semaphore — it would never run.
         Task.detached { live = await store.refresh(); sem.signal() }
         _ = sem.wait(timeout: .now() + 5)
@@ -146,8 +144,7 @@ enum Diagnostics {
         }
         for session in live.prefix(8) {
             let term = session.pid.map { TerminalFocusProbe.hostingTerminal(of: $0) } ?? nil
-            // The tty is what the jump matches on, so it belongs in the one
-            // place someone looks when a click lands on the wrong tab.
+            // The tty is what the jump matches on.
             let tty = session.pid.flatMap { ProcessLookup.tty(of: $0) }
             print(String(format: "  %@ %-14@ pid=%-7@ ctx=%3.0f%%  term=%-10@ %-12@ %@",
                 (session.isLive ? "●" : "○") as NSString,
@@ -202,10 +199,8 @@ enum Diagnostics {
                   + "\(frames) images · \(rate(manifest.framesPerSecond)) img/s")
             for name in BuddyExpression.allCases {
                 guard let e = manifest.expression(name) else { continue }
-                // The rate is printed per expression, overridden or not: the
-                // question this section answers is "what is it actually doing",
-                // and an override that silently failed to parse looks exactly
-                // like an inherited value unless both are shown.
+                // Printed per expression, overridden or not: an override that
+                // failed to parse looks like an inherited value otherwise.
                 print(String(format: "      %-9@ %@  %-5@ %@",
                              name.rawValue as NSString,
                              (e.colour ?? manifest.colour) as NSString,
@@ -237,7 +232,7 @@ enum Diagnostics {
                 if let w {
                     print(String(format: "  %-14@ %5.1f %%  reset %@", label as NSString,
                                  w.utilisation,
-                                 (w.resetsAt.map { UsageBarPreview.reset($0) } ?? "—") as NSString))
+                                 (w.resetsAt.map { UsageBar.resetText($0) } ?? "—") as NSString))
                 } else {
                     print("  \(label)  indisponible")
                 }

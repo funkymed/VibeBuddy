@@ -1,11 +1,7 @@
 import Foundation
 
-/// Keeps one state per session and turns snapshots into alerts.
-///
-/// N sessions, N independent state machines. The reference implementation keeps
-/// a single "current" notion and loses everything but the newest session; here
-/// three agents finishing in three projects produce three attributed alerts,
-/// which is the whole point of watching more than one.
+/// Keeps one state per session and turns snapshots into alerts: N sessions,
+/// N independent state machines, N attributed alerts.
 @MainActor
 public final class AlertTracker {
 
@@ -13,19 +9,16 @@ public final class AlertTracker {
     private var policy = AlertPolicy()
     private let bus: AlertBus
 
-    /// Asked, per session, whether the user is already looking at that
-    /// terminal. Injected so the tracker stays testable without AppKit.
+    /// Injected so the tracker stays testable without AppKit.
     public var isHostingTerminalFrontmost: (AgentSession) -> Bool = { _ in false }
 
-    /// Alerts the policy chose to suppress, and why. Surfaced in diagnostics:
-    /// a notification system that silently drops things is impossible to trust.
+    /// Alerts the policy chose to suppress, and why. Surfaced in diagnostics.
     private(set) public var suppressed: [(alert: SessionAlert, reason: String)] = []
 
     public init(bus: AlertBus) {
         self.bus = bus
     }
 
-    /// Feed a fresh snapshot of every known session.
     @discardableResult
     public func ingest(_ sessions: [AgentSession], now: Date = Date()) -> [SessionAlert] {
         var published: [SessionAlert] = []

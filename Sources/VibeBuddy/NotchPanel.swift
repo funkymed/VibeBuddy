@@ -2,26 +2,24 @@ import AppKit
 import SwiftUI
 import VibeBuddyKit
 
-/// The window. Holds no geometry arithmetic — that lives in `NotchFrameSolver`,
-/// where it can be tested without a display.
-///
-/// Everything the reference implementation patched with flags is handled here by
-/// having a single state and applying exactly one frame per transition. There is
-/// no `suppressPrefsReposition`, and no `updateCollapsed` that quietly does
-/// nothing while expanded, because there is no race left for them to paper over.
+/// The window. Geometry arithmetic lives in `NotchFrameSolver`, where it is
+/// testable without a display. One state, exactly one frame per transition.
 @MainActor
 final class NotchPanel: NSPanel {
 
     static let panelSize = CGSize(width: 560, height: 460)
-    /// The window is kept at panel width even while showing the pill, so the
-    /// transition never jumps horizontally. `ClickThroughHostView` is what stops
-    /// the invisible margins from eating menu-bar clicks.
+    /// Kept at panel width even in pill state, so the transition never jumps
+    /// horizontally. `ClickThroughHostView` keeps the margins click-through.
     static let carrierWidth: CGFloat = 560
+
+    private typealias Host = ClickThroughHostView<NotchShellView>
 
     private let wake: WakeCoordinator
     private let budget: AnimationBudget
     private let hover: HoverProbe
-    private var host: ClickThroughHostView<AnyView>!
+    /// Do not erase to `AnyView`: it boxes on every rebuild and destroys the
+    /// structural comparison SwiftUI uses to skip untouched subtrees.
+    private var host: Host!
     private let snapPreview = SnapPreviewPanel()
     private let metrics = PanelMetrics()
     private var currentAlert: SessionAlert?
@@ -29,19 +27,15 @@ final class NotchPanel: NSPanel {
     private var expression: BuddyExpression = .sleeping
     private var sessionCount = 0
     private var sessions: [AgentSession] = []
-    /// Whether the expanded contents are on screen. Lags the state deliberately.
     private var contentRevealed = false
     private var revealWork: DispatchWorkItem?
-    /// What the panel's power button does. Set by the coordinator.
     var onQuit: () -> Void = { NSApp.terminate(nil) }
     var onSettings: () -> Void = {}
     /// Clicking a live session row. The pid is the agent's, not the terminal's.
     var onJump: (pid_t) -> Void = { _ in }
     private var jumpNote: String?
-    /// Panel-facing preferences (RFC-010). Held as plain values rather than by
-    /// observing the models: the panel redraws on its own schedule, and a view
-    /// that re-evaluated on every preference write would be the invalidation
-    /// problem this split exists to avoid.
+    /// Panel-facing preferences (RFC-010), held as plain values: observing the
+    /// models would re-evaluate the view on every preference write.
     private var pixelSize: Double = Double(BuddyView.defaultPixelSize)
     private var groupByDirectory = true
     private var jumpOnClick = true
@@ -49,14 +43,9 @@ final class NotchPanel: NSPanel {
 
     /// Suppresses hover while another surface of ours owns the screen.
     ///
-    /// The first attempt at this held the panel *open* while the settings window
-    /// was up, so the user would not lose context. That was wrong twice over:
-    /// the panel sits at `.statusBar` (25) and a floating window at 3, so the
-    /// pinned panel simply covered the settings it had just opened — and two
-    /// surfaces competing for the same screen is worse than one.
-    ///
-    /// It now collapses instead. One surface at a time, and hover stays inert so
-    /// the pill does not re-expand under the settings window.
+    /// Do not pin the panel open over the settings window: `.floating` (3) is
+    /// below `.statusBar` (25), so the panel covers what it just opened.
+    /// See RFC-002, « Notes d'implémentation ».
     var suppressesHover = false {
         didSet {
             guard suppressesHover != oldValue else { return }
@@ -75,11 +64,6 @@ final class NotchPanel: NSPanel {
         didSet { if state != oldValue { applyState() } }
     }
 
-    // Drag bookkeeping. A press only becomes a drag past the threshold, so a
-    // click never nudges the pill.
-    /// `easeOut` rather than `easeInOut`: the panel should leave immediately and
-    /// settle gently. An ease-*in* start reads as lag, because the gesture that
-    /// triggered it already happened.
     private static let expandCurve = CAMediaTimingFunction(name: .easeOut)
 
     private static let dragThreshold: CGFloat = 5
@@ -87,12 +71,8 @@ final class NotchPanel: NSPanel {
     private var dragStartOrigin: NSPoint = .zero
     private var dragTravel: CGFloat = 0
     private var isDragging = false
-    /// Whether the press that started this gesture landed on the pill.
-    ///
-    /// `ClickThroughHostView.hitTest` returning nil means no *view* takes the
-    /// event — but AppKit then delivers it to the *window*, which is this drag
-    /// handler. Without this guard, clicking a menu-bar item through a
-    /// transparent margin both opens the menu and drags the pill.
+    /// Do not drop this guard: `hitTest` returning nil still delivers the event
+    /// to the *window*, so a menu-bar click through a margin also drags the pill.
     private var dragArmed = false
 
     init(wake: WakeCoordinator, budget: AnimationBudget) {
@@ -113,17 +93,14 @@ final class NotchPanel: NSPanel {
         level = .statusBar
         isMovable = false
         acceptsMouseMovedEvents = true
-        // Present on every Space, never dragged between them by Mission Control,
-        // and visible over full-screen apps.
         collectionBehavior = [.canJoinAllSpaces, .stationary, .fullScreenAuxiliary]
         alphaValue = 0
 
-        host = ClickThroughHostView(rootView: AnyView(EmptyView()))
+        host = Host(rootView: shellView)
         contentView = host
 
-        // Event-driven hover. The poll below stays as a safety net for the case
-        // a tracking area misses — a pointer teleported by a hotkey or a warp
-        // generates no enter event.
+        // The poll below is the safety net: a pointer warped by a hotkey emits
+        // no enter event at all.
         host.onHoverChange = { [weak self] hovering in
             guard let self, !self.suppressesHover else { return }
             self.logHover(source: "zone", hovering: hovering)
@@ -142,13 +119,8 @@ final class NotchPanel: NSPanel {
         rebuildContent()
     }
 
-    /// Never key, never main.
-    ///
-    /// `.nonactivatingPanel` alone stops the app from activating on click, but
-    /// the panel would still steal *key* status from the editor or terminal
-    /// underneath — which is precisely what the user is looking at. The cost is
-    /// that keyboard shortcuts inside the panel cannot work; buttons still do,
-    /// because they fire on mouse events regardless of key state.
+    /// Do not allow key: `.nonactivatingPanel` stops activation but not key
+    /// theft from the terminal underneath. Cost: no keyboard shortcuts inside.
     override var canBecomeKey: Bool { false }
     override var canBecomeMain: Bool { false }
 
@@ -164,12 +136,7 @@ final class NotchPanel: NSPanel {
         state = .hidden
     }
 
-    /// Derived from the notch every time — see `NotchFrameSolver.pillSize`.
-    /// Size of the drawn pill.
-    ///
-    /// Comes from the same `PillLayout` the content uses, so the frame and what
-    /// is inside it cannot disagree. Sizing them separately is how a slot ends
-    /// up clipped by a pill that was measured for different content.
+    /// Size of the drawn pill, from the same `PillLayout` the content uses.
     var pillSize: CGSize {
         guard let geometry else { return CGSize(width: 300, height: 32) }
         let alertText = (state == .speech ? currentAlert : nil).map {
@@ -181,16 +148,10 @@ final class NotchPanel: NSPanel {
         return CGSize(width: layout.totalWidth, height: layout.height)
     }
 
-    /// Bumped on every state change, so a completion handler can tell whether
-    /// it belongs to the frame change still on screen.
     private var frameGeneration = 0
 
     /// The region that absorbs clicks and arms the hover, per state.
-    ///
-    /// Recomputed from `pillSize` each time rather than remembered: the pill's
-    /// width follows the buddy and the counter, so a region captured once goes
-    /// stale the first time a session appears.
-    private func hitRegion(for state: PanelState) -> ClickThroughHostView<AnyView>.HitRegion {
+    private func hitRegion(for state: PanelState) -> Host.HitRegion {
         switch state {
         case .hidden: return .none
         case .panel: return .full
@@ -198,7 +159,6 @@ final class NotchPanel: NSPanel {
         }
     }
 
-    /// Where the window should sit for a given state.
     private func targetFrame(for state: PanelState) -> CGRect? {
         let size = state == .panel ? Self.panelSize : pillSize
         let carrier = CGSize(width: Self.carrierWidth, height: size.height)
@@ -207,12 +167,8 @@ final class NotchPanel: NSPanel {
         }
     }
 
-    /// Set the frame **now**, superseding whatever animation is running.
-    ///
-    /// A plain `setFrame(_:display:animate:false)` does not do that: it moves
-    /// the window, and the in-flight `animator()` keeps driving it afterwards,
-    /// so the window ends up wherever the *old* animation was going. A
-    /// zero-duration animation replaces the running one instead.
+    /// Do not use `setFrame(_:display:animate:false)` here: an in-flight
+    /// `animator()` keeps driving the window and it lands at the old target.
     private func setFrameImmediately(_ target: CGRect) {
         NSAnimationContext.runAnimationGroup { ctx in
             ctx.duration = 0
@@ -226,15 +182,12 @@ final class NotchPanel: NSPanel {
         let size = state == .panel ? Self.panelSize : pillSize
         let carrier = CGSize(width: Self.carrierWidth, height: size.height)
 
-        // Set the hit region to the destination up front. Interpolating it would
-        // make the pointer fall out of the panel mid-grow and immediately
-        // trigger a collapse — the panel would flicker instead of opening.
+        // Destination region up front: interpolating it drops the pointer out
+        // of the growing panel and collapses it mid-open.
         host.hitRegion = hitRegion(for: state)
 
         if state.isVisible { orderFrontRegardless() }
 
-        // Contents follow the frame rather than leading it — see
-        // `PanelTiming.contentRevealFraction`.
         revealWork?.cancel()
         if state == .panel {
             contentRevealed = false
@@ -250,30 +203,19 @@ final class NotchPanel: NSPanel {
                 deadline: .now() + PanelTiming.expand * PanelTiming.contentRevealFraction,
                 execute: work)
         } else {
-            // Removed before the frame shrinks, not after.
             contentRevealed = false
         }
 
-        // Swap the content *before* the frame moves, so the shape morphs with
-        // the window instead of snapping at the end of the animation.
+        // Content swaps before the frame moves, so the shape morphs with it.
         rebuildContent()
 
         let target = targetFrame(for: state)
 
-        // Respect the system setting. Someone who asked for less motion did not
-        // ask for it only in other people's apps.
         let reduceMotion = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
-        // `frame.size == carrier` is **not** a reason to skip the frame change.
-        //
-        // Mid-animation the window is momentarily whatever size the running
-        // animation has reached, and one of those sizes is the size we are
-        // heading back to. Treating that as "already there" was the bug: a
-        // collapse asked for while the expansion was still growing took the
-        // shortcut, the expansion kept running underneath, and the window
-        // finished at panel size while the state said pill. The hover regions
-        // are read from the window, so a 38 pt strip became a 460 pt column —
-        // which arms the panel long before the pointer reaches the black, and
-        // only ever after it has been opened once.
+        // Never skip the frame change on `frame.size == carrier`: mid-animation
+        // the window passes through the target size, and a collapse taking that
+        // shortcut left it at 460 pt while the state said pill — a 38 pt hover
+        // strip became a 460 pt column.
         guard animated, !reduceMotion, state != .hidden else {
             if let target { setFrameImmediately(target) }
             metrics.drawnWidth = size.width
@@ -291,12 +233,8 @@ final class NotchPanel: NSPanel {
         )
     }
 
-    /// Both axes at once.
-    ///
-    /// The width lives in SwiftUI and the height on the `NSWindow`, so this is
-    /// two animation engines that have to land together: same duration, same
-    /// curve, started in the same turn of the run loop. Any drift between them
-    /// shows up as the shape stretching before it settles.
+    /// Width animates in SwiftUI, height on the `NSWindow`: same duration, same
+    /// curve, same run-loop turn, or the shape stretches before it settles.
     private func growTogether(
         to target: CGRect?, drawnWidth: CGFloat, growing: Bool, generation: Int
     ) {
@@ -317,28 +255,19 @@ final class NotchPanel: NSPanel {
         }
     }
 
-    /// Everything that can only be settled once the frame has stopped moving —
-    /// the hover rect in particular, which is read from the live frame.
-    /// Told when the panel opens, so usage can be polled more tightly while
-    /// someone is actually reading it.
+    /// Told when the panel opens, so usage can be polled more tightly.
     var onPanelVisibilityChange: ((Bool) -> Void)?
 
     private func finishStateChange(generation: Int? = nil) {
-        // A completion from a superseded animation must not publish anything:
-        // it would describe a frame the window has already left.
+        // A superseded animation's completion describes a frame already left.
         if let generation, generation != frameGeneration { return }
 
-        // The window is where the state says, or it is corrected here. This is
-        // the last line of defence for the mid-animation races: everything
-        // downstream — both hover regions — is read from the frame.
+        // Last line of defence: both hover regions are read from the frame.
         if state != .hidden, let target = targetFrame(for: state), frame != target {
             setFrameImmediately(target)
         }
 
-        // Re-assert the region on the settled frame. `applyState` sets it to
-        // the destination up front — deliberately, so the pointer does not fall
-        // out of a growing panel — and "up front" is by definition before the
-        // window has the size the region describes.
+        // Re-assert on the settled frame: `applyState` set it before the resize.
         host.hitRegion = hitRegion(for: state)
         host.refreshTrackingNow()
 
@@ -348,12 +277,6 @@ final class NotchPanel: NSPanel {
         budget.update(isVisible: state.isVisible, isBusy: state == .panel)
     }
 
-    /// Who armed the hover, where the pointer was, and what the regions were.
-    ///
-    /// Logged rather than reasoned about: two readings of the source produced
-    /// two plausible causes and one fix that fixed nothing. The pointer against
-    /// both regions, at the instant one of them fires, is what settles it.
-    ///
     /// `log stream --predicate 'subsystem == "com.vibebuddy"' --info`
     private func logHover(source: String, hovering: Bool) {
         let mouse = NSEvent.mouseLocation
@@ -386,22 +309,23 @@ final class NotchPanel: NSPanel {
         return CGRect(x: f.midX - w / 2, y: f.minY, width: w, height: f.height)
     }
 
-    private func rebuildContent() {
-        host.hosting.rootView = AnyView(
-            NotchShellView(state: state, geometry: geometry, budget: budget, metrics: metrics,
-                           alert: currentAlert, buddy: buddy, expression: expression,
-                           sessionCount: sessionCount, sessions: sessions,
-                           showPanelContent: contentRevealed, usage: usage,
-                           l10n: l10n, locale: locale,
-                           onSettings: onSettings, onQuit: onQuit,
-                           onJump: onJump, jumpNote: jumpNote,
-                           pixelSize: pixelSize, groupByDirectory: groupByDirectory,
-                           jumpOnClick: jumpOnClick, showUsage: showUsage)
-        )
+    /// One construction site, used by the initialiser and by every rebuild.
+    private var shellView: NotchShellView {
+        NotchShellView(state: state, geometry: geometry, budget: budget, metrics: metrics,
+                       alert: currentAlert, buddy: buddy, expression: expression,
+                       sessionCount: sessionCount, sessions: sessions,
+                       showPanelContent: contentRevealed, usage: usage,
+                       l10n: l10n, locale: locale,
+                       onSettings: onSettings, onQuit: onQuit,
+                       onJump: onJump, jumpNote: jumpNote,
+                       pixelSize: pixelSize, groupByDirectory: groupByDirectory,
+                       jumpOnClick: jumpOnClick, showUsage: showUsage)
     }
 
-    /// Install a buddy manifest. Safe to call at any time — the renderer is
-    /// stateless, so swapping is just a redraw.
+    private func rebuildContent() {
+        host.hosting.rootView = shellView
+    }
+
     /// Identifier of the buddy currently loaded.
     var currentBuddyID: String { buddy?.id ?? "—" }
 
@@ -410,24 +334,18 @@ final class NotchPanel: NSPanel {
         applyState(animated: false)
     }
 
-    /// How many agents are running. Redraws only when the number changes.
-    /// Change the interface language. Redraws immediately: a language picker
-    /// that needs a restart is a language picker people distrust.
     func setLanguage(_ strings: Strings, locale: Locale) {
         self.l10n = strings
         self.locale = locale
         applyState(animated: false)
     }
 
-    /// Latest usage reading. Only redraws while the panel is open.
-    /// How coarse the buddy's pixels are.
     func setPixelSize(_ size: Double) {
         guard size != pixelSize else { return }
         pixelSize = size
         rebuildContent()
     }
 
-    /// The three preferences the panel renders.
     func setLayoutPrefs(groupByDirectory: Bool, jumpOnClick: Bool, showUsage: Bool) {
         guard groupByDirectory != self.groupByDirectory
             || jumpOnClick != self.jumpOnClick
@@ -439,10 +357,6 @@ final class NotchPanel: NSPanel {
         if state == .panel { rebuildContent() }
     }
 
-    /// Say how the last jump went, or clear the message.
-    ///
-    /// Only redrawn while the panel is open — a note nobody can see is a
-    /// wakeup spent on nothing.
     func setJumpNote(_ note: String?) {
         guard note != jumpNote else { return }
         jumpNote = note
@@ -455,10 +369,6 @@ final class NotchPanel: NSPanel {
         if state == .panel { rebuildContent() }
     }
 
-    /// Full session list, for the expanded panel.
-    ///
-    /// Only redraws while the panel is open: the collapsed pill shows a count,
-    /// and rebuilding a list nobody can see on every 2 s refresh is waste.
     func setSessions(_ list: [AgentSession]) {
         guard list != sessions else { return }
         sessions = list
@@ -468,12 +378,10 @@ final class NotchPanel: NSPanel {
     func setSessionCount(_ count: Int) {
         guard count != sessionCount else { return }
         sessionCount = count
-        // The counter's width feeds the pill's width, so the frame has to
-        // follow — `×9` and `×10` are not the same size.
+        // The counter feeds the pill width: `×9` and `×10` differ.
         applyState(animated: false)
     }
 
-    /// Update the face. Cheap enough to call on every session snapshot.
     func setExpression(_ next: BuddyExpression) {
         guard next != expression else { return }
         expression = next
@@ -481,11 +389,7 @@ final class NotchPanel: NSPanel {
         rebuildContent()
     }
 
-    /// Show an alert in the pill for a few seconds, then return to normal.
-    ///
-    /// Never interrupts an open panel: if the user has the panel deployed they
-    /// are already looking, and shrinking it under them to show a badge would be
-    /// worse than saying nothing.
+    /// Show an alert in the pill for a few seconds. Never interrupts an open panel.
     func present(_ alert: SessionAlert, for duration: TimeInterval = 4) {
         guard state == .pill || state == .speech else { return }
         alertDismissal?.cancel()
@@ -517,7 +421,7 @@ final class NotchPanel: NSPanel {
     // MARK: - Drag
 
     override func mouseDown(with event: NSEvent) {
-        // host fills the window, so its coordinates are the window's.
+        // `host` fills the window, so its coordinates are the window's.
         dragArmed = host.absorbingRect.contains(event.locationInWindow)
         guard dragArmed else { return }
         dragStartMouse = NSEvent.mouseLocation

@@ -1,11 +1,8 @@
 import Foundation
 import Observation
 
-/// Which alerts are allowed to interrupt, and how they are rendered.
-///
-/// RFC-012 owns *what happened*; this owns *whether to say it*. The split is why
-/// a preference change can never alter the state machine's reading of a
-/// transcript — it can only silence what that reading produced.
+/// Which alerts are allowed to interrupt, and how they are rendered. A change
+/// here can only silence what RFC-012's state machine produced, never alter it.
 @MainActor
 @Observable
 public final class NotificationPrefs {
@@ -23,22 +20,16 @@ public final class NotificationPrefs {
 
     public var onFinished: Bool { didSet { store.set(onFinished, forKey: Keys.onFinished) } }
     public var onFailed: Bool { didSet { store.set(onFailed, forKey: Keys.onFailed) } }
-    /// The agent asked a question and is stopped until it is answered.
     public var onNeedsAttention: Bool {
         didSet { store.set(onNeedsAttention, forKey: Keys.onNeedsAttention) }
     }
 
-    /// Speak the alert. Off by default, and lazily instantiated on the other
-    /// side: `AVSpeechSynthesizer` allocates an audio engine of several
-    /// megabytes the first time it is used.
+    /// Speak the alert. Off by default and instantiated lazily on the other
+    /// side: `AVSpeechSynthesizer` allocates several megabytes of audio engine.
     public var voice: Bool { didSet { store.set(voice, forKey: Keys.voice) } }
     public var haptics: Bool { didSet { store.set(haptics, forKey: Keys.haptics) } }
 
     /// Stay silent when the terminal the alert is about is already in front.
-    ///
-    /// Was hard-coded. It is the suppression that matters most, and also the one
-    /// someone might reasonably disagree with — on a second display the
-    /// "frontmost" terminal can be a screen away.
     public var quietWhenFrontmost: Bool {
         didSet { store.set(quietWhenFrontmost, forKey: Keys.quietWhenFrontmost) }
     }
@@ -53,7 +44,6 @@ public final class NotificationPrefs {
         quietWhenFrontmost = store.bool(Keys.quietWhenFrontmost, default: true)
     }
 
-    /// Whether this kind of alert may be shown at all.
     public func allows(_ kind: SessionAlert.Kind) -> Bool {
         switch kind {
         case .finished: return onFinished

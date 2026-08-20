@@ -12,11 +12,11 @@ struct SessionsSection: View {
         SettingsPage {
             SettingsGroup(title: l10n.strings.sessionsTitle) {
                 SettingsRow(title: s.groupByDirectory, hint: s.groupByDirectoryHint) {
-                    Toggle("", isOn: $prefs.groupByDirectory).labelsHidden()
+                    Toggle(s.groupByDirectory, isOn: $prefs.groupByDirectory).labelsHidden()
                 }
                 Divider()
                 SettingsRow(title: s.jumpOnClick, hint: s.jumpOnClickHint) {
-                    Toggle("", isOn: $prefs.jumpOnClick).labelsHidden()
+                    Toggle(s.jumpOnClick, isOn: $prefs.jumpOnClick).labelsHidden()
                 }
             }
         }

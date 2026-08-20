@@ -3,11 +3,7 @@ import VibeBuddyKit
 
 /// One expression: its frames, and the four things the format lets it override.
 ///
-/// # Every field is three-state
-///
-/// A field is either edited, or inherited from the file. "Inherited" is shown
-/// rather than silently pre-filled, so resetting is a visible act and not a
-/// guess about which value was originally there.
+/// See RFC-010, "Notes d'implémentation".
 struct ExpressionEditorView: View {
     @Bindable var l10n: Localisation
     @Bindable var appearance: AppearancePrefs
@@ -40,14 +36,11 @@ struct ExpressionEditorView: View {
         SettingsGroup(title: s.frames) {
             ForEach(Array(currentFrames.enumerated()), id: \.offset) { index, frame in
                 HStack(spacing: 8) {
-                    // Monospaced, because the frames of one expression are read
-                    // as a column: a proportional font makes two faces of the
-                    // same width look different.
                     TextField("", text: Binding(
                         get: { frame },
                         set: { update(frame: $0, at: index) }))
                         .textFieldStyle(.plain)
-                        .font(.system(size: 13, design: .monospaced))
+                        .font(.body.monospaced())
                     Button {
                         remove(at: index)
                     } label: {
@@ -57,7 +50,6 @@ struct ExpressionEditorView: View {
                     .foregroundStyle(.secondary)
                     .disabled(currentFrames.count <= 1)
                     .help(s.removeFrame)
-                    // Order is the animation, so it has to be editable.
                     Button { move(index, by: -1) } label: { Image(systemName: "arrow.up") }
                         .buttonStyle(.plain).foregroundStyle(.secondary)
                         .disabled(index == 0)
@@ -128,7 +120,7 @@ struct ExpressionEditorView: View {
                     in: 6...48, step: 1
                 ) {
                     Text("\(Int(edit.fontSize ?? Double(manifest.size(for: settings))))")
-                        .font(.system(size: 12, design: .monospaced))
+                        .font(.callout.monospaced())
                 }
             }
             Divider()
@@ -141,16 +133,16 @@ struct ExpressionEditorView: View {
                     step: 0.5
                 ) {
                     Text(rateLabel)
-                        .font(.system(size: 12, design: .monospaced))
+                        .font(.callout.monospaced())
                 }
             }
             Divider()
-            // A closed vocabulary, so a menu. The manifest chooses a motion, it
-            // never describes one — letting a preference carry a script would
-            // put an expression evaluator in the render loop.
             SettingsRow(title: s.motion, hint: edit.motion == nil ? s.inherited : nil) {
                 Picker("", selection: Binding(
-                    get: { edit.motion ?? settings?.motion ?? .none },
+                    // Spell out `MotionKind.none`: bare `.none` binds to
+                    // `Optional<MotionKind>.none`, the selection is then typed
+                    // `MotionKind?`, matches no tag, and the menu shows empty.
+                    get: { edit.motion ?? settings?.motion ?? MotionKind.none },
                     set: { value in commit { $0.motion = value } }
                 )) {
                     ForEach(MotionKind.allCases, id: \.self) { motion in
