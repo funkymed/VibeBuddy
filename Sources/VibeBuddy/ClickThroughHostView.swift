@@ -77,13 +77,29 @@ final class ClickThroughHostView<Content: View>: NSView {
 
     /// Report hover for a pointer that is already inside `rect`, in view
     /// coordinates.
+    ///
+    /// **On the next turn of the run loop, never inline.** `refreshTracking` is
+    /// reached from the panel setting `hitRegion` in the middle of applying a
+    /// state change; reporting hover from there re-entered that same state
+    /// change through the hover handler, and the outer call then finished with
+    /// values it had computed for the state it was leaving. What you saw was an
+    /// all-black panel: the shape sized for the panel, the pill content skipped
+    /// because the state said panel, and the panel content skipped because the
+    /// stale outer call had just cleared the reveal flag.
     private func reportPointerIfInside(_ rect: CGRect) {
         guard let window else { return }
         let onScreen = NSEvent.mouseLocation
         let inWindow = window.convertPoint(fromScreen: onScreen)
         let inView = convert(inWindow, from: nil)
         guard rect.contains(inView) else { return }
-        onHoverChange?(true)
+        DispatchQueue.main.async { [weak self] in
+            guard let self, self.absorbingRect.contains(
+                self.convert(
+                    self.window?.convertPoint(fromScreen: NSEvent.mouseLocation) ?? .zero,
+                    from: nil))
+            else { return }
+            self.onHoverChange?(true)
+        }
     }
 
     override func mouseEntered(with event: NSEvent) {

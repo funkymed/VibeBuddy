@@ -176,7 +176,32 @@ final class NotchPanel: NSPanel {
         }
     }
 
+    /// Guards against `applyState` being re-entered while it runs.
+    ///
+    /// It sets `host.hitRegion`, which rebuilds the tracking area, which can
+    /// report hover, which changes `state`, whose `didSet` calls back in here.
+    /// The inner call is deferred rather than run: the outer one has already
+    /// computed a size and a target for the state it was leaving, and letting
+    /// the two interleave is what left the panel stuck black. Once the outer
+    /// call finishes, the deferred one runs against whatever the state is by
+    /// then, so it converges.
+    private var applying = false
+    private var needsReapply = false
+
     private func applyState(animated: Bool = true) {
+        if applying { needsReapply = true; return }
+        applying = true
+        defer {
+            applying = false
+            if needsReapply {
+                needsReapply = false
+                applyState(animated: animated)
+            }
+        }
+
+        // Shadowed once so the whole body agrees with itself even if something
+        // it calls changes the state underneath it.
+        let state = self.state
         frameGeneration += 1
         let generation = frameGeneration
         let size = state == .panel ? Self.panelSize : pillSize
@@ -270,6 +295,17 @@ final class NotchPanel: NSPanel {
         // Re-assert on the settled frame: `applyState` set it before the resize.
         host.hitRegion = hitRegion(for: state)
         host.refreshTrackingNow()
+
+        // The panel is open and the animation is over, so whatever became of
+        // the reveal work item, the content belongs on screen now. Without
+        // this the shape is drawn — it always is — while both contents are
+        // skipped, and an open panel with nothing in it is a black rectangle.
+        // Never show a shape with no content in it.
+        if state == .panel, !contentRevealed {
+            revealWork?.cancel()
+            contentRevealed = true
+            rebuildContent()
+        }
 
         onPanelVisibilityChange?(state == .panel)
         hover.pillRect = pillScreenRect

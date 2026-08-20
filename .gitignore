@@ -5,3 +5,4 @@ dist/
 docs/hook.md
 __pycache__/
 *.pyc
+docs/perf

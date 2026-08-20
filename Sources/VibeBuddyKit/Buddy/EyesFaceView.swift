@@ -40,107 +40,20 @@ struct EyesFaceView: View {
     var body: some View {
         let frame = rendered
         return ZStack {
-            plateShape
-            scanlines
+            // Split out on purpose. Nothing in here depends on `phase`, so as
+            // its own `View` SwiftUI can compare it frame to frame, find it
+            // unchanged, and leave it alone. Inline, it was rebuilt thirty
+            // times a second: **127 MB** of `phys_footprint` against a 40 MB
+            // budget, where the same face with flat colours sat at 15. Three
+            // gradients cost nothing to draw and everything to re-create.
+            FaceScreen(plate: plate, colour: colour, pitch: pixelSize)
             CellsShape(cells: frame.grain, pitch: pixelSize)
                 .fill(colour.opacity(0.07))
-            // The fall-off sits **here**: it takes the screen — plate,
-            // scanlines, grain — down to black at the edges, and stops. Over
-            // the top it dimmed the eyes as well, which is the opposite of what
-            // a screen does: the raster fades out, the picture on it does not.
-            vignette
             CellsShape(cells: frame.dim, pitch: pixelSize)
                 .fill(colour.opacity(0.34))
             features(frame.lit)
         }
         .frame(width: plate.width, height: plate.height)
-        // Clipped as a whole, not just the plate: the grain is rastered over
-        // the bounding rectangle, so it speckled the corners outside the glass.
-        // Everything a screen shows is on the screen.
-        .clipShape(silhouette)
-        .allowsHitTesting(false)
-    }
-
-    // MARK: - Plate
-
-    /// `AnyShape`, not a `@ViewBuilder`: the builder produces a
-    /// `_ConditionalContent`, which is a View and not a Shape, and the plate
-    /// has to stay a Shape to be used as a clip.
-    private var silhouette: AnyShape {
-        plate.silhouette == .oval
-            ? AnyShape(Ellipse())
-            : AnyShape(RoundedRectangle(cornerRadius: plate.radius, style: .continuous))
-    }
-
-    private var plateShape: some View {
-        silhouette
-            // A radial fall-off rather than flat black: it reads as a curved
-            // piece of glass catching a little light in the middle, which is
-            // what a screen behind a lens looks like. One fill, so it is free.
-            .fill(RadialGradient(
-                colors: [Color(white: 0.10), .black],
-                center: .center, startRadius: 0, endRadius: plate.width * 0.6))
-    }
-
-    /// The scanlines *are* the screen.
-    ///
-    /// They used to be black lines drawn over the plate, with a stroked outline
-    /// around it to say where the screen stopped. Both are gone: an outline is
-    /// a border drawn around a face, and a face made of light does not have
-    /// one. Lit lines in the buddy's own colour, filling the rounded rectangle,
-    /// give the boundary and the texture in the same pass — what you see is a
-    /// raster that happens to be face-shaped, which is what a screen is.
-    ///
-    /// Line and gap are the same width on purpose: a line thinner than its gap
-    /// reads as a stripe on something, a line as wide as its gap reads as the
-    /// thing itself.
-    private var scanlines: some View {
-        Scanlines(pitch: pixelSize)
-            .fill(colour.opacity(0.13))
-            // Clipped, not masked: a mask is a second offscreen pass.
-            .clipShape(silhouette)
-            .allowsHitTesting(false)
-    }
-
-    /// A fall-off to black around the screen.
-    ///
-    /// Painted over the top rather than masked: a mask is a second offscreen
-    /// pass, and black over black is the same picture for the price of one
-    /// fill. `EllipticalGradient` and not `RadialGradient` — the latter is
-    /// circular whatever frame it is given, so on an 80×30 screen it would
-    /// darken the top and bottom long before the ends.
-    ///
-    /// It reaches full black inside the corners on purpose: the rounded
-    /// rectangle stops having a visible edge, and the face sits in the notch
-    /// instead of on a tile laid over it. The eyes are drawn after it, so they
-    /// keep their full strength wherever they are looking.
-    private var vignette: some View {
-        ZStack {
-            EllipticalGradient(
-                colors: [.clear, .black],
-                center: .center,
-                // Two attempts either side of this one: 0.30/0.66 started the
-                // fall-off beside the eyes and made the face read as small on a
-                // large dark tile; 0.62/0.99 left the rounded rectangle with a
-                // visible edge again. It is a soft edge, not a spotlight, and
-                // not a border either.
-                startRadiusFraction: 0.46,
-                endRadiusFraction: 0.90)
-            // And a horizontal one on top, so every scanline **ends** in black
-            // rather than being cut off by the corner it runs into. The
-            // elliptical fall-off alone darkens the ends but never quite
-            // finishes them: on a screen this wide it reaches full black only
-            // in the last few points, which reads as a line that stops rather
-            // than one that fades out.
-            LinearGradient(
-                stops: [
-                    .init(color: .black, location: 0),
-                    .init(color: .clear, location: 0.24),
-                    .init(color: .clear, location: 0.76),
-                    .init(color: .black, location: 1),
-                ],
-                startPoint: .leading, endPoint: .trailing)
-        }
         .allowsHitTesting(false)
     }
 
@@ -182,6 +95,87 @@ struct EyesFaceView: View {
                 shape.fill(Color.cyan.opacity(0.45 * spec.glitch))
                     .offset(x: slip)
             }
+        }
+    }
+}
+
+/// The screen the face is drawn on: the glass, the scanlines that give it its
+/// surface, and the fall-off to black at its edges. None of it moves.
+///
+/// See RFC-005, "Notes d'implémentation".
+struct FaceScreen: View {
+    let plate: BuddyManifest.FacePlate
+    let colour: Color
+    let pitch: CGFloat
+
+    /// `AnyShape`, not a `@ViewBuilder`: the builder produces a
+    /// `_ConditionalContent`, which is a View and not a Shape, and the screen
+    /// has to stay a Shape to be used as a clip.
+    private var silhouette: AnyShape {
+        plate.silhouette == .oval
+            ? AnyShape(Ellipse())
+            : AnyShape(RoundedRectangle(cornerRadius: plate.radius, style: .continuous))
+    }
+
+    var body: some View {
+        ZStack {
+            // A radial fall-off rather than flat black: it reads as a curved
+            // piece of glass catching a little light in the middle, which is
+            // what a screen behind a lens looks like.
+            silhouette
+                .fill(RadialGradient(
+                    colors: [Color(white: 0.10), .black],
+                    center: .center, startRadius: 0, endRadius: plate.width * 0.6))
+            // The scanlines *are* the screen. They used to be black lines over
+            // the glass with a stroked outline around it to say where it
+            // stopped. Both are gone: an outline is a border drawn around a
+            // face, and a face made of light does not have one. Lit lines in
+            // the buddy's own colour give the boundary and the texture in one
+            // pass — a raster that happens to be face-shaped, which is what a
+            // screen is. Line and gap are the same width: a line thinner than
+            // its gap reads as a stripe on something, a line as wide as its gap
+            // reads as the thing itself.
+            Scanlines(pitch: pitch)
+                .fill(colour.opacity(0.13))
+            vignette
+        }
+        // Clipped, not masked: a mask is a second offscreen pass.
+        .clipShape(silhouette)
+        .allowsHitTesting(false)
+    }
+
+    /// A fall-off to black around the screen.
+    ///
+    /// It reaches full black inside the corners on purpose: the rounded
+    /// rectangle stops having a visible edge, and the face sits in the notch
+    /// instead of on a tile laid over it. The eyes are drawn after it, so they
+    /// keep their full strength wherever they are looking.
+    private var vignette: some View {
+        ZStack {
+            EllipticalGradient(
+                colors: [.clear, .black],
+                center: .center,
+                // Two attempts either side of this one: 0.30/0.66 started the
+                // fall-off beside the eyes and made the face read as small on a
+                // large dark tile; 0.62/0.99 left the rounded rectangle with a
+                // visible edge again. It is a soft edge, not a spotlight, and
+                // not a border either.
+                startRadiusFraction: 0.46,
+                endRadiusFraction: 0.90)
+            // And a horizontal one on top, so every scanline **ends** in black
+            // rather than being cut off by the corner it runs into. The
+            // elliptical fall-off alone darkens the ends but never quite
+            // finishes them: on a screen this wide it reaches full black only
+            // in the last few points, which reads as a line that stops rather
+            // than one that fades out.
+            LinearGradient(
+                stops: [
+                    .init(color: .black, location: 0),
+                    .init(color: .clear, location: 0.24),
+                    .init(color: .clear, location: 0.76),
+                    .init(color: .black, location: 1),
+                ],
+                startPoint: .leading, endPoint: .trailing)
         }
     }
 }

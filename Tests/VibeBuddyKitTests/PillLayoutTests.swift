@@ -127,18 +127,21 @@ struct PillLayoutTests {
     }
 }
 
-/// A manifest can now ask for anything — the expression editor makes a 40 pt
-/// face two clicks away — so the pill has a ceiling and the buddy gives way.
+/// A `.buddy` is hand-edited text, so a manifest can ask for anything. The pill
+/// has a ceiling and the buddy gives way.
 @Suite("Oversized buddies")
 @MainActor
 struct OversizedBuddyTests {
 
     private func giant() -> BuddyManifest {
+        // Parsed, not validated: `BuddyManifest.validate` refuses a screen this
+        // wide, but only `BuddyLoader` validates. A hand-edited file reaches
+        // the layout regardless, and the layout is what has to survive it.
         BuddyFile.parse("""
-        size: 40
+        face: 200x60 r10
 
         idle (x #FFFFFF)
-        (⊙▂⊙)(⊙▂⊙)(⊙▂⊙)
+        eye shape:oval w:60 h:40 r:20 gap:40
         """, id: "giant", name: "Giant").manifest!
     }
 

@@ -1,8 +1,0 @@
-bench: mode=interaction duration=90s
-
-── bench summary (interaction, 90s) ──
-RSS peak            37.2 MB
-footprint peak      11.8 MB
-CPU (steady)        0.000 %
-idle wakeups/s      0.000 (dont 0.2/s de sonde)
-idle wakeups/s net  0.000

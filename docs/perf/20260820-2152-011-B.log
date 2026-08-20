@@ -1,8 +1,0 @@
-bench: mode=app duration=90s
-
-── bench summary (app, 90s) ──
-RSS peak            59.8 MB
-footprint peak      21.9 MB
-CPU (steady)        0.070 %
-idle wakeups/s      0.059 (dont 0.2/s de sonde)
-idle wakeups/s net  0.000

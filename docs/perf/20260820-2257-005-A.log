@@ -1,8 +1,0 @@
-bench: mode=pill duration=100s
-
-── bench summary (pill, 100s) ──
-RSS peak            41.2 MB
-footprint peak      11.1 MB
-CPU (steady)        0.000 %
-idle wakeups/s      0.000 (dont 0.2/s de sonde)
-idle wakeups/s net  0.000

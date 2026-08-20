@@ -172,13 +172,17 @@ struct BuiltInBuddyTests {
                 == BuiltInBuddy.text.trimmingCharacters(in: .whitespacesAndNewlines))
     }
 
-    @Test("every expression has a face and a screen that can hold it")
+    @Test("every expression has a face, and the screen can hold it")
     func allHaveFaces() throws {
         let m = BuiltInBuddy.manifest
         for name in BuddyExpression.allCases {
             let e = try #require(m.expressions[name.rawValue], "\(name)")
-            #expect(e.eye.pose.eye.width > 0)
-            #expect(e.eye.pose.mouth != nil, "\(name) has no mouth")
+            let eye = e.eye.pose.eye
+            #expect(eye.width > 0 && eye.height > 0, "\(name)")
+            // Both eyes plus the gap, at the widest the animation ever makes
+            // them, have to fit across the screen.
+            #expect(e.eye.pose.gap + eye.width * 2 * EyeSpec.nearer <= m.face.width, "\(name)")
+            #expect(eye.height * EyeSpec.nearer <= m.face.height, "\(name)")
         }
     }
 

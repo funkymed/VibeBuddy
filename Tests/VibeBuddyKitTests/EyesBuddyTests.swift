@@ -127,11 +127,17 @@ struct EyesFileTests {
         for name in BuddyExpression.allCases {
             #expect(manifest.expressions[name.rawValue]?.eye.pose.eye.width ?? 0 > 0, "\(name)")
         }
+        // The shapes each state settled on, after the ones that were tried and
+        // dropped: `ring` read as a hole rather than an eye, `wing` as a bird.
+        #expect(manifest.expressions["sleeping"]?.eye.pose.eye.shape == .arc)
+        #expect(manifest.expressions["idle"]?.eye.pose.eye.shape == .oval)
+        #expect(manifest.expressions["working"]?.eye.pose.eye.shape == .oval)
         #expect(manifest.expressions["finished"]?.eye.pose.eye.shape == .arc)
-        #expect(manifest.expressions["failed"]?.eye.pose.eye.shape == .wing)
-        #expect(manifest.expressions["working"]?.eye.pose.eye.shape == .ring)
+        #expect(manifest.expressions["failed"]?.eye.pose.eye.shape == .x)
+        // Only `failed` tears; the rest are working screens.
         for name in BuddyExpression.allCases {
-            #expect(manifest.expressions[name.rawValue]?.eye.pose.mouth != nil, "\(name)")
+            let glitch = manifest.expressions[name.rawValue]?.eye.glitch ?? 0
+            #expect((name == .failed) == (glitch > 0), "\(name)")
         }
     }
 
@@ -171,19 +177,43 @@ struct EyeBeatTests {
         }
     }
 
-    @Test("a beat holds still for its whole length, then snaps")
-    func beatsAreSteps() {
+    @Test("a beat crosses, then holds")
+    func beatsCrossThenHold() {
         let beat = Self.spec.beat
-        for index in 0..<40 {
+        for index in 1..<40 {
             let start = Double(index) * beat
-            let expected = EyeAnimation.at(phase: start + 0.001, spec: Self.spec).gaze
-            // Sampled after the blink window, where openness is settled and
-            // only the gaze is under test.
-            for offset in stride(from: 0.5, to: 0.99, by: 0.05) {
-                let sample = EyeAnimation.at(phase: start + beat * offset, spec: Self.spec)
-                #expect(sample.gaze == expected, "beat \(index) moved mid-beat")
+            // Sampled well past the crossing: from there to the end of the beat
+            // the eyes are somewhere and stay there. This is what makes the
+            // movement read as a saccade — a short trip, then stillness — and
+            // not as continuous drift.
+            let settled = EyeAnimation.at(phase: start + EyeSpec.saccade + 0.01, spec: Self.spec)
+            for offset in stride(from: EyeSpec.saccade + 0.01, to: beat * 0.98, by: 0.05) {
+                let sample = EyeAnimation.at(phase: start + offset, spec: Self.spec)
+                #expect(sample.gaze == settled.gaze, "beat \(index) moved after its crossing")
+                #expect(sample.depth == settled.depth, "beat \(index) drifted in depth")
             }
         }
+    }
+
+    @Test("the crossing is a trip, not a cut")
+    func crossingIsATrip() {
+        let beat = Self.spec.beat
+        var crossings = 0
+        for index in 1..<60 {
+            let start = Double(index) * beat
+            let before = EyeAnimation.at(phase: start - 0.01, spec: Self.spec)
+            let after = EyeAnimation.at(phase: start + EyeSpec.saccade + 0.01, spec: Self.spec)
+            guard before.gaze != after.gaze else { continue }
+            crossings += 1
+            // Halfway through, the eyes are neither where they were nor where
+            // they are going.
+            let middle = EyeAnimation.at(phase: start + EyeSpec.saccade / 2, spec: Self.spec)
+            #expect(middle.gaze != before.gaze, "beat \(index) had not left yet")
+            #expect(middle.gaze != after.gaze, "beat \(index) was already there")
+            // And it stretches into the move.
+            #expect(middle.smear.width > 1 || middle.smear.height > 1, "beat \(index) did not smear")
+        }
+        #expect(crossings > 5, "only \(crossings) crossings in 60 beats")
     }
 
     @Test("blink: 0 never shuts an eye")
