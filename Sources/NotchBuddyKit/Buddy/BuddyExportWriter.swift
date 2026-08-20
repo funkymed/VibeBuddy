@@ -19,7 +19,7 @@ public enum BuddyExportWriter {
     /// any diff useless.
     public static func text(for manifest: BuddyManifest, name: String? = nil) -> String {
         var lines: [String] = [
-            "# \(name ?? manifest.name) — exporté par notch-buddy",
+            "# \(name ?? manifest.name) — exporté par \(AppName.display)",
             "# Une image par ligne. « speed » donne le nombre d'images par seconde.",
             "# Sur l'en-tête d'une expression : taille d'abord, vitesse ensuite.",
             "",

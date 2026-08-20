@@ -65,7 +65,7 @@ final class SettingsWindow {
         )
         let hosting = NSHostingController(rootView: view)
         let window = NSWindow(contentViewController: hosting)
-        window.title = "notch-buddy"
+        window.title = AppName.display
         // Resizable now: a sidebar plus a buddy editor does not fit a fixed
         // 520x360, and the sections differ enough in height that a single size
         // would be wrong for most of them.

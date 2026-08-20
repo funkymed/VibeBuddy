@@ -1,9 +1,16 @@
-# Reprise — notch-buddy
+# Reprise — vibebuddy
 
 Point d'entrée après un effacement de contexte. À lire avant `CLAUDE.md`, qui
 donne les règles ; celui-ci donne l'**état** et les **pièges**.
 
 Dernière mise à jour : 2026-08-20 (soir).
+
+**Les identifiants internes ne suivent pas le nom produit, et c'est voulu.**
+Modules Swift `NotchBuddy` / `NotchBuddyKit`, cibles du `Package.swift`, clés
+`UserDefaults` en `notchbuddy.*`, sous-système de log `fr.funkylab.notchbuddy`.
+Les aligner sans migration perdrait les réglages. `SupportDirectory` montre à
+quoi ressemble une migration qui ne perd rien, y compris quand le dossier
+déplacé ne contient que des liens symboliques.
 
 ---
 
@@ -26,8 +33,8 @@ du confort :
 
 | | |
 |---|---|
-| Sources | 72 fichiers, 8 926 lignes |
-| Tests | 21 fichiers, **238 tests**, tous verts |
+| Sources | 76 fichiers, 9 561 lignes |
+| Tests | 23 fichiers, **260 tests**, tous verts |
 | Coût mesuré | **8,3 Mo** `phys_footprint` · **0,04 %** CPU · **0 réveil inactif** |
 | Fait | RFC-001 (socle), RFC-003 (sessions) |
 | En cours | 002 à 95 %, 005 à 95 %, 012 à 95 %, 004 à 90 %, 010 à 90 %, 008 à 75 % |
@@ -49,9 +56,9 @@ chaque ligne vivante ramène à son onglet de terminal.
 
 ```sh
 swift build -c release
-.build/release/NotchBuddy          # tourne jusqu'à Ctrl-C
-.build/release/NotchBuddy --info   # diagnostic complet, puis sort
-.build/release/NotchBuddy --bench <mode> <secondes>
+.build/release/VibeBuddy          # tourne jusqu'à Ctrl-C
+.build/release/VibeBuddy --info   # diagnostic complet, puis sort
+.build/release/VibeBuddy --bench <mode> <secondes>
 #   modes : shell · panel · pill · hidden · interaction · sessions · app
 ```
 
@@ -190,7 +197,7 @@ alerte. `awaiting` n'est donc plus une face morte — c'est ce qui la produit.
 
 ## Le format `.buddy`
 
-Fichiers dans `~/Library/Application Support/notch-buddy/buddies/`, **liés** vers
+Fichiers dans `~/Library/Application Support/vibebuddy/buddies/`, **liés** vers
 `assets/buddies/`. Rechargés à l'enregistrement, sans relance ni recompilation —
 recompiler ne sert à rien, ces fichiers vivent hors du binaire.
 

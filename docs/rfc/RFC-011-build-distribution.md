@@ -32,7 +32,7 @@ l'OS à la place de l'utilisateur : `xattr -dr com.apple.quarantine` en postflig
 
 **Décision prise pour ce projet : auto-signé à CN stable, sans compte Apple.** La
 contrepartie est assumée — friction Gatekeeper au premier lancement — et la
-conséquence la plus douloureuse est neutralisée en amont : **notch-buddy
+conséquence la plus douloureuse est neutralisée en amont : **vibebuddy
 n'utilise aucune API exigeant l'Accessibilité en v1** (ni raccourcis globaux, ni
 détection plein-écran par AX, cf. RFC-002). Sans permission à révoquer, la
 faiblesse de l'auto-signature ne coûte plus rien à l'usage.
@@ -81,7 +81,7 @@ faiblesse de l'auto-signature ne coûte plus rien à l'usage.
 - `build.sh:36` masque stderr du build universel (`2>/dev/null`), donc **une vraie
   erreur de compilation se déguise en repli mono-arch**. Corrigé : distinguer
   « Xcode absent » d'« échec de compilation ».
-- Deux cibles à empaqueter : `notch-buddy` et `notch-hook` (RFC-006), toutes deux
+- Deux cibles à empaqueter : `vibebuddy` et `vibe-hook` (RFC-006), toutes deux
   dans `Contents/MacOS/`, toutes deux signées.
 - Postflight `xattr -dr com.apple.quarantine` (`release.yml:119-129`) : conservé
   tant qu'on n'est pas notarisé, mais **documenté explicitement dans le README**.

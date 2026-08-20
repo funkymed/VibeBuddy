@@ -62,7 +62,7 @@ public enum HookDecision: Sendable, Equatable {
 public enum HookWire {
     /// Unix socket the app listens on.
     public static var socketPath: String {
-        (NSHomeDirectory() as NSString).appendingPathComponent(".notch-buddy/buddy.sock")
+        (NSHomeDirectory() as NSString).appendingPathComponent(".vibebuddy/buddy.sock")
     }
 
     /// Upper bound on how long the hook waits for a decision. Bounded so a

@@ -13,7 +13,7 @@
 
 ## 1. Context & Problem
 
-La valeur quotidienne principale de notch-buddy est de répondre sans ouvrir de
+La valeur quotidienne principale de vibebuddy est de répondre sans ouvrir de
 navigateur : « où en suis-je de ma limite 5 h ? ». Le chiffre exact existe —
 c'est celui de la page de facturation Claude — et il est accessible via
 `api.anthropic.com/api/oauth/usage` avec le jeton OAuth que Claude Code stocke

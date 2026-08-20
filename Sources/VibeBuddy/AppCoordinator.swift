@@ -42,6 +42,18 @@ final class AppCoordinator: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
+        // Before anything reads the support directory: the buddies in there are
+        // usually symbolic links into a working copy, and an app that silently
+        // stops seeing them has lost them as far as the user is concerned.
+        switch SupportDirectory.migrate() {
+        case .notNeeded: break
+        case let .moved(from):
+            PerfProbe.log.info("dossier de support déplacé depuis \(from, privacy: .public)")
+        case let .bothPresent(legacy):
+            PerfProbe.log.error("deux dossiers de support, l'ancien est ignoré : \(legacy, privacy: .public)")
+        case let .failed(reason):
+            PerfProbe.log.error("migration du dossier de support impossible : \(reason, privacy: .public)")
+        }
         geometry = NotchGeometry.resolve()
         observeSystemState()
 

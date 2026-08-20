@@ -72,7 +72,7 @@ seulement ici.
 ## 3. Proposed Solution
 
 Deux cibles exécutables dans le même `Package.swift` (décision D4) :
-`notch-buddy` (AppKit/SwiftUI) et **`notch-hook` (dépendances : `Foundation`,
+`vibebuddy` (AppKit/SwiftUI) et **`notch-hook` (dépendances : `Foundation`,
 `Darwin` — `import AppKit` interdit)**, avec un fichier `HookProtocol.swift`
 partagé par les deux.
 
@@ -148,7 +148,7 @@ horodatée est ce qui rend l'erreur réparable.
 | T6 | **Test golden-file** : fixture stdin → stdout attendu **octet à octet**, en CI (parade R6) | todo | 0 |
 | T7 | `ClaudeSettingsWriter` : sauvegarde, atomique, sans `.sortedKeys` (parade R1) | todo | 0 |
 | T8 | `HookInstaller` idempotent + nettoyage des entrées obsolètes | todo | 0 |
-| T9 | `notch-buddy --uninstall-hook` | todo | 0 |
+| T9 | `vibebuddy --uninstall-hook` | todo | 0 |
 | T10 | Mesure du temps de démarrage du hook, comparé à un binaire liant AppKit (valide D4) | todo | 0 |
 
 **Critère de sortie.** Le test golden-file passe. Tuer l'app pendant qu'une
@@ -216,4 +216,4 @@ voisin est peu coûteux — reste à savoir si Claude Code le respecterait.
 
 **Q4 — Le timeout de 120 s est-il le bon ?** C'est la valeur de la référence
 (`HookClient.swift:19`). Trop court, une vraie réflexion de l'utilisateur est
-interrompue ; trop long, un bug de notch-buddy paralyse Claude Code deux minutes.
+interrompue ; trop long, un bug de vibebuddy paralyse Claude Code deux minutes.

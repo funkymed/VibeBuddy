@@ -25,10 +25,9 @@ public struct BuddyLoader: Sendable {
     }
 
 
-    /// Where buddies live: one directory per buddy, discovered at launch.
+    /// Where buddies live, discovered at launch.
     public static var searchPath: String {
-        (NSHomeDirectory() as NSString)
-            .appendingPathComponent("Library/Application Support/notch-buddy/buddies")
+        (SupportDirectory.path as NSString).appendingPathComponent("buddies")
     }
 
     public struct Loaded: Sendable, Equatable {
@@ -106,7 +105,7 @@ public enum BuiltInBuddy {
     /// other — so the format is exercised by the default path on every launch.
     /// A format only third parties use is a format that breaks quietly.
     public static let text = """
-    # notch-buddy — buddy par défaut
+    # VibeBuddy — buddy par défaut
     # une image par ligne, une seconde par image
 
     sleeping (blue #00BBFF)

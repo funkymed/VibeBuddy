@@ -13,7 +13,7 @@
 
 ## 1. Context & Problem
 
-C'est la fonction différenciante de notch-buddy : quand Claude demande
+C'est la fonction différenciante de vibebuddy : quand Claude demande
 l'autorisation de lancer une commande, la notch se déploie, montre la demande
 sous forme lisible, et rend la décision — sans quitter l'éditeur.
 

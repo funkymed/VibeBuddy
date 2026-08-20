@@ -42,7 +42,7 @@ statistique de tokens (elle appartient à RFC-004, qui prend ses chiffres de l'A
 
 ## 3. Proposed Solution
 
-Stockage dans `~/Library/Application Support/notch-buddy/activity.sqlite` (ou un
+Stockage dans `~/Library/Application Support/vibebuddy/activity.sqlite` (ou un
 fichier binaire compact — cf. Q1).
 
 | Module | Responsabilité |

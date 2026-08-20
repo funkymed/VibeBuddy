@@ -1,4 +1,10 @@
-# notch-buddy
+# vibebuddy
+
+> Les identifiants internes (modules Swift `NotchBuddy` / `NotchBuddyKit`, cibles
+> du `Package.swift`, clés `UserDefaults` en `notchbuddy.*`) ne suivent pas le nom
+> produit. Ne pas les aligner sans écrire la migration d'abord : les clés portent
+> les réglages, et `SupportDirectory` montre à quoi ressemble une migration qui
+> ne perd rien.
 
 App macOS native qui transforme la notch du MacBook en tableau de bord de ses
 agents de code. Swift / SwiftPM, macOS 14+, **zéro dépendance externe**
@@ -77,17 +83,17 @@ par ses réveils.
 
 ## Origine
 
-`Notch-Pilot/` (gitignoré) est un repo MIT cloné en **lecture seule** comme
-référence. On ne le fork pas : réécriture inspirée, en réempruntant les briques
-bas niveau en créditant MIT. La carte de réemprunt `fichier:ligne` est dans
-[`docs/rfc/DECOUPAGE.md`](docs/rfc/DECOUPAGE.md).
+L'idée vient de **Notch-Pilot** (MIT). Réécriture, pas un fork : quelques
+briques bas niveau lui sont réempruntées en créditant MIT, chacune documentée
+dans la RFC qui la consomme — chaque fiche a sa section « Repris tel quel » avec
+le motif.
 
 ## Liste des RFC
 
 | RFC | Titre | Statut | % | Jalon | Charge |
 |---|---|---|---|---|---|
-| — | [Spike](docs/rfc/DECOUPAGE.md) keychain + oauth-usage — bloque RFC-004 | todo | 0 % | v1 | 0,5 j |
-| — | [Spike](docs/rfc/DECOUPAGE.md) contrat de hook — bloque RFC-007 **seulement** | todo | 0 % | v1 | 0,5 j |
+| — | [Spike](docs/spikes/) keychain + oauth-usage — bloque RFC-004 | todo | 0 % | v1 | 0,5 j |
+| — | [Spike](docs/spikes/) contrat de hook — bloque RFC-007 **seulement** | todo | 0 % | v1 | 0,5 j |
 | [001](docs/rfc/done/RFC-001-socle-applicatif.md) | Socle applicatif, cycle de vie, budget de performance | **done** | **100 %** | v1 | ✔ |
 | [002](docs/rfc/RFC-002-fenetre-notch.md) | Fenêtre notch : NSPanel, click-through, multi-écran | **in-progress** | **95 %** | v1 | 4-6 j |
 | [003](docs/rfc/done/RFC-003-collecte-sessions.md) | Collecte de sessions : source de vérité unique | **done** | **100 %** | v1 | ✔ |
@@ -165,14 +171,14 @@ RFC-004 reste une feuille du graphe, parallélisable à tout moment.
 
 ## Décisions structurantes
 
-Détail et alternatives dans [`docs/rfc/DECOUPAGE.md`](docs/rfc/DECOUPAGE.md) §5.
+Le détail et les alternatives vivent dans la RFC qui applique chaque décision.
 
 | # | Décision | Statut |
 |---|---|---|
 | D1 | `actor SessionStore` unique. Process = liveness, jsonl = contenu, hook = mode et PID. Clé primaire `sessionID`. | tranchée |
 | D2 | `@Observable` (Observation) plutôt que Combine. **Aucune vue ne dépasse 200 lignes.** | tranchée |
 | D3 | **Un seul `WakeCoordinator`.** Un `Timer` créé ailleurs est un échec de revue. | tranchée |
-| D4 | Deux cibles exécutables : `notch-buddy` et `notch-hook` (Foundation-only). Le hook ne lie jamais AppKit. | tranchée |
+| D4 | Deux cibles exécutables : `vibebuddy` et `vibe-hook` (Foundation-only). Le hook ne lie jamais AppKit. | tranchée |
 | D5 | **SwiftUI retenu**, pastille en `NSHostingView`. Budget mesuré en `phys_footprint`, pas en RSS. | tranchée 2026-08-19 |
 | D6 | Un `ClaudeSettingsWriter` unique, écriture atomique, sauvegarde préalable, sans `.sortedKeys`. | tranchée |
 | D7 | Pastille visible sans session : **off par défaut**, rendu statique 0 Hz si épinglée. | tranchée |
@@ -181,7 +187,7 @@ Détail et alternatives dans [`docs/rfc/DECOUPAGE.md`](docs/rfc/DECOUPAGE.md) §
 
 ## Risques ouverts
 
-Registre complet dans [`docs/rfc/DECOUPAGE.md`](docs/rfc/DECOUPAGE.md) §7.
+Chaque risque est traité dans la RFC en regard ; ce tableau est l'index.
 
 | # | Risque | RFC |
 |---|---|---|

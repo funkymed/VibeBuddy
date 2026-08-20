@@ -32,7 +32,7 @@ relancées à chaque `onChange(of: mode)`.
 (struct lignes 470→575), donc au seul style « Waves ». C'est d'ailleurs la
 **bonne** approche — une horloge explicite et pausable — avec la mauvaise cadence.
 
-**La seconde est produit.** notch-buddy doit pouvoir porter le buddy d'une
+**La seconde est produit.** vibebuddy doit pouvoir porter le buddy d'une
 entreprise — tigreboite pour commencer. Six `struct` Swift codées en dur ne
 permettent pas ça : chaque nouveau buddy serait une recompilation, une release,
 et une revue de code. **Le buddy doit être de la donnée**, pas du code.
@@ -205,7 +205,7 @@ tête est ronde.
 | Point | État |
 |---|---|
 | Expressions distinctes pour chaque état de RFC-012 | **PASS** — six visages, six mouvements |
-| **Déposer un manifeste et relancer suffit à changer de buddy** | **PASS** — tigreboite est chargé depuis `~/Library/Application Support/notch-buddy/buddies/`, rien n'est compilé |
+| **Déposer un manifeste et relancer suffit à changer de buddy** | **PASS** — tigreboite est chargé depuis `~/Library/Application Support/vibebuddy/buddies/`, rien n'est compilé |
 | Un manifeste corrompu retombe sur le buddy intégré sans planter | **PASS** — six modes de défaillance testés |
 | Pastille masquée → 0 réveil imputable au buddy | **PASS** — 0,000 réveil inactif/s |
 | Coût de l'app complète | **PASS** — 8,3 Mo, 0,042 % CPU |
@@ -225,7 +225,7 @@ format vectoriel, puis pixel. Leur trace reste en §4, parce que c'est en y
 répondant qu'on a découvert pourquoi ces formats ne tenaient pas.
 
 **Q3 — Où vivent les manifestes ?** *Tranchée* :
-`~/Library/Application Support/notch-buddy/buddies/<id>/manifest.json`, un
+`~/Library/Application Support/vibebuddy/buddies/<id>/manifest.json`, un
 dossier par buddy, découverts au lancement.
 
 **Q4 — Faut-il verrouiller un buddy par politique d'entreprise ?**

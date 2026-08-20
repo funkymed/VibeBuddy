@@ -183,6 +183,12 @@ enum Diagnostics {
         }
 
         print("\n── buddies ──")
+        switch SupportDirectory.migrate() {
+        case .notNeeded: break
+        case let .moved(from): print("  dossier déplacé depuis \(from)")
+        case let .bothPresent(legacy): print("  ⚠ ancien dossier encore présent : \(legacy)")
+        case let .failed(reason): print("  ⚠ migration impossible : \(reason)")
+        }
         // `3.0 img/s` reads as a measurement; `3` reads as what was written.
         func rate(_ value: Double) -> String {
             value == value.rounded() ? String(Int(value)) : String(value)

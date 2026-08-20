@@ -1,4 +1,4 @@
-# default — jeu ASCII sobre pour notch-buddy
+# default — jeu ASCII sobre pour vibebuddy
 #
 # Une image par ligne. « speed » donne le nombre d'images par seconde (1 par défaut).
 # Sur l'en-tête d'une expression : taille d'abord, vitesse ensuite — « idle (…) 15 2 ».

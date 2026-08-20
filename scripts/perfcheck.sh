@@ -23,7 +23,7 @@ cd "$(dirname "$0")/.."
 SCENARIO="${1:-A}"
 SECONDS_TOTAL="${2:-600}"
 RFC="${3:-001}"
-BIN=".build/release/NotchBuddy"
+BIN=".build/release/VibeBuddy"
 OUT="docs/perf/$(date +%Y%m%d-%H%M)-${RFC}-${SCENARIO}.csv"
 
 # Budget. Gated on phys_footprint, not RSS: RSS counts framework pages shared

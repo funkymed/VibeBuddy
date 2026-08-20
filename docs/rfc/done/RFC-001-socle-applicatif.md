@@ -8,12 +8,12 @@
 | **Updated** | 2026-08-19 |
 | **Phase** | 1 — Fondations |
 | **Depends on** | — |
-| **Related** | [DECOUPAGE.md](DECOUPAGE.md) · D2, D3, D5 |
+| **Related** | D2, D3, D5 |
 | **Blocks** | RFC-002 → RFC-011 (toutes) |
 
 ## 1. Context & Problem
 
-notch-buddy est une app macOS native qui affiche l'activité de Claude Code dans
+vibebuddy est une app macOS native qui affiche l'activité de Claude Code dans
 la notch du MacBook. Sa contrainte directrice est la légèreté : elle est visible
 en permanence, donc tout réveil inutile se paie en autonomie.
 
@@ -53,7 +53,7 @@ n'empêche d'en ajouter une huitième.
 
 ## 3. Proposed Solution
 
-Deux cibles exécutables dans un `Package.swift` unique (`notch-buddy` et
+Deux cibles exécutables dans un `Package.swift` unique (`vibebuddy` et
 `notch-hook`, cf. RFC-006 et décision D4), plus un module de code partagé.
 
 | Module | Responsabilité |
@@ -153,7 +153,7 @@ n'est pas retenue — deux paradigmes de rendu à maintenir pour rien.
 
 **Conséquence : le budget se mesure désormais en `phys_footprint`, plus en RSS.**
 Le RSS compte les pages de frameworks partagées avec tous les autres processus de
-la machine ; les facturer à notch-buddy revient à lui imputer AppKit autant de
+la machine ; les facturer à vibebuddy revient à lui imputer AppKit autant de
 fois qu'il y a d'apps qui l'utilisent. `phys_footprint` est ce que macOS impute
 réellement. La marge réelle passe de 1,8 Mo (intenable) à 29,4 Mo.
 

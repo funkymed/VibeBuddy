@@ -87,7 +87,7 @@ struct PanelContentView: View {
     /// thing anyone needs when one behaves oddly.
     private var identityLine: some View {
         HStack(spacing: 7) {
-            Text("notch-buddy")
+            Text(AppName.display)
                 .font(.system(size: 14, weight: .semibold))
                 .foregroundStyle(.white.opacity(0.9))
             Text(AppVersion.short)

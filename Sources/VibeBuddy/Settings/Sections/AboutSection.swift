@@ -15,7 +15,7 @@ struct AboutSection: View {
     var body: some View {
         SettingsPage {
             VStack(alignment: .leading, spacing: 6) {
-                Text("notch-buddy").font(.system(size: 20, weight: .semibold))
+                Text(AppName.display).font(.system(size: 20, weight: .semibold))
                 Text(AppVersion.short)
                     .font(.system(size: 12, design: .monospaced))
                     .foregroundStyle(.secondary)

@@ -109,10 +109,3 @@ struct PanelHeader: View {
         .help(l10n.quit)
     }
 }
-
-enum AppVersion {
-    static var short: String {
-        let info = Bundle.main.infoDictionary
-        return "v" + ((info?["CFBundleShortVersionString"] as? String) ?? "0.1.0")
-    }
-}

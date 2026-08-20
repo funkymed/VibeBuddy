@@ -22,9 +22,9 @@ let package = Package(
         ),
 
         .executableTarget(
-            name: "NotchBuddy",
+            name: "VibeBuddy",
             dependencies: ["NotchBuddyKit", "NotchHookProtocol"],
-            path: "Sources/NotchBuddy"
+            path: "Sources/VibeBuddy"
         ),
 
         // Stub until RFC-006. Kept here so the two-target layout — and the
