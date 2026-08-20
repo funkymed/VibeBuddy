@@ -37,6 +37,8 @@ struct NotchShellView: View {
     var locale: Locale = .current
     var onSettings: () -> Void = {}
     var onQuit: () -> Void = {}
+    var onJump: (pid_t) -> Void = { _ in }
+    var jumpNote: String?
 
     /// Slot geometry, measured from what the ears actually contain.
     private var layout: PillLayout? {
@@ -75,7 +77,8 @@ struct NotchShellView: View {
             PanelContentView(
                 sessions: sessions, buddy: buddy, expression: expression,
                 budget: budget, usage: usage, l10n: l10n, locale: locale,
-                onSettings: onSettings, onQuit: onQuit
+                onSettings: onSettings, onQuit: onQuit,
+                onJump: onJump, jumpNote: jumpNote
             )
             // An explicit fade, short and on its own terms. The default
             // insertion transition fired at the start of the growth, which is
@@ -126,7 +129,30 @@ struct NotchShellView: View {
     /// Text an alert puts in the right ear, if one is up.
     private var alertText: String? {
         guard let alert, state == .speech else { return nil }
-        return "\(alert.projectName) \(alert.kind == .failed ? l10n.alertFailed : l10n.alertFinished)"
+        return "\(alert.projectName) \(Self.label(for: alert.kind, l10n: l10n))"
+    }
+
+    /// One word for what happened, per kind.
+    ///
+    /// Written once rather than as a ternary at each use site: there are three
+    /// kinds now, and a ternary only ever knew two — a question would have been
+    /// announced as "terminé", which is the opposite of what it means.
+    static func label(for kind: SessionAlert.Kind, l10n: Strings) -> String {
+        switch kind {
+        case .failed: return l10n.alertFailed
+        case .finished: return l10n.alertFinished
+        case .needsAttention: return l10n.alertWaiting
+        }
+    }
+
+    /// The colour of the dot in the ear. Blue for a question, and blue is used
+    /// for nothing else in the pill.
+    static func dot(for kind: SessionAlert.Kind) -> Color {
+        switch kind {
+        case .failed: return .red
+        case .finished: return .green
+        case .needsAttention: return .blue
+        }
     }
 
     /// The right ear: an alert while one is showing, the session count otherwise.
@@ -135,7 +161,7 @@ struct NotchShellView: View {
         if let alert, let alertText {
             HStack(spacing: 5) {
                 Circle()
-                    .fill(alert.kind == .failed ? Color.red : Color.green)
+                    .fill(Self.dot(for: alert.kind))
                     .frame(width: 5, height: 5)
                 Text(alertText)
                     .font(.system(size: 11, weight: .semibold, design: .monospaced))

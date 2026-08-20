@@ -10,6 +10,16 @@ import NotchBuddyKit
 struct SessionRow: View, Equatable {
     let group: SessionGroup
     let l10n: Strings
+    /// Called with the pid to jump to. Absent for a row with nothing to jump
+    /// to, which is what makes a dead session read as dead rather than as
+    /// broken: no pointer, no highlight, no click.
+    var onJump: ((pid_t) -> Void)?
+
+    @State private var hovering = false
+
+    /// Only a live session has a process to go back to. A finished one is
+    /// history, and its terminal has moved on.
+    private var jumpPID: pid_t? { session.isLive ? session.pid : nil }
 
     private var session: AgentSession { group.primary }
 
@@ -30,6 +40,9 @@ struct SessionRow: View, Equatable {
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundStyle(.white.opacity(session.isLive ? 1 : 0.45))
                         .lineLimit(1)
+                    // Before the effort badge: this is the one thing on the row
+                    // that asks something of the reader.
+                    if session.awaitingAnswer { waitingBadge }
                     if !session.effort.isEmpty { effortBadge }
                     // Only when there is history to hint at. A `×1` on every
                     // row would be noise standing in for information.
@@ -59,7 +72,15 @@ struct SessionRow: View, Equatable {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 9)
-        .background(RoundedRectangle(cornerRadius: 9).fill(.white.opacity(0.05)))
+        .background(RoundedRectangle(cornerRadius: 9)
+            .fill(.white.opacity(hovering && jumpPID != nil ? 0.10 : 0.05)))
+        // The whole row, not a button inside it: the target is the line the eye
+        // already treats as one object, and a small affordance in a 20 pt row
+        // would be a smaller target than the row it sits in.
+        .contentShape(RoundedRectangle(cornerRadius: 9))
+        .onHover { hovering = $0 }
+        .onTapGesture { if let pid = jumpPID { onJump?(pid) } }
+        .help(jumpPID != nil ? l10n.jumpHint : "")
     }
 
     /// Colour carries the state before the text does.
@@ -71,10 +92,25 @@ struct SessionRow: View, Equatable {
 
     private var dotColour: Color {
         guard session.isLive else { return .white.opacity(0.2) }
+        // A question outranks everything, including an error underneath it: the
+        // agent is stopped, and that is the only state where nothing moves
+        // until the user acts.
+        if session.awaitingAnswer { return .blue }
         if session.lastResultWasError { return .red }
         if session.action != .none { return .green }
         if session.turnEnded { return .orange }
         return .white.opacity(0.35)
+    }
+
+    /// Says what is being waited on. Blue is used nowhere else on a row.
+    private var waitingBadge: some View {
+        Text(l10n.waitingBadge)
+            .font(.system(size: 10, weight: .semibold))
+            .foregroundStyle(.blue)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(Capsule().fill(.blue.opacity(0.18)))
+            .help(session.question ?? l10n.alertWaiting)
     }
 
     /// Model, uptime, and what the agent is pointed at — the subject is what
@@ -82,9 +118,13 @@ struct SessionRow: View, Equatable {
     private var subtitle: String {
         var parts: [String] = []
         if !session.model.isEmpty { parts.append(shortModel) }
-        _ = 0
         parts.append(l10n.since(Self.duration(since: session.startedAt)))
-        if !session.status.isEmpty {
+        // The question replaces the tool line rather than joining it. A row
+        // reading "planification · ExitPlanMode · <question>" buries the only
+        // part that needs an answer.
+        if session.awaitingAnswer {
+            parts.append(session.question ?? l10n.alertWaiting)
+        } else if !session.status.isEmpty {
             parts.append(session.status + (session.subject.map { " · \($0)" } ?? ""))
         }
         return parts.joined(separator: " · ")

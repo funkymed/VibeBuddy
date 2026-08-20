@@ -35,6 +35,9 @@ final class NotchPanel: NSPanel {
     /// What the panel's power button does. Set by the coordinator.
     var onQuit: () -> Void = { NSApp.terminate(nil) }
     var onSettings: () -> Void = {}
+    /// Clicking a live session row. The pid is the agent's, not the terminal's.
+    var onJump: (pid_t) -> Void = { _ in }
+    private var jumpNote: String?
 
     /// Suppresses hover while another surface of ours owns the screen.
     ///
@@ -160,7 +163,7 @@ final class NotchPanel: NSPanel {
     var pillSize: CGSize {
         guard let geometry else { return CGSize(width: 300, height: 32) }
         let alertText = (state == .speech ? currentAlert : nil).map {
-            "\($0.projectName) \($0.kind == .failed ? l10n.alertFailed : l10n.alertFinished)"
+            "\($0.projectName) \(NotchShellView.label(for: $0.kind, l10n: l10n))"
         }
         let layout = PillLayout.resolve(
             geometry: geometry, buddy: buddy,
@@ -282,7 +285,8 @@ final class NotchPanel: NSPanel {
                            sessionCount: sessionCount, sessions: sessions,
                            showPanelContent: contentRevealed, usage: usage,
                            l10n: l10n, locale: locale,
-                           onSettings: onSettings, onQuit: onQuit)
+                           onSettings: onSettings, onQuit: onQuit,
+                           onJump: onJump, jumpNote: jumpNote)
         )
     }
 
@@ -306,6 +310,16 @@ final class NotchPanel: NSPanel {
     }
 
     /// Latest usage reading. Only redraws while the panel is open.
+    /// Say how the last jump went, or clear the message.
+    ///
+    /// Only redrawn while the panel is open — a note nobody can see is a
+    /// wakeup spent on nothing.
+    func setJumpNote(_ note: String?) {
+        guard note != jumpNote else { return }
+        jumpNote = note
+        if state == .panel { rebuildContent() }
+    }
+
     func setUsage(_ status: UsageState.Status) {
         guard status != usage else { return }
         usage = status

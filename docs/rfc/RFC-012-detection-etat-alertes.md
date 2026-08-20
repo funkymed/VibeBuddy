@@ -2,10 +2,10 @@
 
 | | |
 |---|---|
-| **Status** | in-progress (90 %) — chemin complet vérifié en réel, surface complétée |
+| **Status** | in-progress (95 %) — chemin complet vérifié en réel ; **l'attente de réponse est détectée** |
 | **Author** | Cyril Pereira |
 | **Created** | 2026-08-19 |
-| **Updated** | 2026-08-19 |
+| **Updated** | 2026-08-20 |
 | **Phase** | 4 — Intégration |
 | **Depends on** | RFC-003 · ~~RFC-006~~ — voir §3 |
 | **Related** | RFC-005 (expression du buddy) · RFC-010 (préférences) · R11 |
@@ -159,6 +159,37 @@ site d'appel. Le bus coûte ~40 lignes maintenant.
 | T9 | Compteur de sessions vivantes dans la pastille | **done** | **100** |
 | T7 | Suivi simultané de N sessions, chacune son état | **done** | **100** |
 | T8 | `perfcheck.sh` B — vérifier que rien n'ajoute de réveil | **done** | **100** |
+| T10 | **Attente de réponse** : `tool_use` de question sans `tool_result` → `.awaiting` + `needsAttention` | **done** | **100** |
+
+### T10 — le cinquième signal, encore dans le transcript
+
+L'objectif n°1 nomme deux choses : « a terminé » **et** « attend une réponse ».
+Seule la première était détectée ; la seconde était rangée derrière RFC-006 avec
+les permissions.
+
+Elle n'en avait pas besoin. Mesuré sur un vrai transcript : `AskUserQuestion`
+apparaît comme un `tool_use` avec un `id`, et la réponse revient en `tool_result`
+portant le même `tool_use_id`. Entre les deux, **rien n'est écrit** — et c'est
+exactement la fenêtre à détecter. `ExitPlanMode` a la même forme : l'agent
+s'arrête jusqu'à l'approbation du plan.
+
+La liste des outils-questions est **fermée** (`QuestionTools.names`). Dans le
+fichier, un `Bash` qui tourne encore et une question sans réponse sont
+indiscernables — tous deux « un usage sans résultat ». Seuls des outils qui
+*sont* des questions par définition peuvent être lus comme une attente ; déduire
+d'un délai transformerait chaque commande lente en fausse alerte.
+
+Ce qui reste derrière RFC-006 : la demande de **permission** en cours. Elle est
+résolue interactivement et n'est écrite qu'une fois terminée — rien dans le
+fichier ne dit qu'elle a lieu pendant qu'elle a lieu.
+
+Vérification sur le transcript de la session qui a écrit ce code, tronqué juste
+après la question puis juste après la réponse :
+
+```
+PROBE pending.jsonl  awaiting= true  question= Quel système de rendu unique garder pour le buddy ?
+PROBE answered.jsonl awaiting= false question= —
+```
 
 **Critère de sortie — atteint le 2026-08-19, sauf l'alerte d'attente.**
 

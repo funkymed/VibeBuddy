@@ -30,6 +30,15 @@ public struct Strings: Sendable {
     public let since: @Sendable (String) -> String
     public let sessionHistory: @Sendable (Int) -> String
     public let contextTooltip: @Sendable (Int, Int) -> String
+    /// Tooltip on a live row, saying what a click does.
+    public let jumpHint: String
+    /// Shown when the click found the terminal but not the tab — under tmux, or
+    /// on an emulator with no scripting dictionary.
+    public let jumpNoTab: String
+    /// Shown when no terminal could be found at all.
+    public let jumpNoTerminal: String
+    /// Shown when the scripting call itself failed, permission included.
+    public let jumpFailed: @Sendable (String) -> String
 
     // Usage
     public let usageTitle: String
@@ -50,6 +59,10 @@ public struct Strings: Sendable {
     // Alerts
     public let alertFinished: String
     public let alertFailed: String
+    /// Right ear of the pill when the agent is waiting on an answer.
+    public let alertWaiting: String
+    /// Badge on the row of a session that asked something.
+    public let waitingBadge: String
 
     public static let french = Strings(
         noSessions: "aucune session",
@@ -64,6 +77,10 @@ public struct Strings: Sendable {
         since: { "depuis \($0)" },
         sessionHistory: { "\($0) sessions dans ce dossier" },
         contextTooltip: { "\($0) / \($1) jetons" },
+        jumpHint: "Cliquer pour revenir à ce terminal",
+        jumpNoTab: "Terminal activé — onglet introuvable (tmux ?)",
+        jumpNoTerminal: "Aucun terminal trouvé pour cette session",
+        jumpFailed: { "Saut impossible : \($0)" },
         usageTitle: "CONSOMMATION",
         usageSession: "session",
         usageWeek: "semaine",
@@ -77,7 +94,9 @@ public struct Strings: Sendable {
         settings: "Réglages",
         settingsOpenFolder: "Ouvrir le dossier",
         alertFinished: "terminé",
-        alertFailed: "erreur"
+        alertFailed: "erreur",
+        alertWaiting: "attend une réponse",
+        waitingBadge: "question"
     )
 
     public static let english = Strings(
@@ -93,6 +112,10 @@ public struct Strings: Sendable {
         since: { "up \($0)" },
         sessionHistory: { "\($0) sessions in this folder" },
         contextTooltip: { "\($0) / \($1) tokens" },
+        jumpHint: "Click to go back to this terminal",
+        jumpNoTab: "Terminal activated — tab not found (tmux?)",
+        jumpNoTerminal: "No terminal found for this session",
+        jumpFailed: { "Jump failed: \($0)" },
         usageTitle: "USAGE",
         usageSession: "session",
         usageWeek: "week",
@@ -106,7 +129,9 @@ public struct Strings: Sendable {
         settings: "Settings",
         settingsOpenFolder: "Open folder",
         alertFinished: "done",
-        alertFailed: "error"
+        alertFailed: "error",
+        alertWaiting: "needs an answer",
+        waitingBadge: "question"
     )
 
     public static func `for`(_ language: AppLanguage) -> Strings {

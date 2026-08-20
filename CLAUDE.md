@@ -95,13 +95,13 @@ bas niveau en créditant MIT. La carte de réemprunt `fichier:ligne` est dans
 | [005](docs/rfc/RFC-005-rendu-buddy.md) | Buddy : format `.buddy` animé et rendu | **in-progress** | **95 %** | v1 | 0,5 j |
 | [006](docs/rfc/RFC-006-pont-hook.md) | Pont hook Claude Code : binaire dédié + socket Unix | **blocked** | **0 %** | v1 | 3-5 j |
 | [007](docs/rfc/RFC-007-interception-permissions.md) | Interception des permissions : file, rendu, décisions | todo | 0 % | v1 | 5-7 j |
-| [008](docs/rfc/RFC-008-vue-sessions.md) | Vue sessions et saut vers le terminal hôte | **in-progress** | **60 %** | v1.1 | 2-3 j |
+| [008](docs/rfc/RFC-008-vue-sessions.md) | Vue sessions et saut vers le terminal hôte | **in-progress** | **75 %** | v1.1 | 1-2 j |
 | [009](docs/rfc/RFC-009-index-activite.md) | Index d'activité persistant (heatmap et historique) | todo | 0 % | v1.2 | 3-4 j |
-| [010](docs/rfc/RFC-010-preferences-apparence.md) | Préférences (fenêtre native), i18n et apparence | **in-progress** | **35 %** | v1 | 2-3 j |
+| [010](docs/rfc/RFC-010-preferences-apparence.md) | Préférences, réglages segmentés et **éditeur de buddy** | **in-progress** | **25 %** | v1 | 4-6 j |
 | [011](docs/rfc/RFC-011-build-distribution.md) | Build, empaquetage, signature, distribution | todo | 0 % | v1 | 2-4 j |
-| [012](docs/rfc/RFC-012-detection-etat-alertes.md) | **Détection d'état et alertes** — depuis le transcript, sans hook | **in-progress** | **90 %** | v1 | 0,5 j |
+| [012](docs/rfc/RFC-012-detection-etat-alertes.md) | **Détection d'état et alertes** — depuis le transcript, sans hook | **in-progress** | **95 %** | v1 | 0,5 j |
 
-**Reste pour le v1 : 11-19 j-h** (001 et 003 faites ; 002, 004, 005 et 012 à 90-95 % ;
+**Reste pour le v1 : 13-22 j-h** (001 et 003 faites ; 002, 004, 005 et 012 à 90-95 % ;
 spike keychain fait) · plan complet restant : 19-30 j-h. Dev solo en parallèle d'autres projets →
 tabler sur un facteur calendaire ×2 à ×3.
 
@@ -114,16 +114,16 @@ Ordre = ordre de réalisation, pas ordre de numérotation.
 ── EN COURS ──
 #   RFC      Titre                                          Avancement            %    Reste   Jalon
 1   RFC-002  Fenêtre notch (NSPanel, click-through)          ███████████████████░  95 %   0,5 j  v1
-2   RFC-012  Détection d'état et alertes  ← objectif n°1     ██████████████████░░  90 %   0,5 j  v1
+2   RFC-012  Détection d'état et alertes  ← objectif n°1     ███████████████████░  95 %   0,5 j  v1
 3   RFC-005  Buddy : format .buddy animé et rendu            ███████████████████░  95 %   0,5 j  v1
 4   —        Spike keychain + oauth-usage                    ████████████████████ 100 %   ✔     v1
 5   RFC-004  Utilisation live (Keychain + OAuth)             ██████████████████░░  90 %   0,5 j  v1
 6   —        Spike contrat de hook                           ████████████░░░░░░░░  60 %   ⚠      v1
 7   RFC-006  Pont hook + socket Unix          ⚠ BLOQUÉE      ░░░░░░░░░░░░░░░░░░░░   0 %   3-5 j  v1
 8   RFC-007  Interception des permissions      ⚠ BLOQUÉE      ░░░░░░░░░░░░░░░░░░░░   0 %   5-7 j  v1
-9   RFC-010  Préférences (fenêtre native) + i18n             ███████░░░░░░░░░░░░░  35 %   2-3 j  v1
+9   RFC-010  Réglages segmentés + éditeur de buddy           █████░░░░░░░░░░░░░░░  25 %   4-6 j  v1
 10  RFC-011  Build, signature, distribution                  ░░░░░░░░░░░░░░░░░░░░   0 %   2-4 j  v1
-11  RFC-008  Vue sessions + saut terminal/tmux               ████████████░░░░░░░░  60 %   2-3 j  v1.1
+11  RFC-008  Vue sessions + saut terminal/tmux               ███████████████░░░░░  75 %   1-2 j  v1.1
 12  RFC-009  Index d'activité (heatmap + historique)         ░░░░░░░░░░░░░░░░░░░░   0 %   3-4 j  v1.2
 
 ── DONE ──

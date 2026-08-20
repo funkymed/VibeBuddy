@@ -55,6 +55,7 @@ final class AppCoordinator: NSObject, NSApplicationDelegate {
         }
         self.settings = settings
         panel.onSettings = { settings.show() }
+        panel.onJump = { [weak self] pid in self?.jump(to: pid) }
 
         panel.setLanguage(l10n.strings, locale: l10n.locale)
         PerfProbe.log.info("langue : \(self.l10n.effective.rawValue, privacy: .public)")
@@ -219,6 +220,34 @@ final class AppCoordinator: NSObject, NSApplicationDelegate {
     ///
     /// Swapping is just a redraw: the renderer holds no state, so there is
     /// nothing to tear down between manifests.
+    /// Bring the terminal running `pid` to the front, on the right tab.
+    ///
+    /// Off the main actor because an Apple Event is a round trip to another
+    /// process: on the main thread it would freeze the panel for as long as
+    /// iTerm2 takes to answer, and the panel is under the cursor at that exact
+    /// moment. `TerminalJumper` is a pure function of the pid, so nothing here
+    /// needs isolation.
+    ///
+    /// The message clears itself. A note that stayed would still be on screen
+    /// the next time the panel opened, describing something that happened
+    /// minutes ago.
+    private func jump(to pid: pid_t) {
+        let strings = l10n.strings
+        Task.detached(priority: .userInitiated) {
+            let outcome = TerminalJumper.jump(agentPID: pid)
+            let note: String? = switch outcome {
+            case .selectedTab: nil
+            case .activatedApp: strings.jumpNoTab
+            case .noTerminal: strings.jumpNoTerminal
+            case let .failed(message): strings.jumpFailed(message)
+            }
+            await MainActor.run { self.panel?.setJumpNote(note) }
+            guard note != nil else { return }
+            try? await Task.sleep(for: .seconds(6))
+            await MainActor.run { self.panel?.setJumpNote(nil) }
+        }
+    }
+
     private func loadBuddy(_ id: String?) {
         var loader = BuddyLoader()
         let loaded = loader.load(id: id)

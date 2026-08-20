@@ -23,6 +23,13 @@ struct PanelHeader: View {
     /// that enumerates is a header nobody reads.
     private var summary: String {
         if live.isEmpty { return l10n.noSessions }
+        let asking = live.filter(\.awaitingAnswer)
+        // Said first and on its own: a finished turn waits for free, an
+        // unanswered question does not.
+        if !asking.isEmpty {
+            let names = asking.prefix(2).map(\.projectName).joined(separator: ", ")
+            return names + " — " + l10n.alertWaiting
+        }
         let working = live.filter { $0.action != .none }.count
         let waiting = live.filter(\.turnEnded).count
         var parts: [String] = []

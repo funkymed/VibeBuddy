@@ -242,6 +242,7 @@ public enum BuddyExpression: String, Sendable, Equatable, CaseIterable {
         case .working:  return .working
         case .finished: return .finished
         case .failed:   return .failed
+        case .awaiting: return .awaiting
         case .idle:     return .idle
         }
     }

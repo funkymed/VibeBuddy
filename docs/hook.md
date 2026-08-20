@@ -26,13 +26,13 @@ du confort :
 
 | | |
 |---|---|
-| Sources | 52 fichiers, 6 546 lignes |
-| Tests | 16 fichiers, **190 tests**, tous verts |
+| Sources | 54 fichiers, 7 100 lignes |
+| Tests | 19 fichiers, **214 tests**, tous verts |
 | Coût mesuré | **8,3 Mo** `phys_footprint` · **0,04 %** CPU · **0 réveil inactif** |
 | Fait | RFC-001 (socle), RFC-003 (sessions) |
-| En cours | 002 à 95 %, 005 à 95 %, 012 à 90 %, 004 à 90 %, 008 à 60 %, 010 à 35 % |
+| En cours | 002 à 95 %, 005 à 95 %, 012 à 95 %, 004 à 90 %, 008 à 75 %, 010 à 25 % |
 | **Bloqué** | **RFC-006 et RFC-007** — voir « le spike qui n'a pas tranché » |
-| Reste v1 | 11-19 j-h |
+| Reste v1 | 13-22 j-h |
 
 Le Gantt fait foi et vit dans `CLAUDE.md`. **Il a dérivé trois fois** au cours du
 développement : du code livré, des fiches à 0 %. Vérifier le code avant de croire
@@ -43,8 +43,9 @@ un pourcentage.
 ## Ce qui marche déjà
 
 L'app détecte les sessions en **0,13 s**, affiche leur état dans l'encoche,
-alerte à la fin d'un tour, montre la consommation réelle, et déploie un panneau
-listant les projets groupés.
+alerte à la fin d'un tour **et quand l'agent attend une réponse**, montre la
+consommation réelle, et déploie un panneau listant les projets groupés — dont
+chaque ligne vivante ramène à son onglet de terminal.
 
 ```sh
 swift build -c release
@@ -141,11 +142,31 @@ l'app n'affiche jamais, ni pixelisé ni éclairé. Tout passe désormais par
 même rendu, aucune horloge. Ne pas réintroduire un second dessin « juste pour
 l'aperçu ».
 
-**`awaiting` est une face morte.** Les trois buddies la définissent, et
-`BuddyExpression.from` ne la produit jamais : `SessionActivity` n'a que quatre
-états (`idle`, `working`, `finished`, `failed`). Soit un cinquième état arrive
-côté RFC-012, soit la vue décide seule qu'un `finished` qui dure devient une
-attente. Non tranché.
+**La fenêtre de contexte n'est pas dans le transcript.** Chaque entrée assistant
+dit `"model":"claude-opus-5"` et rien d'autre ; le `[1m]` qui choisit la fenêtre
+d'un million vit dans `~/.claude/settings.json` (`"model": "opus[1m]"`). Déduire
+la fenêtre des jetons donnait 71 % là où Claude Code affichait 14 % — même
+nombre de jetons, dénominateur cinq fois trop petit. `ContextWindowResolver` lit
+les réglages (utilisateur, projet, local, plus `env.ANTHROPIC_MODEL`) ; le seuil
+des 200k reste en filet, pour ce que les réglages ne voient pas (`/model` tapé en
+cours de session).
+
+**Le saut vers l'onglet s'apparie sur le tty, jamais sur un titre.**
+`ProcessLookup.tty(of:)` (`sysctl` → `e_tdev` → `devname`) donne `/dev/ttys004` ;
+iTerm2 et Terminal publient `tty` en lecture sur leur `session` / `tab`. C'est
+une égalité, pas une heuristique — les titres sont écrits par le shell et deux
+agents du même projet partagent leur `cwd`. Sous tmux le tty est celui du volet,
+donc aucune session de l'émulateur ne le porte : le repli active l'app **sans**
+choisir d'onglet, plutôt que d'en choisir un faux.
+
+**L'attente de réponse est dans le transcript, elle aussi.** `AskUserQuestion`
+et `ExitPlanMode` s'écrivent en `tool_use` avec un `id` ; la réponse revient en
+`tool_result` portant le même `tool_use_id`. Un usage sans résultat derrière lui
+est un agent à l'arrêt — cinquième signal que les fiches croyaient réservé au
+hook. La liste des outils-questions est **fermée** (`QuestionTools.names`) :
+dans le fichier, un `Bash` qui tourne et une question sans réponse sont
+indiscernables, et déduire d'un délai ferait de chaque commande lente une fausse
+alerte. `awaiting` n'est donc plus une face morte — c'est ce qui la produit.
 
 ---
 
@@ -199,8 +220,11 @@ revenir** sans lire RFC-005 §4, qui dit pourquoi avec les mesures.
 
 1. **Faire trancher le spike hook** — une minute d'interaction humaine, débloque
    ou annule 8-12 j-h.
-2. **RFC-010** (35 %) — le reste des préférences : démarrage au login,
-   activation des alertes par événement, voix.
+2. **RFC-010** (25 %) — **périmètre élargi le 2026-08-20** : fenêtre de réglages
+   segmentée (barre latérale, sept sections) et **éditeur complet des expressions
+   du buddy**, en plus du reste des préférences. L'éditeur écrit un calque dans
+   `UserDefaults`, pas dans le `.buddy` — arbitrage assumé, avec une exportation
+   explicite comme contrepoids. Fiche écrite, **pas encore validée, aucun code**.
 3. **RFC-011** — empaquetage. L'app n'est pas installable aujourd'hui.
 4. Vérifications terrain en attente : écran externe (RFC-002), trois sessions
    simultanées (RFC-012), scénario C curseur en mouvement (RFC-005).

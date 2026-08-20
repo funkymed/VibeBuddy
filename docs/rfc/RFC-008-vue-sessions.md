@@ -2,10 +2,10 @@
 
 | | |
 |---|---|
-| **Status** | in-progress (60 %) — liste, groupement et scroll livrés ; saut terminal non écrit |
+| **Status** | in-progress (75 %) — liste, groupement, scroll et **saut hors tmux** livrés ; tmux et détail à écrire |
 | **Author** | Cyril Pereira |
 | **Created** | 2026-08-19 |
-| **Updated** | 2026-08-19 |
+| **Updated** | 2026-08-20 |
 | **Phase** | 5 — Confort · la liste est arrivée avec le panneau de RFC-002 |
 | **Depends on** | RFC-002, RFC-003 |
 | **Related** | RFC-006 (mapping PID) · R8 |
@@ -90,9 +90,18 @@ détail : un tail 256 Ko + parse, **une fois par ouverture**, en tâche détach�
 
 **`lsof` pour l'appariement.** Écarté : contredit par le dépôt lui-même.
 
-**AppleScript pour activer le terminal.** Écarté : demande l'autorisation
-d'automatisation, et ne résout pas le problème du volet tmux.
-`NSRunningApplication.activate()` suffit une fois le volet sélectionné.
+**AppleScript pour activer le terminal.** ~~Écarté~~ — **repris le 2026-08-20**,
+et l'argument d'origine était à moitié faux. Vrai pour tmux :
+`NSRunningApplication.activate()` suffit une fois le volet sélectionné. Faux pour
+l'onglet : hors tmux, le dictionnaire de scripting est la **seule** API qui cible
+un onglet, et il publie `tty` en lecture (`sdef /Applications/iTerm.app`,
+`<property name="tty">` sur `session`). L'appariement devient donc une égalité
+sur le pty — pas un titre, pas un `cwd`, pas un ordre de tri. Le prix est
+l'autorisation d'automatisation, demandée une fois, au premier clic.
+
+**Apparier sur le titre de l'onglet ou le `cwd`.** Écarté : les titres sont
+écrits par le shell, le prompt et les programmes, et deux agents dans le même
+projet partagent leur `cwd`. C'est exactement R8 sous un autre nom.
 
 **Faire RFC-008 avant RFC-007.** Écarté : sans le mapping PID du hook, il faut
 écrire une heuristique d'appariement qu'on jettera. Voir R8.
@@ -110,7 +119,8 @@ c'est précisément le cas simple qui n'existe plus.
 | T9 | Groupement par répertoire + défilement de la liste | **done** | **100** |
 | T3 | `SessionTimelineLoader` (actor + cache), hors `body` | todo | 0 |
 | T4 | `SessionDetailView` | todo | 0 |
-| T5 | `TerminalJumper` : chaîne parent + repli bundle ID | todo | 0 |
+| T5 | `TerminalJumper` : tty + chaîne parent + repli activation | **done** | **100** |
+| T5b | Ligne cliquable, message de résultat, i18n | **done** | **100** |
 | T6 | `selectTmuxPane` + `findTmux` + PATH enrichi | todo | 0 |
 | T7 | `TmuxPaneIndex` avec invalidation sur changement de frontmost | todo | 0 |
 | T8 | Unification du filtre de process claude (suppression du cas `node`) | todo | 0 |

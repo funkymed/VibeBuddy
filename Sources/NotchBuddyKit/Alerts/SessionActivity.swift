@@ -15,9 +15,18 @@ public enum SessionActivity: String, Sendable, Equatable, CaseIterable {
     case finished
     /// The turn completed after a tool error.
     case failed
+    /// The agent asked the user something and is stopped until it is answered.
+    ///
+    /// Distinct from `finished` on purpose: a finished turn can wait
+    /// indefinitely without anyone losing anything, while an unanswered question
+    /// is an agent standing still. Objective n°1 of the product names the two
+    /// separately, so the model does too.
+    case awaiting
 
     /// Whether reaching this state is worth interrupting someone.
-    public var isNotable: Bool { self == .finished || self == .failed }
+    public var isNotable: Bool {
+        self == .finished || self == .failed || self == .awaiting
+    }
 }
 
 /// A single reading of a session's transcript.
@@ -32,18 +41,20 @@ public struct SessionObservation: Sendable, Equatable {
     public let lastResultWasError: Bool
     public let subagentsRunning: Int
     public let isLive: Bool
+    public let awaitingAnswer: Bool
     public let at: Date
 
     public init(
         sessionID: String, projectName: String, action: ToolAction,
         turnEnded: Bool, lastResultWasError: Bool, subagentsRunning: Int,
-        isLive: Bool, at: Date
+        isLive: Bool, at: Date, awaitingAnswer: Bool = false
     ) {
         self.sessionID = sessionID; self.projectName = projectName
         self.action = action; self.turnEnded = turnEnded
         self.lastResultWasError = lastResultWasError
         self.subagentsRunning = subagentsRunning
         self.isLive = isLive; self.at = at
+        self.awaitingAnswer = awaitingAnswer
     }
 }
 
@@ -60,10 +71,14 @@ public struct SessionAlert: Sendable, Equatable, Identifiable {
         case failed
         /// The agent is blocked asking for something.
         ///
-        /// **Not produced from the transcript.** A pending permission prompt is
-        /// interactive and resolved before anything is written, so this arrives
-        /// only once RFC-006 delivers hook events. Declared here so the alert
-        /// surface does not have to change when it does.
+        /// **Produced from the transcript** since 2026-08-20, for the tools
+        /// that are questions by definition — `AskUserQuestion`, `ExitPlanMode`.
+        /// A `tool_use` of one of those with no `tool_result` behind it is an
+        /// agent standing still, and that is readable without any hook.
+        ///
+        /// What still needs RFC-006 is a pending *permission* prompt: it is
+        /// resolved interactively and written only once it is over, so nothing
+        /// in the file says it is happening while it is happening.
         case needsAttention
     }
 

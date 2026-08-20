@@ -25,6 +25,13 @@ struct PanelContentView: View {
     let locale: Locale
     var onSettings: () -> Void
     var onQuit: () -> Void
+    /// Clicking a live row goes back to its terminal. The work happens in
+    /// `AppCoordinator`, which owns side effects; the view only reports.
+    var onJump: (pid_t) -> Void = { _ in }
+    /// Result of the last jump, when it is worth saying — a tab that could not
+    /// be found, or a refused permission. Nil the rest of the time, because a
+    /// jump that worked is its own confirmation: the terminal is now in front.
+    var jumpNote: String?
 
 
     private var visible: [SessionGroup] { SessionGroup.group(sessions) }
@@ -82,7 +89,15 @@ struct PanelContentView: View {
 
     private var sessionsSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            sectionTitle(l10n.sessionsTitle, count: visible.count)
+            HStack(spacing: 8) {
+                sectionTitle(l10n.sessionsTitle, count: visible.count)
+                if let jumpNote {
+                    Text(jumpNote)
+                        .font(.system(size: 11))
+                        .foregroundStyle(.orange.opacity(0.85))
+                        .lineLimit(1)
+                }
+            }
 
             if visible.isEmpty {
                 emptyState
@@ -93,7 +108,7 @@ struct PanelContentView: View {
                         // `SessionGroup.group` owns that rule so the view and
                         // the tests cannot disagree about it.
                         ForEach(visible) { group in
-                            SessionRow(group: group, l10n: l10n).equatable()
+                            SessionRow(group: group, l10n: l10n, onJump: onJump).equatable()
                         }
                     }
                 }

@@ -41,11 +41,18 @@ public actor SessionStore {
     /// Code never deletes them, so without this the list is months of history.
     public static let staleAfter: TimeInterval = 15 * 60
 
-    /// Above this many prompt tokens a session is taken to be running with the
-    /// 1M context window rather than the default 200k.
+    /// Above this many prompt tokens a session is *proved* to be running with
+    /// the 1M window — a 200k window cannot hold more than 200k.
+    ///
+    /// This is a backstop, not the answer. It only fires once a session is
+    /// already past 200k, and until this release it was the only signal there
+    /// was: a session at 142k tokens on a 1M window was shown as 71 % full when
+    /// Claude Code's own status line said 14 %. The window now comes from the
+    /// settings — see `ContextWindowResolver` — and this catches what the
+    /// settings cannot see, such as a `/model` typed mid-session.
     public static let largeContextThreshold = 200_000
-    public static let defaultContextWindow = 200_000
-    public static let largeContextWindow = 1_000_000
+    public static let defaultContextWindow = ContextWindowResolver.defaultWindow
+    public static let largeContextWindow = ContextWindowResolver.largeWindow
 
     private let root: String
     private var reader = JSONLTailReader()
@@ -70,6 +77,8 @@ public actor SessionStore {
     /// window. Sessions do not shrink back, and flip-flopping the denominator
     /// would make the gauge jump.
     private var stickyWindow: [String: Int] = [:]
+    /// Where the window actually comes from: the model named in the settings.
+    private var windows = ContextWindowResolver()
 
     private var current: [AgentSession] = []
     private var subscribers: [UUID: AsyncStream<[AgentSession]>.Continuation] = [:]
@@ -185,7 +194,10 @@ public actor SessionStore {
         if tail.contextTokens > 0 { stickyTokens[sessionID] = tail.contextTokens }
         let tokens = stickyTokens[sessionID] ?? 0
         if tokens > Self.largeContextThreshold { stickyWindow[sessionID] = Self.largeContextWindow }
-        let window = stickyWindow[sessionID] ?? Self.defaultContextWindow
+        // The larger of what the settings say and what the tokens prove. They
+        // can only disagree in one direction — a session cannot hold more than
+        // its window — so `max` is the whole reconciliation.
+        let window = max(stickyWindow[sessionID] ?? 0, windows.window(forProject: cwd))
 
         return AgentSession(
             id: sessionID,
@@ -205,7 +217,9 @@ public actor SessionStore {
             subject: tail.subject,
             turnEnded: tail.turnEnded,
             lastResultWasError: tail.lastResultWasError,
-            subagentsRunning: tail.subagentsRunning
+            subagentsRunning: tail.subagentsRunning,
+            awaitingAnswer: tail.awaitingQuestion,
+            question: tail.question
         )
     }
 

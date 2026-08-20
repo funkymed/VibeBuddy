@@ -42,6 +42,10 @@ public struct AgentSession: Sendable, Equatable, Identifiable {
     /// Subagents still in flight. A subagent finishing is not the turn
     /// finishing, and conflating them would alert on every delegation.
     public let subagentsRunning: Int
+    /// The agent asked a question and is stopped until it is answered.
+    public let awaitingAnswer: Bool
+    /// The question itself, when the tool carried one.
+    public let question: String?
     /// True while a process is actually running this session. A transcript with
     /// a fresh mtime proves nothing: a cleanly exited session leaves one behind.
     public let isLive: Bool
@@ -53,7 +57,8 @@ public struct AgentSession: Sendable, Equatable, Identifiable {
         status: String, action: ToolAction, permissionMode: String,
         contextTokens: Int, contextWindow: Int, pid: pid_t?, isLive: Bool,
         subject: String? = nil, turnEnded: Bool = false,
-        lastResultWasError: Bool = false, subagentsRunning: Int = 0
+        lastResultWasError: Bool = false, subagentsRunning: Int = 0,
+        awaitingAnswer: Bool = false, question: String? = nil
     ) {
         self.id = id; self.provider = provider; self.cwd = cwd
         self.projectName = projectName; self.model = model; self.effort = effort
@@ -65,6 +70,8 @@ public struct AgentSession: Sendable, Equatable, Identifiable {
         self.subject = subject; self.turnEnded = turnEnded
         self.lastResultWasError = lastResultWasError
         self.subagentsRunning = subagentsRunning
+        self.awaitingAnswer = awaitingAnswer
+        self.question = question
     }
 
     public var contextFraction: Double {

@@ -27,6 +27,14 @@ public enum SessionStateMachine {
         // the user already knows.
         guard observation.isLive else { return (.idle, nil) }
 
+        // A question with no answer beats everything below, including a
+        // running tool: `ExitPlanMode` is classified as planning, so checking
+        // the action first would report work in progress for an agent that has
+        // been standing still since the plan was printed.
+        if observation.awaitingAnswer {
+            return (.awaiting, current == .awaiting ? nil : .needsAttention)
+        }
+
         // A running tool always wins. This is what stops a subagent's `result`
         // entry from reading as the end of the turn — the parent is still
         // working, so `turnEnded` cannot be reached.

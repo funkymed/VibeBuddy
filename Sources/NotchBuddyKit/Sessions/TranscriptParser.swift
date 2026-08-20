@@ -29,6 +29,17 @@ public struct ParsedTail: Sendable, Equatable {
     /// True when the most recent meaningful entry is a completed turn — the
     /// agent is done and waiting, not working.
     public var turnEnded: Bool = false
+    /// The agent asked the user something and no answer has come back.
+    ///
+    /// Read from a `tool_use` block whose tool asks a question and whose id has
+    /// no matching `tool_result` anywhere newer. **This is in the transcript**,
+    /// like the permission mode and the turn boundary before it — the hook was
+    /// never needed for it. What the hook is still needed for is a pending
+    /// *permission* prompt, which is resolved interactively and written only
+    /// once it is over.
+    public var awaitingQuestion: Bool = false
+    /// The question being waited on, for the row to show.
+    public var question: String?
     public var lastTurnDurationMs: Int?
     /// Subagent lifecycle seen in the window, from `started` / `result` entries.
     ///
@@ -36,6 +47,12 @@ public struct ParsedTail: Sendable, Equatable {
     /// that mistake would fire an alert on every delegation (RFC-012).
     /// Whether a tool result has already been seen while scanning backwards.
     var sawResult = false
+    /// Tool uses already answered, collected while scanning backwards.
+    ///
+    /// The scan runs newest-first, so a result is always seen *before* the use
+    /// it answers. That ordering is what makes this a set membership test rather
+    /// than a second pass.
+    var answered: Set<String> = []
     public var subagentsStarted: Int = 0
     public var subagentsFinished: Int = 0
 
@@ -49,6 +66,35 @@ public struct ParsedTail: Sendable, Equatable {
     public var unrecognised: [String: Int] = [:]
 
     public init() {}
+}
+
+/// Tools whose `tool_use` means the agent has stopped and is waiting for a
+/// person.
+///
+/// A closed list on purpose. Any pending `tool_use` looks identical in the
+/// transcript — a `Bash` still running and a question nobody answered are both
+/// "a use with no result" — so only tools that are *defined* as questions can
+/// be read as a wait. Guessing from elapsed time would turn every slow command
+/// into a false alert.
+public enum QuestionTools {
+
+    /// `AskUserQuestion` is the direct case; `ExitPlanMode` is the same thing in
+    /// disguise — the agent stops until the plan is approved or rejected.
+    public static let names: Set<String> = ["AskUserQuestion", "ExitPlanMode"]
+
+    public static func asks(_ tool: String) -> Bool { names.contains(tool) }
+
+    /// A short label for the row: the first question asked, or the tool's own
+    /// meaning when it carries no text.
+    public static func summary(tool: String, input: [String: Any]) -> String? {
+        if let questions = input["questions"] as? [[String: Any]],
+           let first = questions.first {
+            if let text = first["question"] as? String, !text.isEmpty { return text }
+            if let header = first["header"] as? String, !header.isEmpty { return header }
+        }
+        if let plan = input["plan"] as? String, !plan.isEmpty { return nil }
+        return nil
+    }
 }
 
 /// Reads the tail of a Claude Code transcript.
@@ -163,6 +209,7 @@ public enum TranscriptParser {
                     out.sawResult = true
                     out.lastResultWasError = (block["is_error"] as? Bool) ?? false
                 }
+                if let id = block["tool_use_id"] as? String { out.answered.insert(id) }
             // Once the scan has passed a turn boundary, everything older
             // belongs to a turn that is already over. Letting one of its tool
             // uses set the current action makes a finished session look busy
@@ -170,6 +217,16 @@ public enum TranscriptParser {
             case "tool_use" where out.action == .none && !out.turnEnded:
                 let name = block["name"] as? String ?? ""
                 let input = block["input"] as? [String: Any] ?? [:]
+                // A question with no answer behind it. Checked before the
+                // action, because `ExitPlanMode` classifies as planning and
+                // would otherwise read as work in progress rather than as a
+                // wait — the one distinction this whole feature is about.
+                if QuestionTools.asks(name),
+                   let id = block["id"] as? String, !out.answered.contains(id),
+                   !out.awaitingQuestion {
+                    out.awaitingQuestion = true
+                    out.question = QuestionTools.summary(tool: name, input: input)
+                }
                 let action = ToolActionClassifier.classify(tool: name, input: input)
                 guard action != .none else { continue }
                 out.action = action

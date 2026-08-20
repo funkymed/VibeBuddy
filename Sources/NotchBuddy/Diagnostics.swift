@@ -146,13 +146,21 @@ enum Diagnostics {
         }
         for session in live.prefix(8) {
             let term = session.pid.map { TerminalFocusProbe.hostingTerminal(of: $0) } ?? nil
-            print(String(format: "  %@ %-14@ pid=%-7@ ctx=%3.0f%%  term=%-10@ %@",
+            // The tty is what the jump matches on, so it belongs in the one
+            // place someone looks when a click lands on the wrong tab.
+            let tty = session.pid.flatMap { ProcessLookup.tty(of: $0) }
+            print(String(format: "  %@ %-14@ pid=%-7@ ctx=%3.0f%%  term=%-10@ %-12@ %@",
                 (session.isLive ? "●" : "○") as NSString,
                 (session.projectName as NSString),
                 (session.pid.map(String.init) ?? "—") as NSString,
                 session.contextFraction * 100,
                 (term.flatMap { ProcessLookup.name(of: $0) } ?? "tmux/?") as NSString,
-                (session.status.isEmpty ? "—" : session.status) as NSString))
+                ((tty?.replacingOccurrences(of: "/dev/", with: "") ?? "—")
+                    + (session.pid.map { TerminalJumper.canSelectTab(agentPID: $0) } == true
+                       ? " ✔" : "")) as NSString,
+                (session.awaitingAnswer
+                    ? "⏳ " + (session.question ?? "question")
+                    : (session.status.isEmpty ? "—" : session.status)) as NSString))
         }
         print(String(format: "  %d sessions · refresh en %.1f ms", live.count, refreshMs))
         print("  un terminal est au premier plan : \(TerminalFocusProbe.isAnyTerminalFrontmost())")

@@ -42,7 +42,8 @@ public final class AlertTracker {
                 lastResultWasError: session.lastResultWasError,
                 subagentsRunning: session.subagentsRunning,
                 isLive: session.isLive,
-                at: session.lastActivity
+                at: session.lastActivity,
+                awaitingAnswer: session.awaitingAnswer
             )
 
             let step = SessionStateMachine.advance(from: current, observing: observation)

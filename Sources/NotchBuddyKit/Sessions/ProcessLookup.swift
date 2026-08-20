@@ -98,6 +98,33 @@ public enum ProcessLookup {
         return parent > 0 ? parent : nil
     }
 
+    /// Controlling terminal of a process, as `/dev/ttys004`.
+    ///
+    /// This is the one identifier a terminal emulator and the kernel agree on.
+    /// A tab has no name worth matching — titles are set by shells, prompts and
+    /// programs, and two tabs in the same project share a working directory —
+    /// but exactly one tab owns a given pty. iTerm2 and Terminal both publish it
+    /// (`tty` on their session and tab classes), so the match is an equality
+    /// rather than a guess.
+    ///
+    /// `sysctl` again, for the reason `parent(of:)` gives: `proc_pidinfo` is
+    /// privilege-gated and the chains here run through setuid `login`.
+    ///
+    /// Nil when the process has no controlling terminal — a daemon, or an agent
+    /// launched from something other than a shell.
+    public static func tty(of pid: pid_t) -> String? {
+        var mib: [Int32] = [CTL_KERN, KERN_PROC, KERN_PROC_PID, pid]
+        var info = kinfo_proc()
+        var size = MemoryLayout<kinfo_proc>.stride
+        guard sysctl(&mib, UInt32(mib.count), &info, &size, nil, 0) == 0, size > 0
+        else { return nil }
+        let device = info.kp_eproc.e_tdev
+        // `NODEV` is -1, and a process without a terminal reports it.
+        guard device != -1, let name = devname(device, S_IFCHR) else { return nil }
+        let short = String(cString: name)
+        return short.isEmpty ? nil : "/dev/" + short
+    }
+
     /// Working directory, via `PROC_PIDVNODEPATHINFO`.
     ///
     /// This is the load-bearing call. A transcript with a fresh timestamp proves

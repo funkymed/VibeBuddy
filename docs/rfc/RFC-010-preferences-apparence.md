@@ -1,14 +1,14 @@
-# RFC-010 — Préférences, apparence et surfaces expressives
+# RFC-010 — Préférences, réglages segmentés et éditeur de buddy
 
 | | |
 |---|---|
-| **Status** | in-progress (35 %) — fenêtre native et i18n livrées |
+| **Status** | in-progress (25 %) — fenêtre native et i18n livrées ; **périmètre élargi le 2026-08-20** (fenêtre segmentée + éditeur de buddy), donc le pourcentage baisse |
 | **Author** | Cyril Pereira |
 | **Created** | 2026-08-19 |
-| **Updated** | 2026-08-19 |
+| **Updated** | 2026-08-20 |
 | **Phase** | 5 — Confort |
 | **Depends on** | RFC-001 |
-| **Related** | D2 · consommée par RFC-002, RFC-005 et RFC-012 |
+| **Related** | D2 · D7 · consommée par RFC-002, RFC-005 et RFC-012 · format `.buddy` défini en RFC-005 |
 | **Blocks** | — |
 
 ## 1. Context & Problem
@@ -34,6 +34,23 @@ donc une écriture synchrone sur le main thread **à chaque frame de drag**
 On y replie les notifications de fin de session et les annonces vocales :
 `SpeechController` (132 l.) et `VoiceAnnouncer` (43 l.) ne pèsent pas une RFC.
 
+### Élargissement du 2026-08-20 : la fenêtre est un formulaire, et le buddy n'est pas éditable
+
+Ce qui est livré tient en un `Form` de deux sections — langue, buddy — sur une
+seule page (`SettingsWindow.swift:93-160`). Deux limites, constatées à l'usage :
+
+**Rien n'est segmenté.** Tout ce que les RFC en cours vont ajouter — démarrage au
+login, alertes par événement, voix, saut vers le terminal, consommation,
+diagnostics — arrive dans ce même formulaire. Un formulaire de vingt lignes
+hétérogènes est la version UI du monolithe que §1 reproche au modèle : on n'y
+trouve rien, et chaque ajout dégrade ce qui existait.
+
+**Le buddy se choisit, il ne s'édite pas.** Le sélecteur liste les manifestes
+installés et affiche un aperçu ; changer un visage demande d'ouvrir un fichier
+texte dans un éditeur, à un emplacement que la fenêtre se contente d'ouvrir
+(`SettingsWindow.swift:170-178`). C'est cohérent avec « le buddy est de la
+donnée », et c'est hostile pour quiconque veut juste changer une frimousse.
+
 ## 2. Goals / Non-goals
 
 **Goals.** Un modèle de préférences typé, **scindé en trois surfaces
@@ -46,8 +63,15 @@ l'objectif n°1 du produit, pas un réglage à côté du choix de la couleur du 
 Cette RFC ne garde que les *préférences* d'alerte (activer/désactiver par
 événement) et les surfaces de rendu qu'elle pilote.
 
+**Ajoutés le 2026-08-20.** Une fenêtre de réglages **segmentée** — barre latérale,
+une section par sujet, chaque section une vue autonome — et un **éditeur complet
+des expressions du buddy** : images, couleur, taille, vitesse, mouvement, plus la
+création et la duplication d'un buddy.
+
 **Non-goals.** La géométrie de fenêtre (RFC-002 consomme `LayoutPrefs`). Le rendu
-du buddy (RFC-005 consomme `AppearancePrefs`).
+du buddy (RFC-005 consomme `AppearancePrefs`) — l'éditeur produit de la donnée,
+il ne dessine pas. Le format `.buddy` lui-même (RFC-005) : l'éditeur en est un
+client, il ne l'étend pas.
 
 ## 3. Proposed Solution
 
@@ -89,6 +113,86 @@ moins de 200 lignes chacune (règle D2).
 **Budget.** 0 % au repos. RSS +1 Mo, +4-6 Mo **seulement** si la voix est
 activée et utilisée au moins une fois.
 
+### La fenêtre segmentée
+
+Une barre latérale à gauche, une section à droite, une seule section visible à la
+fois. Sept sections, choisies sur ce qui existe **ou** ce qu'une RFC en cours va
+livrer — pas sur une arborescence inventée d'avance :
+
+| Section | Contenu | Vient de |
+|---|---|---|
+| Général | langue, démarrage au login, délai de survol | RFC-010 |
+| Buddy | choix, **éditeur d'expressions**, dossier | RFC-005 · cette RFC |
+| Notifications | activation par événement, voix, haptique | RFC-012 · cette RFC |
+| Sessions | groupement, saut vers le terminal, tmux | RFC-008 |
+| Consommation | fenêtres suivies, rafraîchissement | RFC-004 |
+| Avancé | diagnostics (`--info` dans la fenêtre), réinitialisation | RFC-001 |
+| À propos | version, buddy actif, crédits MIT Notch-Pilot | RFC-011 |
+
+Trois règles de construction :
+
+- **Une section = un fichier = une vue < 200 lignes** (D2). La section est
+  l'unité de découpage ; si une section dépasse, elle se scinde en sous-vues,
+  jamais en un fichier plus gros.
+- **Une section vide ne s'affiche pas.** Tant que RFC-004 n'expose aucun réglage,
+  la section « Consommation » n'existe pas dans la barre. Une section qui
+  n'offre rien est pire qu'absente : elle promet.
+- **Aucun réglage sans effet.** Interdiction de préparer l'UI d'une préférence
+  que le code ne lit pas encore — même règle que le panneau, qui n'affiche ni
+  heatmap ni « always allowed » parce que RFC-009 et RFC-007 n'existent pas.
+
+### L'éditeur de buddy, et le calque qu'il écrit
+
+**Arbitré le 2026-08-20 : l'éditeur n'écrit pas dans le `.buddy`.** Les
+modifications vivent dans un calque de préférences, et le fichier reste lu tel
+quel.
+
+Ce que ça coûte, dit franchement, parce que ça contredit deux principes du
+projet :
+
+- **D1 — une source de vérité par fait.** Il y en a désormais deux pour « à quoi
+  ressemble ce buddy » : le fichier et le calque. La règle de résolution est donc
+  fixée une fois, en un seul endroit (`BuddyOverrides.apply(to:)`), et jamais
+  dupliquée dans une vue.
+- **« Le buddy est de la donnée, pas du code »** — une édition ne se partage
+  plus : envoyer son fichier à un collègue n'envoie pas ses retouches. Le
+  contre-poids est une **exportation** explicite (« Enregistrer sous… »), qui
+  aplatit calque + fichier en un `.buddy` autonome. Sans elle, l'arbitrage
+  fermerait le « buddy par entreprise » ; avec elle, il le rend simplement
+  volontaire.
+
+Ce que ça achète : aucune écriture destructrice dans un fichier que l'utilisateur
+a écrit à la main (R1 est le même risque, un dossier plus loin), une
+réinitialisation qui est une suppression de clé plutôt qu'une restauration de
+sauvegarde, et un buddy **créé dans l'app** qui n'a besoin d'aucun fichier pour
+exister.
+
+| Module | Responsabilité |
+|---|---|
+| `BuddyOverrides` | Le calque : `[buddyID: [expression: Override]]` + manifestes créés dans l'app. Codable, une seule clé `UserDefaults`. |
+| `BuddyOverrides.apply(to:)` | Fusion manifeste ↔ calque. **Le seul endroit** qui connaît la précédence. |
+| `BuddyEditorView` | La section : liste des expressions à gauche, éditeur à droite. |
+| `ExpressionEditor` | Une expression : images (ajout, suppression, réordonnancement), couleur, taille, vitesse, mouvement. |
+| `BuddyExportWriter` | Aplatit calque + fichier en un `.buddy` (écriture atomique, jamais par-dessus la source sans confirmation). |
+
+Ce qui est éditable, et pourquoi c'est exactement ça : le format porte déjà
+`frames`, `colour`, `fontSize` et `framesPerSecond` par expression
+(`BuddyManifest.swift:56-84`), et `MotionKind` est un **vocabulaire fermé** de six
+cas (`MotionKind.swift:20-32`) — donc un menu, jamais une saisie. Aujourd'hui le
+mouvement est déduit du nom de l'expression (`BuddyFile.swift`,
+`MotionKind.default(for:)`) et ne peut pas être choisi ; l'éditeur le rend
+explicite, et le format devra l'écrire à l'export.
+
+**L'aperçu passe par `BuddyView`**, comme partout ailleurs depuis le 2026-08-20 :
+un aperçu dessiné autrement montrerait quelque chose que l'app n'affiche jamais.
+Dans l'éditeur, et seulement là, le budget d'animation monte à `lively` pour que
+la vitesse s'y juge ; la fenêtre fermée, il retombe à `still`.
+
+**Budget.** 0 % fenêtre fermée. Fenêtre ouverte : une seule section montée à la
+fois, un `TimelineView` dans l'éditeur, écritures du calque coalescées comme
+celles des préférences (T2). Le rechargement à chaud existant reste la voie pour
+les fichiers ; le calque notifie directement.
+
 ## 4. Alternatives Considered
 
 **Garder une classe unique de préférences.** Écarté : c'est la cause mécanique du
@@ -105,6 +209,22 @@ qu'on en aura besoin.
 **Supprimer la voix.** Défendable — elle est off par défaut dans la référence
 elle-même. Gardée parce qu'elle coûte 43 lignes une fois le reste en place.
 
+**L'éditeur réécrit le `.buddy`.** Proposé, **écarté par arbitrage du
+2026-08-20**. C'était la seule option qui gardait une source de vérité unique et
+un buddy partageable par construction. Écartée parce qu'elle fait écrire l'app
+dans un fichier que l'utilisateur édite à la main, avec tout ce que R1 décrit
+(sauvegarde, atomicité, diff consenti) pour un gain que l'exportation explicite
+rend disponible à la demande.
+
+**Un onglet plutôt qu'une barre latérale.** Écarté : sept sections en onglets
+tiennent mal, et les onglets n'ont pas de niveau de regroupement — la référence
+visuelle qui a motivé cette demande sépare « Avancé » du reste, ce qu'une barre
+d'onglets ne sait pas faire.
+
+**Une deuxième RFC pour l'éditeur.** Écarté sur demande : l'éditeur est une
+section de la fenêtre, et deux fiches qui se citent l'une l'autre pour une même
+fenêtre coûtent plus de comptabilité qu'elles n'en clarifient.
+
 ## 5. Action plan
 
 | # | Tâche | Statut | % |
@@ -118,11 +238,24 @@ elle-même. Gardée parce qu'elle coûte 43 lignes une fois le reste en place.
 | T6 | `SpeechPresenter` + pop-out de fin de session + dédup à la minute | todo | 0 |
 | T7 | `VoiceAnnouncer` paresseux + debounce | todo | 0 |
 | T8 | Retour haptique | todo | 0 |
+| T10 | Coquille segmentée : barre latérale, sections, sélection persistante | todo | 0 |
+| T11 | Découpage des sections existantes (Général, Buddy) dans la coquille | todo | 0 |
+| T12 | `BuddyOverrides` + `apply(to:)` + une seule clé `UserDefaults` | todo | 0 |
+| T13 | `ExpressionEditor` : images, couleur, taille, vitesse, mouvement | todo | 0 |
+| T14 | Création, duplication, renommage, suppression d'un buddy | todo | 0 |
+| T15 | `BuddyExportWriter` : aplatir calque + fichier en `.buddy` autonome | todo | 0 |
+| T16 | Aperçu live via `BuddyView`, budget `lively` limité à l'éditeur | todo | 0 |
 
 **Critère de sortie.** Une session qui se termine déclenche **exactement une**
 notification — pas deux, pas zéro — sur dix essais. Un drag complet de la
 fenêtre ne produit **aucune** écriture `UserDefaults` avant le relâchement.
 Changer la couleur du buddy ne provoque **aucun** recalcul de frame de fenêtre.
+
+**Critère de sortie de l'éditeur.** Modifier une image de l'expression `working`
+la voit changer dans la notch **sans relancer l'app**. Réinitialiser cette
+expression restitue exactement ce que dit le fichier. Exporter puis charger le
+`.buddy` obtenu redonne le buddy édité, à l'identique — vérifié en comparant les
+manifestes, pas les fichiers.
 
 ### Décidé le 2026-08-19 : une fenêtre de préférences native
 
@@ -189,9 +322,10 @@ aller vers la fenêtre qui vient de s'ouvrir. Corrigé par un état d'épinglage
 court-circuite les deux sources de survol tant que les réglages sont ouverts, et
 qui **revérifie la réalité** au désépinglage plutôt que de la supposer.
 
-La fenêtre est au niveau `.floating` : elle est ouverte depuis une pastille qui
-flotte au-dessus de tout, et retomber sous l'éditeur donnerait l'impression
-d'avoir disparu.
+La fenêtre est **un cran au-dessus de `.statusBar`**, pas à `.floating`
+(`SettingsWindow.swift:78`). C'est une correction, pas un détail : `.floating`
+vaut 3 et `.statusBar` vaut 25, donc une fenêtre « flottante » s'ouvrait
+**sous** la pastille qui venait de l'ouvrir.
 
 ## 6. Open Questions
 
