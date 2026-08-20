@@ -20,26 +20,38 @@ public final class AlertTracker {
     }
 
     @discardableResult
+    private func observation(of session: AgentSession) -> SessionObservation {
+        SessionObservation(
+            sessionID: session.id,
+            projectName: session.projectName,
+            action: session.action,
+            turnEnded: session.turnEnded,
+            lastResultWasError: session.lastResultWasError,
+            subagentsRunning: session.subagentsRunning,
+            isLive: session.isLive,
+            at: session.lastActivity,
+            awaitingAnswer: session.awaitingAnswer
+        )
+    }
+
     public func ingest(_ sessions: [AgentSession], now: Date = Date()) -> [SessionAlert] {
         var published: [SessionAlert] = []
         var seen = Set<String>()
 
         for session in sessions {
             seen.insert(session.id)
-            let current = states[session.id] ?? .idle
-            let observation = SessionObservation(
-                sessionID: session.id,
-                projectName: session.projectName,
-                action: session.action,
-                turnEnded: session.turnEnded,
-                lastResultWasError: session.lastResultWasError,
-                subagentsRunning: session.subagentsRunning,
-                isLive: session.isLive,
-                at: session.lastActivity,
-                awaitingAnswer: session.awaitingAnswer
-            )
-
-            let step = SessionStateMachine.advance(from: current, observing: observation)
+            // First sight of a session: record where it stands, announce
+            // nothing. At launch every transcript is new, so the old rule
+            // (unknown means idle) fired "terminé" for turns that ended long
+            // before the app existed — and the pill sat in its alert state,
+            // refusing to expand, while it said so.
+            guard let current = states[session.id] else {
+                states[session.id] = SessionStateMachine.advance(
+                    from: .idle, observing: observation(of: session)).state
+                continue
+            }
+            let step = SessionStateMachine.advance(
+                from: current, observing: observation(of: session))
             states[session.id] = step.state
 
             guard let kind = step.alert else { continue }

@@ -90,6 +90,8 @@ struct NotchShellView: View {
                     .frame(width: layout.rightWidth, alignment: .trailing)
             }
             .frame(height: layout.height)
+            // The pill is an active zone: hovering it opens the panel.
+            .pointingHandCursor()
         }
     }
 

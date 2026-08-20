@@ -50,18 +50,24 @@ struct ExpressionEditorView: View {
                     .foregroundStyle(.secondary)
                     .disabled(currentFrames.count <= 1)
                     .help(s.removeFrame)
+                    .pointingHandCursor(currentFrames.count > 1)
                     Button { move(index, by: -1) } label: { Image(systemName: "arrow.up") }
                         .buttonStyle(.plain).foregroundStyle(.secondary)
                         .disabled(index == 0)
+                        // A disabled control keeps the arrow: the hand would
+                        // promise a click that does nothing.
+                        .pointingHandCursor(index > 0)
                     Button { move(index, by: 1) } label: { Image(systemName: "arrow.down") }
                         .buttonStyle(.plain).foregroundStyle(.secondary)
                         .disabled(index == currentFrames.count - 1)
+                        .pointingHandCursor(index < currentFrames.count - 1)
                 }
                 .padding(.vertical, 6)
                 if index < currentFrames.count - 1 { Divider() }
             }
             Divider()
             Button(s.addFrame) { addFrame() }
+                .pointingHandCursor()
                 .buttonStyle(.plain)
                 .foregroundStyle(.tint)
                 .padding(.vertical, 8)
@@ -159,6 +165,7 @@ struct ExpressionEditorView: View {
                         appearance.overrides.reset(expression.rawValue, of: manifest.id)
                         onChange()
                     }
+                    .pointingHandCursor()
                 }
             }
         }

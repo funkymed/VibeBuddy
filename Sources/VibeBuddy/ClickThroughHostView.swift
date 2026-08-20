@@ -62,15 +62,59 @@ final class ClickThroughHostView<Content: View>: NSView {
             rect: rect,
             // `.activeAlways` matters: the app is an accessory and never
             // becomes active, so anything gated on active state never fires.
-            options: [.mouseEnteredAndExited, .activeAlways],
+            options: [.mouseEnteredAndExited, .mouseMoved, .activeAlways],
             owner: self
         )
         addTrackingArea(area)
         tracking = area
+
+        // A tracking area sends no enter event for a pointer that was already
+        // inside when it was created. The region is rebuilt on every state
+        // change and every resize, so a still pointer gets no event at all and
+        // the panel waits for the 5 s fallback poll instead of opening.
+        reportPointerIfInside(rect)
     }
 
-    override func mouseEntered(with event: NSEvent) { onHoverChange?(true) }
-    override func mouseExited(with event: NSEvent) { onHoverChange?(false) }
+    /// Report hover for a pointer that is already inside `rect`, in view
+    /// coordinates.
+    private func reportPointerIfInside(_ rect: CGRect) {
+        guard let window else { return }
+        let onScreen = NSEvent.mouseLocation
+        let inWindow = window.convertPoint(fromScreen: onScreen)
+        let inView = convert(inWindow, from: nil)
+        guard rect.contains(inView) else { return }
+        onHoverChange?(true)
+    }
+
+    override func mouseEntered(with event: NSEvent) {
+        onHoverChange?(true)
+        applyCursor()
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        onHoverChange?(false)
+        NSCursor.arrow.set()
+    }
+
+    override func mouseMoved(with event: NSEvent) {
+        super.mouseMoved(with: event)
+        applyCursor()
+    }
+
+    /// The hand over a zone SwiftUI marked, the arrow anywhere else.
+    ///
+    /// Set from the panel's own event path rather than from a cursor rect or a
+    /// `.cursorUpdate` area: neither reaches a window that never becomes key,
+    /// which this panel never does. Setting here runs after AppKit's own reset
+    /// for the same event, so there is nothing to fight.
+    private func applyCursor() {
+        let pointer = NSEvent.mouseLocation
+        if CursorZones.shared.contains(pointer) {
+            NSCursor.pointingHand.set()
+        } else {
+            NSCursor.arrow.set()
+        }
+    }
 
     /// Rect currently absorbing clicks, in view coordinates. Clamped to
     /// `bounds`: a wider strip would arm the hover from outside the window.

@@ -21,12 +21,14 @@ struct AdvancedSection: View {
                             atPath: path, withIntermediateDirectories: true)
                         NSWorkspace.shared.open(URL(fileURLWithPath: path))
                     }
+                    .pointingHandCursor()
                 }
             }
 
             SettingsGroup(title: s.advanced.title) {
                 SettingsRow(title: s.resetEverything, hint: s.resetEverythingHint) {
                     Button(s.resetEverything, role: .destructive) { confirming = true }
+                        .pointingHandCursor()
                 }
             }
         }

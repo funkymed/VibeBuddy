@@ -290,3 +290,51 @@ struct LiveGroupingTests {
         #expect(rows.first?.primary.id == "live")
     }
 }
+
+/// Cold start must not announce turns that ended before the app existed.
+@Suite("First sight of a session")
+@MainActor
+struct FirstSightTests {
+
+    private func finished(_ id: String) -> AgentSession {
+        AgentSession(
+            id: id, cwd: "/p/notch", projectName: "notch", model: "",
+            startedAt: Date(), lastActivity: Date(), status: nil, action: .none,
+            permissionMode: "", contextTokens: 0, contextWindow: 200_000,
+            pid: 42, isLive: true, turnEnded: true)
+    }
+
+    private func working(_ id: String) -> AgentSession {
+        AgentSession(
+            id: id, cwd: "/p/notch", projectName: "notch", model: "",
+            startedAt: Date(), lastActivity: Date(), status: nil, action: .shell,
+            permissionMode: "", contextTokens: 0, contextWindow: 200_000,
+            pid: 42, isLive: true)
+    }
+
+    @Test("a session already finished when first seen says nothing")
+    func coldStartIsSilent() {
+        let tracker = AlertTracker(bus: AlertBus())
+        #expect(tracker.ingest([finished("a")]).isEmpty)
+    }
+
+    // The point of the app: a turn that ends while it watches must alert.
+    @Test("a turn that ends under our eyes still alerts")
+    func liveTransitionStillAlerts() {
+        let tracker = AlertTracker(bus: AlertBus())
+        #expect(tracker.ingest([working("a")]).isEmpty)
+        let alerts = tracker.ingest([finished("a")])
+        #expect(alerts.count == 1)
+        #expect(alerts.first?.kind == .finished)
+    }
+
+    @Test("silence on first sight is per session, not global")
+    func perSession() {
+        let tracker = AlertTracker(bus: AlertBus())
+        _ = tracker.ingest([working("a")])
+        // "b" appears already finished: new to us, so no alert for it — while
+        // "a" finishing in the same snapshot is a real transition.
+        let alerts = tracker.ingest([finished("a"), finished("b")])
+        #expect(alerts.map(\.sessionID) == ["a"])
+    }
+}

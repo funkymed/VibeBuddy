@@ -18,13 +18,17 @@ struct BuddyActionsRow: View {
     var body: some View {
         HStack(spacing: 10) {
             Button(strings.duplicate, action: onDuplicate)
+                .pointingHandCursor()
             Button(strings.export, action: onExport)
+                .pointingHandCursor()
             Spacer()
             if hasEdits {
                 Button(strings.resetBuddy, role: .destructive, action: onReset)
+                .pointingHandCursor()
             }
             if isCreated {
                 Button(strings.deleteBuddy, role: .destructive, action: onDelete)
+                .pointingHandCursor()
             }
         }
     }
