@@ -6,10 +6,13 @@ import VibeBuddyKit
 struct PanelHeader: View {
     let buddy: BuddyManifest?
     let expression: BuddyExpression
+    /// The size the buddy is drawn at in the collapsed pill. The panel draws it
+    /// at exactly that: one buddy, one size, so deploying the panel does not
+    /// resize the thing the eye is already following.
+    var buddyBox: CGSize = .zero
     let sessions: [AgentSession]
     @Bindable var budget: AnimationBudget
     let l10n: Strings
-    var pixelSize: Double = Double(BuddyView.defaultPixelSize)
     var onSettings: () -> Void
     var onQuit: () -> Void
 
@@ -19,10 +22,11 @@ struct PanelHeader: View {
 
     var body: some View {
         HStack(alignment: .center, spacing: 12) {
-            if let buddy {
-                BuddyView(manifest: buddy, expression: expression, budget: budget,
-                          pixelSize: pixelSize)
-                    .fixedSize()
+            // The buddy's seat. It is drawn by `NotchShellView`, which keeps
+            // one instance alive across both states so the face never blinks
+            // out when the panel opens.
+            if buddy != nil {
+                Color.clear.frame(width: buddyBox.width, height: buddyBox.height)
             }
 
             if live.isEmpty {

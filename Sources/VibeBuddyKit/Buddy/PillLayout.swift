@@ -8,37 +8,70 @@ public struct PillLayout: Sendable, Equatable {
 
     public static let slotPadding: CGFloat = 6
 
-    /// Inset on the outer edge of an ear. Take it from `slotPadding`, never add
-    /// to it: the measured slot width already includes both sides.
-    ///
-    /// The two ears do not want the same number. The buddy's own screen fades
-    /// to black at its ends, so it carries a visual margin of its own and reads
-    /// as floating if you add much more; the counter is crisp text against the
-    /// edge and reads as cramped at the same inset. Measured on the shipped
-    /// buddy, the fade covers about fourteen points either side.
-    public static let buddyPadding: CGFloat = 3
+    /// Inset on the outer edge of the counter's ear. Take it from
+    /// `slotPadding`, never add to it: the measured slot width already includes
+    /// both sides. The counter is crisp text against the edge and reads as
+    /// cramped at the buddy's inset.
     public static let counterPadding: CGFloat = 10
+
+    /// Radius of the pill's bottom corners. Must match `NotchShellView.shape`:
+    /// the ear is sized against this arc, so the two drifting apart is how the
+    /// buddy ends up cut by the shape it sits in.
+    public static let pillCornerRadius: CGFloat = 12
+
+    /// The smallest inset that keeps the face clear of that arc — and nothing
+    /// more. The ear is meant to be as narrow as the buddy allows, so this is
+    /// geometry, not taste: at a height `y` above the bottom edge the arc has
+    /// come in by `r - sqrt(r² - (r - y)²)`, and one point less cuts the
+    /// face's corner.
+    public static func cornerClearance(pillHeight: CGFloat, buddyHeight: CGFloat) -> CGFloat {
+        let r = pillCornerRadius
+        let y = max(0, (pillHeight - buddyHeight) / 2)   // air below the face
+        guard y < r else { return 0 }                    // the face clears the arc entirely
+        return r - sqrt(max(0, r * r - (r - y) * (r - y)))
+    }
 
     public static let emptySlotWidth: CGFloat = 18
 
-    /// Widest an ear may get. 96 pt clears the widest face measured on the
-    /// shipped buddies; past it the buddy is scaled down (`BuddyView`, `fit:`).
+    /// Widest a *face* may be. 96 pt clears the widest measured on the shipped
+    /// buddies; past it the buddy is scaled down (`BuddyView`, `fit:`).
     public static let maxSlotWidth: CGFloat = 96
+
+    /// Air above and below the buddy in the collapsed pill.
+    ///
+    /// Only ever a floor to shrink against: in the bar the buddy is drawn at
+    /// the size its manifest declares — 100 %, judged by eye on 2026-08-21 as
+    /// the one that reads best. Filling the bar's full height was tried and is
+    /// not it. A shorter bar than the face is the only case that scales.
+    public static let buddyVerticalInset: CGFloat = 1
 
     public let leftWidth: CGFloat
     public let rightWidth: CGFloat
     public let notchWidth: CGFloat
     public let height: CGFloat
+    /// The size the buddy's face is drawn at inside the collapsed pill —
+    /// as tall as the bar, less `buddyVerticalInset`. `BuddyView` is handed
+    /// this as its `fit:`, so one place decides how big the buddy is.
+    public let buddyBox: CGSize
+    /// What is left around the widest thing an ear holds. Kept for
+    /// diagnostics: nothing lays out from it any more.
+    public let slotInset: CGFloat
 
     public var totalWidth: CGFloat { leftWidth + notchWidth + rightWidth }
 
     public var notchAlignmentOffset: CGFloat { (rightWidth - leftWidth) / 2 }
 
-    public init(leftWidth: CGFloat, rightWidth: CGFloat, notchWidth: CGFloat, height: CGFloat) {
+    public init(
+        leftWidth: CGFloat, rightWidth: CGFloat, notchWidth: CGFloat, height: CGFloat,
+        buddyBox: CGSize = .zero,
+        slotInset: CGFloat = PillLayout.slotPadding
+    ) {
         self.leftWidth = leftWidth
         self.rightWidth = rightWidth
         self.notchWidth = notchWidth
         self.height = height
+        self.buddyBox = buddyBox
+        self.slotInset = slotInset
     }
 
     @MainActor
@@ -50,11 +83,26 @@ public struct PillLayout: Sendable, Equatable {
         counterFontSize: CGFloat = 11
     ) -> PillLayout {
         let notch = geometry.notchSize
-        // Measure across *every* expression, each at its own point size: sizing
-        // to the frame on screen resizes the pill every second.
-        // A buddy declares its width instead of being measured: it draws no
-        // glyph, so there is nothing to run through AppKit.
-        let left = buddy.map { $0.face.width + slotPadding * 2 } ?? emptySlotWidth
+        let height = notch?.height ?? NotchFrameSolver.floatingPillHeight
+
+        // How big the face is actually drawn: the size its manifest declares,
+        // and smaller only when the bar cannot hold it. Any scaling here is
+        // geometric — the same raster — never a re-scale of the manifest, which
+        // would land the cells on a different grid and change the shape of the
+        // eyes rather than their size.
+        var box = buddy.map { manifest -> CGSize in
+            let plate = manifest.face
+            guard plate.width > 0, plate.height > 0 else { return .zero }
+            let k = min(1, max(0, (height - buddyVerticalInset * 2) / plate.height))
+            return CGSize(width: plate.width * k, height: plate.height * k)
+        } ?? .zero
+
+        // The ear is as narrow as the buddy allows: its width plus the arc's
+        // clearance, and nothing else. Measuring across every expression would
+        // resize the pill every second, so a buddy declares its width instead —
+        // it draws no glyph, so there is nothing to run through AppKit.
+        let clearance = cornerClearance(pillHeight: height, buddyHeight: box.height)
+        let left = box.width > 0 ? box.width + clearance * 2 : emptySlotWidth
 
         // An alert takes the right ear over from the counter, never stacks.
         let rightText = alertText ?? (sessionCount > 0 ? counterText(sessionCount) : nil)
@@ -62,24 +110,31 @@ public struct PillLayout: Sendable, Equatable {
             measure($0, size: counterFontSize, weight: .semibold) + slotPadding * 2
         } ?? emptySlotWidth
 
-        let slot = min(max(left, right, emptySlotWidth), maxSlotWidth)
+        let natural = max(left, right, emptySlotWidth)
+
+        let slot = min(max(natural, emptySlotWidth), maxSlotWidth)
+
+        // A hand-edited manifest can be wider than any ear we will draw. Then,
+        // and only then, the buddy gives way.
+        let room = slot - clearance * 2
+        if box.width > room, box.width > 0 {
+            let k = room / box.width
+            box = CGSize(width: room, height: box.height * k)
+        }
 
         return PillLayout(
             leftWidth: slot,
             rightWidth: slot,
             // Without a cutout there is no hole to straddle: a token gap.
             notchWidth: notch?.width ?? 24,
-            height: notch?.height ?? NotchFrameSolver.floatingPillHeight
+            height: height,
+            buddyBox: box,
+            // What is left around the widest thing an ear holds.
+            slotInset: max(slotPadding, (slot - max(0, natural - slotPadding * 2)) / 2)
         )
     }
 
     public static func counterText(_ count: Int) -> String { "×\(count)" }
-
-    public func contentBox(vertical inset: CGFloat = 4) -> CGSize {
-        CGSize(
-            width: max(0, leftWidth - PillLayout.slotPadding * 2),
-            height: max(0, height - inset * 2))
-    }
 
     /// Measured widths, keyed by everything that changes one.
     ///
@@ -131,3 +186,4 @@ public struct PillLayout: Sendable, Equatable {
         return resolved
     }
 }
+

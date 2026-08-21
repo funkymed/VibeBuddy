@@ -29,7 +29,7 @@ struct BuddySection: View {
             if let manifest {
                 BuddyPreviewStrip(
                     manifest: manifest, expressions: declared(in: manifest),
-                    pixelSize: appearance.pixelSize, selection: $selectedExpression)
+                    selection: $selectedExpression)
                 expressionPicker(manifest)
                 ExpressionEditorView(
                     l10n: l10n, appearance: appearance,

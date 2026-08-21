@@ -275,13 +275,11 @@ final class AppCoordinator: NSObject, NSApplicationDelegate {
         // it. Overrides are applied afterwards either way.
         if let id, let created = appearance.overrides.manifest(forCreated: id) {
             panel?.setBuddy(appearance.resolved(created))
-            panel?.setPixelSize(appearance.pixelSize)
             return
         }
         var loader = BuddyLoader()
         let loaded = loader.load(id: id)
         panel?.setBuddy(appearance.resolved(loaded.manifest))
-        panel?.setPixelSize(appearance.pixelSize)
         for problem in loader.problems {
             PerfProbe.log.error("buddy: \(problem, privacy: .public)")
         }

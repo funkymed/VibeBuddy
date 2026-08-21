@@ -26,7 +26,7 @@ struct NotchShellView: View {
     var onJump: (pid_t) -> Void = { _ in }
     var onSelect: ((String) -> Void)?
     var jumpNote: String?
-    var pixelSize: Double = Double(BuddyView.defaultPixelSize)
+    var gaze: PointerGaze?
     var groupByDirectory = true
     var jumpOnClick = true
     var showUsage = true
@@ -48,6 +48,13 @@ struct NotchShellView: View {
             panelContent
         }
         .frame(width: max(metrics.drawnWidth, 0))
+        // The buddy is drawn **once**, outside both states, and slides between
+        // its two homes. It used to live inside each of them: the pill's copy
+        // was dropped the instant the state flipped and the panel's arrived
+        // 160 ms later, so opening the notch made the face blink out and come
+        // back — filmed at 52 fps, eight frames of empty black rectangle.
+        // Nothing in the real world disappears and reappears.
+        .overlay(alignment: .topLeading) { travellingBuddy }
         // Offset the *whole* pill, shape included: applying it to the content
         // alone leaves the shape centred and hangs the buddy off the left edge.
         .offset(x: state == .panel ? 0 : (layout?.notchAlignmentOffset ?? 0))
@@ -60,16 +67,24 @@ struct NotchShellView: View {
     private var panelContent: some View {
         if state == .panel, showPanelContent {
             PanelContentView(
-                sessions: sessions, buddy: buddy, expression: expression,
+                sessions: sessions, buddy: buddy,
+                // The pill's own measurement, so the buddy is the same size
+                // whether the panel is open or not.
+                buddyBox: layout?.buddyBox ?? .zero,
+                expression: expression,
                 budget: budget, usage: usage, l10n: l10n, locale: locale,
                 onSettings: onSettings, onQuit: onQuit,
                 onJump: onJump, onSelect: onSelect, jumpNote: jumpNote,
-                pixelSize: pixelSize, groupByDirectory: groupByDirectory,
+                groupByDirectory: groupByDirectory,
                 jumpOnClick: jumpOnClick, showUsage: showUsage
             )
-            // Explicit short fade: the default insertion transition fires at
-            // the start of the growth and draws contents in a pill-sized shape.
-            .transition(.opacity.animation(.easeOut(duration: 0.12)))
+            // Explicit, and deliberately not a bare fade: the contents rise
+            // the last few points into place as the shape settles. The default
+            // insertion transition fires at the start of the growth and draws
+            // contents in a pill-sized shape.
+            .transition(
+                .opacity.combined(with: .offset(y: -6))
+                    .animation(.easeOut(duration: 0.14)))
         }
     }
 
@@ -79,11 +94,10 @@ struct NotchShellView: View {
     private var pillContent: some View {
         if let layout, state != .hidden, state != .panel {
             HStack(spacing: 0) {
-                // Anchored, not centred: animation frames differ in width and
-                // centring makes the buddy shuffle sideways every frame.
-                buddyContent
-                    .padding(.leading, PillLayout.buddyPadding)
-                    .frame(width: layout.leftWidth, alignment: .leading)
+                // The buddy's seat, kept empty: it is drawn by
+                // `travellingBuddy`, which outlives this view.
+                Color.clear
+                    .frame(width: layout.leftWidth)
                 // The cutout: a hole, anything drawn here is invisible.
                 Color.clear.frame(width: layout.notchWidth)
                 rightSlot
@@ -96,13 +110,52 @@ struct NotchShellView: View {
         }
     }
 
+    /// The one buddy, positioned by how far the shape has grown.
+    ///
+    /// Driven by `metrics.drawnWidth` rather than by `state`: that value is
+    /// already animated, on the same curve and the same run-loop turn as the
+    /// window's frame, so the face travels *with* the shape instead of needing
+    /// a second animation kept in sync with it. Reading `state` here would jump
+    /// the buddy to its panel seat on the first frame, because the state
+    /// changes before the animation starts.
     @ViewBuilder
-    private var buddyContent: some View {
-        if let buddy, let layout {
-            // The box is what lets an oversized manifest shrink to fit.
+    private var travellingBuddy: some View {
+        if let buddy, let layout, state != .hidden {
+            let origin = buddyOrigin(layout)
             BuddyView(manifest: buddy, expression: expression, budget: budget,
-                      pixelSize: pixelSize, fit: layout.contentBox())
+                      fit: layout.buddyBox, gaze: gaze)
+                // Poking the face. Two ways in, because two different things
+                // own the click depending on the state: collapsed, the window
+                // absorbs it and `NotchPanel.mouseUp` catches it; deployed,
+                // SwiftUI owns hit testing and the window never hears about it.
+                // Both call the same `amuse()`, and calling it twice is the
+                // same as calling it once.
+                .contentShape(Rectangle())
+                .onTapGesture { gaze?.amuse() }
+                .padding(.leading, origin.x)
+                .padding(.top, origin.y)
         }
+    }
+
+    /// Where the buddy sits, interpolated between its seat in the ear and its
+    /// seat in the panel header.
+    private func buddyOrigin(_ layout: PillLayout) -> CGPoint {
+        let box = layout.buddyBox
+        let collapsed = CGPoint(
+            x: max(0, (layout.leftWidth - box.width) / 2),
+            y: max(0, (layout.height - box.height) / 2))
+        let deployed = CGPoint(x: PanelMetrics.contentInset.width,
+                               y: PanelMetrics.contentInset.height)
+
+        let from = layout.totalWidth
+        let to = NotchPanel.panelSize.width
+        guard to > from else { return collapsed }
+        let t = min(max((metrics.drawnWidth - from) / (to - from), 0), 1)
+        // Eased, not linear: the width is on an ease-out, and a linear slide
+        // against it reads as the buddy lagging behind its own pill.
+        let e = 1 - pow(1 - t, 2)
+        return CGPoint(x: collapsed.x + (deployed.x - collapsed.x) * e,
+                       y: collapsed.y + (deployed.y - collapsed.y) * e)
     }
 
     /// Text an alert puts in the right ear, if one is up.

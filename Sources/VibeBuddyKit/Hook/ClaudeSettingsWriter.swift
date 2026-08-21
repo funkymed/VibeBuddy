@@ -71,7 +71,7 @@ public struct ClaudeSettingsWriter: Sendable {
     /// have been wrong.
     public func backUp() throws {
         guard FileManager.default.fileExists(atPath: path) else { return }
-        guard !Self.backedUpThisRun.value else { return }
+        guard !Self.backedUp.contains(path) else { return }
         let stamp = ISO8601DateFormatter()
         stamp.formatOptions = [.withYear, .withMonth, .withDay, .withTime]
         let name = "settings-\(stamp.string(from: Date()).replacingOccurrences(of: ":", with: "")).json"
@@ -86,7 +86,7 @@ public struct ClaudeSettingsWriter: Sendable {
         } catch {
             throw Failure.cannotBackUp(error.localizedDescription)
         }
-        Self.backedUpThisRun.value = true
+        Self.backedUp.insert(path)
     }
 
     private func write(_ value: OrderedJSON) throws {
@@ -107,18 +107,34 @@ public struct ClaudeSettingsWriter: Sendable {
         }
     }
 
-    /// Reset between tests; in the app it stays false until the first write.
-    public static func forgetBackupForTesting() { backedUpThisRun.value = false }
+    /// Reset between tests; in the app nothing ever clears it.
+    public static func forgetBackupForTesting() { backedUp.removeAll() }
 
-    private static let backedUpThisRun = Flag()
+    /// Which files have been backed up this run.
+    ///
+    /// Keyed by path, not a single flag. One backup per *file* per run is what
+    /// the rule means — a run that writes two different settings files owes a
+    /// backup for each. As one flag it also coupled every test that writes a
+    /// settings file to every other one: whichever ran second found the flag
+    /// already set and silently skipped its backup.
+    private static let backedUp = PathSet()
 }
 
-/// A process-wide flag, safe to touch from anywhere.
-private final class Flag: @unchecked Sendable {
+/// A process-wide set of paths, safe to touch from anywhere.
+private final class PathSet: @unchecked Sendable {
     private let lock = NSLock()
-    private var flag = false
-    var value: Bool {
-        get { lock.lock(); defer { lock.unlock() }; return flag }
-        set { lock.lock(); flag = newValue; lock.unlock() }
+    private var paths: Set<String> = []
+
+    func contains(_ path: String) -> Bool {
+        lock.lock(); defer { lock.unlock() }
+        return paths.contains(path)
+    }
+
+    func insert(_ path: String) {
+        lock.lock(); paths.insert(path); lock.unlock()
+    }
+
+    func removeAll() {
+        lock.lock(); paths.removeAll(); lock.unlock()
     }
 }

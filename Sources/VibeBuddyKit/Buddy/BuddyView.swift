@@ -7,9 +7,11 @@ public struct BuddyView: View {
     private let manifest: BuddyManifest
     private let expression: BuddyExpression
     @Bindable private var budget: AnimationBudget
-    private let pixelSize: CGFloat
     /// Box the face must stay inside; the face is scaled to it, never clipped.
     private let fit: CGSize?
+    /// What the pointer is up to. Read on the tick this view already runs, so
+    /// following the mouse adds no clock of its own — decision D3.
+    private let gaze: PointerGaze?
 
     @State private var startedAt = Date()
     /// The pose being left behind, so a change of expression deforms the face
@@ -21,14 +23,14 @@ public struct BuddyView: View {
         manifest: BuddyManifest,
         expression: BuddyExpression,
         budget: AnimationBudget,
-        pixelSize: Double = Double(BuddyView.defaultPixelSize),
-        fit: CGSize? = nil
+        fit: CGSize? = nil,
+        gaze: PointerGaze? = nil
     ) {
         self.manifest = manifest
         self.expression = expression
         self.budget = budget
-        self.pixelSize = CGFloat(pixelSize)
         self.fit = fit
+        self.gaze = gaze
     }
 
     private var settings: BuddyManifest.Expression? {
@@ -71,12 +73,20 @@ public struct BuddyView: View {
         Color(hex: settings?.colour ?? manifest.colour) ?? .primary
     }
 
-    /// Never above 1.
+    /// The box is the size the face is drawn at, up or down.
+    ///
+    /// It used to be a ceiling — `min(1, …)` — back when the pill was measured
+    /// from the manifest and the box could only ever be too small. The size is
+    /// now decided in one place (`PillLayout.buddyBox`, or the panel header)
+    /// and handed here, so a box larger than the plate means *draw it larger*.
+    /// The enlargement is geometric: the same raster, scaled. Re-scaling the
+    /// manifest instead would land the cells on a different grid and change the
+    /// shape of the eyes.
     private var fitted: CGFloat {
         guard let fit, fit.width > 0, fit.height > 0,
               plate.width > 0, plate.height > 0
         else { return 1 }
-        return min(1, fit.width / plate.width, fit.height / plate.height)
+        return min(fit.width / plate.width, fit.height / plate.height)
     }
 
     public var body: some View {
@@ -104,9 +114,22 @@ public struct BuddyView: View {
     @ViewBuilder
     private func face(phase: Double, now: Date) -> some View {
         if let spec = settings?.eye {
+            // Read once per frame, here: `mood` advances a small state machine,
+            // and calling it twice in one frame would count one double-take as
+            // two.
+            let mood = gaze?.mood(at: now) ?? .resting
+            // A mood may borrow another expression's eyes. Only the chase does.
+            let worn = mood.borrowedExpression
+                .flatMap { manifest.expression($0)?.eye } ?? spec
             EyesFaceView(
-                spec: morphed(spec, now: now), plate: plate, colour: colour,
-                pixelSize: pixelSize, phase: phase)
+                spec: morphed(worn, now: now), plate: plate,
+                // A mood may insist on its own colour. Only the chase does,
+                // and it arrives and leaves with the chase itself — see
+                // `tintStrength`.
+                colour: mood.tint.flatMap { Color(hex: $0) }
+                    .map { Color.mix(colour, $0, mood.tintStrength) } ?? colour,
+                pixelSize: Self.pixelSize, phase: phase,
+                mood: mood, look: gaze?.look() ?? .level)
         } else {
             Color.clear.frame(width: plate.width, height: plate.height)
         }
@@ -124,9 +147,13 @@ public struct BuddyView: View {
     }
 
     /// Device pixels per rendered pixel. Coarsens the raster, never the drawn
-    /// size; past 3 the face stops being legible, hence the clamp on the
-    /// preference.
-    public static let defaultPixelSize: CGFloat = 2
+    /// size.
+    ///
+    /// Fixed at 3, and no longer a preference: judged by eye on 2026-08-21 as
+    /// the grain the faces are drawn for. A slider here only offered ways of
+    /// making the buddy read worse — the two other values it could take are the
+    /// same face with its cells too fine to register as pixels.
+    public static let pixelSize: CGFloat = 3
 
     private var interval: Double {
         tier == .still ? 1 : 1 / tier.rawValue
@@ -155,5 +182,23 @@ public extension Color {
         default:
             return nil
         }
+    }
+}
+
+public extension Color {
+    /// `t` of the way from `a` to `b`, in sRGB.
+    ///
+    /// Through `NSColor` rather than by hand: a `Color` does not hand out its
+    /// components, and the two hexes this mixes are the only inputs — parsing
+    /// them a second time here would be a second place to get them wrong.
+    static func mix(_ a: Color, _ b: Color, _ t: Double) -> Color {
+        let k = min(max(t, 0), 1)
+        guard k > 0 else { return a }
+        guard k < 1 else { return b }
+        guard let from = NSColor(a).usingColorSpace(.sRGB),
+              let to = NSColor(b).usingColorSpace(.sRGB),
+              let blended = from.blended(withFraction: CGFloat(k), of: to)
+        else { return k < 0.5 ? a : b }
+        return Color(nsColor: blended)
     }
 }

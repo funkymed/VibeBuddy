@@ -66,8 +66,6 @@ public struct SettingsStrings: Sendable {
     // Usage
     public let showUsage: String
     public let showPillWithoutSession: String
-    public let pixelSize: String
-    public let buddyScale: String
 
     // Advanced
     public let resetEverything: String
@@ -121,8 +119,6 @@ public struct SettingsStrings: Sendable {
         jumpOnClickHint: "Appariement par tty. Sous tmux, l'app est activée sans choisir l'onglet.",
         showUsage: "Afficher la consommation dans le panneau",
         showPillWithoutSession: "Garder la pastille visible sans session",
-        pixelSize: "Grain des pixels du buddy",
-        buddyScale: "Taille du buddy (et largeur de la pastille)",
         resetEverything: "Réinitialiser tous les réglages",
         resetEverythingHint: "Supprime les préférences et les modifications de buddy. Les fichiers .buddy ne sont pas touchés.",
         openBuddyFolder: "Ouvrir le dossier",
@@ -173,8 +169,6 @@ public struct SettingsStrings: Sendable {
         jumpOnClickHint: "Matched on the tty. Under tmux the app is activated without picking a tab.",
         showUsage: "Show usage in the panel",
         showPillWithoutSession: "Keep the pill visible with no session",
-        pixelSize: "Buddy pixel grain",
-        buddyScale: "Buddy size (and pill width)",
         resetEverything: "Reset every setting",
         resetEverythingHint: "Removes preferences and buddy edits. The .buddy files are left alone.",
         openBuddyFolder: "Open the folder",

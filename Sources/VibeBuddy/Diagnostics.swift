@@ -80,9 +80,10 @@ enum Diagnostics {
                                           ("alerte", 2, "notch terminé")] {
                 let l = PillLayout.resolve(geometry: g, buddy: buddy,
                                            sessionCount: count, alertText: alert)
-                print(String(format: "  %-12@ gauche %5.1f · encoche %5.1f · droite %5.1f = %6.1f pt · décalage %+.1f",
+                print(String(format: "  %-12@ gauche %5.1f · encoche %5.1f · droite %5.1f = %6.1f pt · décalage %+.1f · buddy %.1f×%.1f",
                              label as NSString, l.leftWidth, l.notchWidth, l.rightWidth,
-                             l.totalWidth, l.notchAlignmentOffset))
+                             l.totalWidth, l.notchAlignmentOffset,
+                             l.buddyBox.width, l.buddyBox.height))
             }
         }
 
@@ -235,7 +236,7 @@ enum Diagnostics {
                 // What the screen let through, not what the animation asked for.
                 let drawn = EyeRaster.frame(
                     in: screen, pose: spec.pose, animation: frame,
-                    pitch: BuddyView.defaultPixelSize).drift
+                    pitch: BuddyView.pixelSize).drift
                 print(String(
                     format: "    %2d  %-7@ demandé %+5.1f,%+5.1f → dessiné %+5.1f,%+5.1f pt   profondeur %.2f   ouverture %.2f   roulis %+.1f",
                     index, beat.rawValue as NSString,
@@ -311,7 +312,7 @@ enum Diagnostics {
     /// numbers alone got it wrong. Sampled on a beat that looks straight ahead,
     /// so the preview is the pose rather than a glance.
     static func faceRows(spec: EyeSpec, plate: BuddyManifest.FacePlate) -> [String] {
-        let pitch = BuddyView.defaultPixelSize
+        let pitch = BuddyView.pixelSize
         let size = CGSize(width: plate.width, height: plate.height)
         var phase = 0.0
         for index in 0..<64 where EyeAnimation.beat(at: index, spec: spec) == .ahead {

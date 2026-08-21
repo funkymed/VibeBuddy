@@ -108,22 +108,13 @@ public struct BuddyManifest: Sendable, Equatable {
     /// The same buddy, larger or smaller. The pill is measured from
     /// `face.width`, so this is what makes the collapsed pill's width a
     /// preference rather than a constant.
-    public func scaled(_ k: CGFloat) -> BuddyManifest {
-        guard k != 1, k > 0 else { return self }
-        var plate = face
-        plate.width *= k; plate.height *= k; plate.radius *= k
-        return BuddyManifest(
-            schema: schema, id: id, name: name, colour: colour, face: plate,
-            expressions: expressions.mapValues {
-                Expression(
-                    eye: EyeSpec(
-                        pose: $0.eye.pose.scaled(k), beat: $0.eye.beat,
-                        blink: $0.eye.blink, gaze: $0.eye.gaze,
-                        depthScale: $0.eye.depthScale,
-                        grain: $0.eye.grain, glitch: $0.eye.glitch),
-                    motion: $0.motion, colour: $0.colour)
-            })
-    }
+    // `scaled(_:)` was removed on 2026-08-21, and is not to come back.
+    //
+    // It multiplied the plate and every pose by the pill's size preference. But
+    // `EyeRaster` lights whole cells: at another size the same face lands on a
+    // different number of them, so the eyes came out a different *shape*, not a
+    // bigger one. The pill now widens its own ear and leaves the manifest at
+    // the size its author wrote. See `PillLayout.resolve`.
 
     /// Settings for an expression, falling back to `idle`.
     public func expression(_ name: BuddyExpression) -> Expression? {

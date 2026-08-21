@@ -70,7 +70,7 @@ struct PreferencesTests {
             #expect(notifications.haptics == false)
 
             let appearance = AppearancePrefs(store: store)
-            #expect(appearance.pixelSize == 2)
+            #expect(appearance.buddyID == BuiltInBuddy.id)
         }
     }
 
@@ -85,17 +85,12 @@ struct PreferencesTests {
         }
     }
 
-    // Past three the kaomoji stop being legible, so the value is clamped rather
-    // than trusted — a preference that can make the buddy unreadable will.
-    @Test("the pixel grain is bounded")
-    func pixelSizeIsClamped() {
-        withStore { store, _ in
-            let appearance = AppearancePrefs(store: store)
-            appearance.pixelSize = 12
-            #expect(appearance.pixelSize == 3)
-            appearance.pixelSize = 0.1
-            #expect(appearance.pixelSize == 1)
-        }
+    // The pixel grain and the buddy's size were preferences until 2026-08-21.
+    // Both are now fixed at the value the faces are drawn for, so there is
+    // nothing left to clamp — and nothing left to get wrong.
+    @Test("the grain is a constant, not a preference")
+    func grainIsFixed() {
+        #expect(BuddyView.pixelSize == 3)
     }
 
     // Reset used to reallocate the three models, but the settings window holds
@@ -109,7 +104,6 @@ struct PreferencesTests {
             let notifications = NotificationPrefs(store: store)
 
             appearance.buddyID = "orb"
-            appearance.pixelSize = 3
             appearance.overrides.created["orb"] = BuddyOverrides.Created(name: "Orb")
             layout.groupByDirectory = false
             layout.showUsage = false
@@ -125,7 +119,6 @@ struct PreferencesTests {
             notifications.reload()
 
             #expect(appearance.buddyID == BuiltInBuddy.id)
-            #expect(appearance.pixelSize == 2)
             #expect(appearance.overrides == BuddyOverrides())
             #expect(layout.groupByDirectory)
             #expect(layout.showUsage)

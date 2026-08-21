@@ -136,7 +136,7 @@ public final class PreferencesStore {
     /// domain also holds system keys a wipe would take with it.
     public static let allKeys: [String] = [
         schemaKey,
-        AppearancePrefs.Keys.buddyID, AppearancePrefs.Keys.pixelSize,
+        AppearancePrefs.Keys.buddyID,
         AppearancePrefs.Keys.overrides,
         LayoutPrefs.Keys.showPillWithoutSession, LayoutPrefs.Keys.groupByDirectory,
         LayoutPrefs.Keys.jumpOnClick, LayoutPrefs.Keys.showUsage,

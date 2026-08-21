@@ -5,6 +5,13 @@ import VibeBuddyKit
 
 let args = CommandLine.arguments
 
+// Registering the hook writes to a file that is the user's, so it is an
+// explicit command that shows its diff and asks — never something a launch
+// does on its own. `--settings <path>` aims elsewhere. RFC-006, T8 and T9.
+if args.contains("--install-hook") || args.contains("--uninstall-hook") {
+    exit(HookInstallCommand.run(arguments: args))
+}
+
 if let benchIndex = args.firstIndex(of: "--bench") {
     let mode = args.count > benchIndex + 1
         ? BenchHarness.Mode(rawValue: args[benchIndex + 1]) ?? .panel

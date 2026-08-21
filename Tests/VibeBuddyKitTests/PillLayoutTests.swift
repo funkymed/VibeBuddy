@@ -121,6 +121,54 @@ struct PillLayoutTests {
         #expect(layout.height == NotchFrameSolver.floatingPillHeight)
     }
 
+    // The pill scale is a margin, not a zoom. It used to multiply the manifest
+    // itself, which re-rasterised the face onto a different number of cells:
+    // the eyes changed shape, not size.
+    // 100 %, judged by eye on 2026-08-21. Filling the bar's height was tried
+    // and rejected, so this test is what keeps it from creeping back.
+    @Test("in the bar the buddy is drawn at the size its manifest declares")
+    func buddyIsDrawnAtFullSize() {
+        let face = BuiltInBuddy.manifest.face
+        let layout = PillLayout.resolve(
+            geometry: notched, buddy: BuiltInBuddy.manifest, sessionCount: 1)
+        #expect(layout.buddyBox == CGSize(width: face.width, height: face.height))
+    }
+
+    // The ear is meant to be no wider than the buddy needs, so this pins the
+    // margin to the arc's geometry rather than to a taste. One point less and
+    // the corner cuts the face.
+    @Test("the ear is exactly as wide as the buddy plus the corner's clearance")
+    func earIsMinimal() {
+        let layout = PillLayout.resolve(
+            geometry: notched, buddy: BuiltInBuddy.manifest, sessionCount: 0)
+        let clearance = PillLayout.cornerClearance(
+            pillHeight: layout.height, buddyHeight: layout.buddyBox.height)
+        #expect(layout.leftWidth == layout.buddyBox.width + clearance * 2)
+        // And that clearance is what the 12 pt arc actually asks for at that
+        // height, not a rounded-up constant.
+        #expect(abs(clearance - 3.0557) < 0.001)
+    }
+
+    @Test("a face that clears the arc entirely asks for no margin at all")
+    func shortFaceNeedsNoClearance() {
+        // 12 pt of air below a face in a 38 pt bar puts it past the radius.
+        #expect(PillLayout.cornerClearance(pillHeight: 38, buddyHeight: 14) == 0)
+    }
+
+    @Test("a bar too short for the face shrinks it rather than cropping it")
+    func shortBarShrinks() {
+        let shallow = NotchGeometry(
+            screenID: 3,
+            screenFrame: CGRect(x: 0, y: 0, width: 1800, height: 1169),
+            notchSize: CGSize(width: 220, height: 20))
+        let face = BuiltInBuddy.manifest.face
+        let layout = PillLayout.resolve(
+            geometry: shallow, buddy: BuiltInBuddy.manifest, sessionCount: 1)
+        #expect(layout.buddyBox.height == 18)
+        #expect(abs(layout.buddyBox.width / layout.buddyBox.height
+                    - face.width / face.height) < 0.001)
+    }
+
     @Test("measuring an empty string costs nothing")
     func emptyMeasure() {
         #expect(PillLayout.measure("", size: 13, weight: .bold) == 0)
@@ -152,13 +200,18 @@ struct OversizedBuddyTests {
         #expect(layout.rightWidth == PillLayout.maxSlotWidth)
     }
 
-    @Test("the content box is the slot minus its padding")
-    func contentBox() {
+    @Test("an oversized buddy is shrunk into the ear rather than clipped by it")
+    func giantIsFittedToTheEar() {
         let layout = PillLayout.resolve(geometry: notched, buddy: giant(), sessionCount: 1)
-        let box = layout.contentBox()
-        #expect(box.width == PillLayout.maxSlotWidth - PillLayout.slotPadding * 2)
+        let box = layout.buddyBox
+        let clearance = PillLayout.cornerClearance(
+            pillHeight: layout.height, buddyHeight: box.height)
+        #expect(box.width <= layout.leftWidth - clearance * 2)
         #expect(box.height < layout.height)
         #expect(box.height > 0)
+        // Still the manifest's proportions, shrunk.
+        let face = giant().face
+        #expect(abs(box.width / box.height - face.width / face.height) < 0.001)
     }
 
     @Test("the shipped buddies are unaffected by the cap")
@@ -166,5 +219,60 @@ struct OversizedBuddyTests {
         let layout = PillLayout.resolve(
             geometry: notched, buddy: BuiltInBuddy.manifest, sessionCount: 2)
         #expect(layout.leftWidth < PillLayout.maxSlotWidth)
+    }
+}
+
+/// A round eye four cells across is not a circle. See
+/// `EyeRaster.drawableRadius`.
+@Suite("Corners the grid can draw")
+struct DrawableRadiusTests {
+
+    @Test("a radius the grid cannot express is rounded down to whole cells")
+    func roundsToWholeCells() {
+        // 6 pt of radius on a 3 pt grid is two cells, but one cell of straight
+        // edge has to survive on each side.
+        #expect(EyeRaster.drawableRadius(6, halfWidth: 6.5, halfHeight: 6, pitch: 3) == 3)
+    }
+
+    @Test("below one cell there is no corner left, and the eye is a square")
+    func tinyEyesAreSquare() {
+        #expect(EyeRaster.drawableRadius(6, halfWidth: 4, halfHeight: 3, pitch: 3) == 0)
+        #expect(EyeRaster.drawableRadius(2, halfWidth: 20, halfHeight: 20, pitch: 3) == 0)
+    }
+
+    @Test("a face with cells to spare keeps the radius its author asked for")
+    func generousGridsKeepTheRadius() {
+        // The same eye at a 1 pt pitch has room for the curve.
+        #expect(EyeRaster.drawableRadius(6, halfWidth: 6.5, halfHeight: 6, pitch: 1) == 5)
+    }
+
+    @Test("no radius, no rounding")
+    func squareStaysSquare() {
+        #expect(EyeRaster.drawableRadius(0, halfWidth: 10, halfHeight: 10, pitch: 2) == 0)
+    }
+
+    // The measured case: `eve`'s idle eye at the shipped grain came out a
+    // lozenge, which is neither of the two things an eye may be.
+    @Test("the shipped idle eye is not a diamond")
+    func shippedEyeIsNotADiamond() {
+        let manifest = BuiltInBuddy.manifest
+        let spec = try? #require(manifest.expression(.idle)?.eye)
+        guard let spec else { return }
+        let frame = EyeRaster.frame(
+            in: CGSize(width: manifest.face.width, height: manifest.face.height),
+            pose: spec.pose, animation: EyeAnimation(), pitch: BuddyView.pixelSize)
+
+        // A diamond has exactly one cell on its widest row's outermost columns
+        // and tapers every row. A rounded square does not: its middle rows all
+        // reach the same width. Measure the left eye only.
+        let left = frame.lit.filter { $0.midX < manifest.face.width / 2 }
+        let rows = Dictionary(grouping: left) { Int($0.midY / BuddyView.pixelSize) }
+        let widths = rows.values.map { $0.count }.sorted()
+        #expect(widths.count >= 3)
+        // At least two rows share the widest count — a taper would give each
+        // row its own.
+        if let widest = widths.last {
+            #expect(widths.filter { $0 == widest }.count >= 2)
+        }
     }
 }

@@ -116,6 +116,13 @@ public enum EyeRaster {
             CGPoint(x: midX, y: midY + quantise($0.offsetY, to: pitch))
         }
 
+        // A corner radius the grid cannot express is worse than no radius at
+        // all. See `drawableRadius`.
+        var drawnEye = eye
+        drawnEye.radius = drawableRadius(
+            eye.radius, halfWidth: min(leftHalf, rightHalf),
+            halfHeight: min(leftHigh, rightHigh), pitch: pitch)
+
         var output = Frame()
         output.drift = CGSize(width: driftX, height: driftY)
         var y: CGFloat = 0
@@ -131,14 +138,14 @@ public enum EyeRaster {
                 let point = CGPoint(x: x + pitch / 2 - slip, y: y + pitch / 2)
                 var ink = contains(
                     point, centre: leftEye, halfWidth: leftHalf, halfHeight: leftHigh,
-                    feature: eye, mirrored: false)
+                    feature: drawnEye, mirrored: false)
                 if ink == .off {
                     ink = contains(
                         point, centre: rightEye, halfWidth: rightHalf, halfHeight: rightHigh,
                         // Mirrored, not merely counter-tilted: a wing is not
                         // symmetric, so negating the tilt alone would give one
                         // eye the other one's slant.
-                        feature: eye, mirrored: true)
+                        feature: drawnEye, mirrored: true)
                 }
                 if ink == .off, let mouth = pose.mouth, let centre = mouthCentre {
                     ink = contains(
@@ -186,6 +193,34 @@ public enum EyeRaster {
     /// Digital grain: sparse, deterministic, and slower than the clock.
     static func speckle(column: Int, row: Int, tick: Int) -> Double {
         hashed01(column &* 73 &+ row &* 131 &+ tick &* 9173, salt: 0x5EED)
+    }
+
+    /// The corner radius this grid can actually draw.
+    ///
+    /// A round eye four cells across is not a circle, it is a **diamond**: the
+    /// grid has no cells left to describe a curve with, so the corners eat the
+    /// straight edges and what comes out is a lozenge. Measured on `eve` at a
+    /// 3 pt pitch, whose 13×12 eye with `r:6` rendered as
+    ///
+    ///     ·  █       █
+    ///       ███     ███
+    ///      █████   █████
+    ///       ███     ███
+    ///        █       █
+    ///
+    /// Two rules, both about what the grid can hold. One whole cell of straight
+    /// edge stays on every side, so there is always a flat to read the shape
+    /// against; and the radius lands on a whole number of cells, because half a
+    /// cell of curve is either a cell or nothing and the raster has to pick.
+    /// Below one cell there is no corner left to round: the eye is a square,
+    /// which is the other thing an eye is allowed to be.
+    public static func drawableRadius(
+        _ radius: CGFloat, halfWidth: CGFloat, halfHeight: CGFloat, pitch: CGFloat
+    ) -> CGFloat {
+        guard pitch > 0, radius > 0 else { return 0 }
+        let straight = min(halfWidth, halfHeight) - pitch
+        let capped = min(radius, max(0, straight))
+        return (capped / pitch).rounded(.down) * pitch
     }
 
     /// Whether a point falls inside one feature, after the tilt has been undone

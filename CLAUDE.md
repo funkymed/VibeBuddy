@@ -123,8 +123,8 @@ Ordre = ordre de réalisation, pas ordre de numérotation.
 2   —        Spike keychain + oauth-usage                    ████████████████████ 100 %   ✔     v1
 3   RFC-004  Utilisation live (Keychain + OAuth)             ███████████████████░  95 %   0,5 j  v1
 4   —        Spike contrat de hook ← contrat établi          ██████████████████░░  90 %   1 min  v1
-5   RFC-006  Pont hook + socket Unix                        ██████████████░░░░░░  70 %   1-2 j  v1
-6   RFC-007  Interception des permissions      ⚠ à confirmer  ░░░░░░░░░░░░░░░░░░░░   0 %   5-7 j  v1
+5   RFC-006  Pont hook + socket Unix                         ██████████████░░░░░░  70 %   1-2 j  v1
+6   RFC-007  Interception des permissions     ⚠ à confirmer  ░░░░░░░░░░░░░░░░░░░░   0 %   5-7 j  v1
 7   RFC-010  Réglages segmentés + éditeur de buddy           ██████████████████░░  90 %   0,5 j  v1
 8   RFC-011  Build, signature, distribution                  ████████████░░░░░░░░  60 %   1-2 j  v1
 9   RFC-008  Vue sessions + saut terminal/tmux               ████████████████░░░░  80 %   1-2 j  v1.1

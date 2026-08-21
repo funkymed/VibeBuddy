@@ -5,6 +5,7 @@ import VibeBuddyKit
 struct PanelContentView: View {
     let sessions: [AgentSession]
     let buddy: BuddyManifest?
+    var buddyBox: CGSize = .zero
     let expression: BuddyExpression
     @Bindable var budget: AnimationBudget
     let usage: UsageState.Status
@@ -17,7 +18,6 @@ struct PanelContentView: View {
     /// Set only when the last jump has something to say: tab not found,
     /// permission refused.
     var jumpNote: String?
-    var pixelSize: Double = Double(BuddyView.defaultPixelSize)
     /// One row per directory rather than one per transcript.
     var groupByDirectory = true
     var jumpOnClick = true
@@ -34,8 +34,8 @@ struct PanelContentView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             PanelHeader(
-                buddy: buddy, expression: expression, sessions: sessions,
-                budget: budget, l10n: l10n, pixelSize: pixelSize,
+                buddy: buddy, expression: expression, buddyBox: buddyBox,
+                sessions: sessions, budget: budget, l10n: l10n,
                 onSettings: onSettings, onQuit: onQuit
             )
 
@@ -51,8 +51,8 @@ struct PanelContentView: View {
                 UsageSection(state: usage, l10n: l10n, locale: locale)
             }
         }
-        .padding(.horizontal, 20)
-        .padding(.top, 16)
+        .padding(.horizontal, PanelMetrics.contentInset.width)
+        .padding(.top, PanelMetrics.contentInset.height)
         .padding(.bottom, 12)
     }
 

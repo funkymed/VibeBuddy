@@ -7,7 +7,6 @@ import VibeBuddyKit
 struct BuddyPreviewStrip: View {
     let manifest: BuddyManifest
     let expressions: [BuddyExpression]
-    let pixelSize: Double
     @Binding var selection: BuddyExpression
 
     var body: some View {
@@ -16,7 +15,7 @@ struct BuddyPreviewStrip: View {
                 Button { selection = expression } label: {
                     BuddyView(
                         manifest: manifest, expression: expression,
-                        budget: BuddyEditorBudget.shared, pixelSize: pixelSize)
+                        budget: BuddyEditorBudget.shared)
                         .fixedSize()
                         .opacity(expression == selection ? 1 : 0.45)
                 }

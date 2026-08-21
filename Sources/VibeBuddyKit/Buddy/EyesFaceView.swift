@@ -16,6 +16,10 @@ struct EyesFaceView: View {
     let pixelSize: CGFloat
     /// Seconds since the expression was entered.
     let phase: Double
+    /// What the pointer is doing, if anything. `.resting` leaves the
+    /// manifest's own animation exactly as it was.
+    var mood: PointerMood = .resting
+    var look: PointerLook = .level
 
     /// The grain and the tear advance on their own slow tick rather than on
     /// the clock: noise that changes every frame changes the whole path every
@@ -29,10 +33,11 @@ struct EyesFaceView: View {
     }
 
     private var rendered: EyeRaster.Frame {
-        EyeRaster.frame(
+        return EyeRaster.frame(
             in: CGSize(width: plate.width, height: plate.height),
-            pose: spec.pose,
-            animation: EyeAnimation.at(phase: phase, spec: spec),
+            pose: spec.pose.following(mood: mood),
+            animation: EyeAnimation.at(phase: phase, spec: spec)
+                .following(mood: mood, look: look, eye: spec.pose.eye, phase: phase),
             pitch: pixelSize,
             grain: spec.grain, glitch: spec.glitch, tick: tick)
     }

@@ -24,6 +24,9 @@ final class NotchPanel: NSPanel {
     private let metrics = PanelMetrics()
     private var currentAlert: SessionAlert?
     private var buddy: BuddyManifest?
+    /// Where the pointer is, and what the face makes of it.
+    let gaze = PointerGaze()
+    private lazy var pointer = PointerMonitor(gaze: gaze)
     private var expression: BuddyExpression = .sleeping
     private var sessionCount = 0
     private var sessions: [AgentSession] = []
@@ -36,7 +39,6 @@ final class NotchPanel: NSPanel {
     private var jumpNote: String?
     /// Panel-facing preferences (RFC-010), held as plain values: observing the
     /// models would re-evaluate the view on every preference write.
-    private var pixelSize: Double = Double(BuddyView.defaultPixelSize)
     private var groupByDirectory = true
     private var jumpOnClick = true
     private var showUsage = true
@@ -339,6 +341,7 @@ final class NotchPanel: NSPanel {
         }
 
         onPanelVisibilityChange?(state == .panel)
+        updateGaze()
         hover.pillRect = pillScreenRect
         hover.setActive(state.isVisible)
         budget.update(isVisible: state.isVisible, isBusy: state == .panel)
@@ -400,7 +403,7 @@ final class NotchPanel: NSPanel {
                        onSettings: onSettings, onQuit: onQuit,
                        onJump: onJump, onSelect: { [weak self] in self?.select($0) },
                        jumpNote: jumpNote,
-                       pixelSize: pixelSize, groupByDirectory: groupByDirectory,
+                       gaze: gaze, groupByDirectory: groupByDirectory,
                        jumpOnClick: jumpOnClick, showUsage: showUsage)
     }
 
@@ -420,12 +423,6 @@ final class NotchPanel: NSPanel {
         self.l10n = strings
         self.locale = locale
         applyState(animated: false)
-    }
-
-    func setPixelSize(_ size: Double) {
-        guard size != pixelSize else { return }
-        pixelSize = size
-        rebuildContent()
     }
 
     func setLayoutPrefs(groupByDirectory: Bool, jumpOnClick: Bool, showUsage: Bool) {
@@ -512,8 +509,61 @@ final class NotchPanel: NSPanel {
         guard next != expression else { return }
         expression = next
         budget.update(isVisible: state.isVisible, isBusy: next != .sleeping && next != .idle)
+        updateGaze()
         rebuildContent()
     }
+
+    /// Who reacts to the pointer, and how.
+    ///
+    /// `idle` and `finished` follow it: they have nothing better to do. Working
+    /// does **not** — a face that is working should look busy, not
+    /// distractible — but a deliberate shake still gets through, and turns into
+    /// a chase. `sleeping` is left alone: it carries no clock by design, and a
+    /// look with no clock to draw it is a look that never moves.
+    private func updateGaze() {
+        let follows = expression == .idle || expression == .finished
+        // Everything but `sleeping`, which carries no clock by design: a laugh
+        // with no clock to draw it is a face that never moves.
+        let wanted = state.isVisible && expression != .sleeping
+        gaze.isEnabled = wanted
+        gaze.followsPointer = follows
+        gaze.shakeMeans = expression == .working ? .chase : .laugh
+        gaze.anchor = wanted ? buddyScreenRect : .zero
+        // The bands are read off the display the face is on, so a second
+        // monitor of another size divides in the same places.
+        gaze.screen = wanted ? (screen ?? NSScreen.main)?.frame ?? .zero : .zero
+        pointer.setActive(wanted)
+    }
+
+    /// Where the face itself is on screen — the ear, not the whole pill, and
+    /// the header's seat once the panel is open.
+    ///
+    /// Both seats, because the buddy travels between them and this rect is what
+    /// decides whether a click landed on it. It only knew the collapsed one,
+    /// which is the one the pointer is never over: hovering opens the panel, so
+    /// by the time anybody clicks, the face has already moved.
+    ///
+    /// The same two positions `NotchShellView.buddyOrigin` interpolates
+    /// between, read from the same constants.
+    private var buddyScreenRect: CGRect {
+        let shell = pillScreenRect
+        guard let geometry, let buddy else { return shell }
+        let layout = PillLayout.resolve(
+            geometry: geometry, buddy: buddy, sessionCount: sessionCount)
+        let box = layout.buddyBox
+        guard box.width > 0 else { return shell }
+
+        let origin: CGPoint = state == .panel
+            ? CGPoint(x: shell.minX + PanelMetrics.contentInset.width,
+                      y: shell.maxY - PanelMetrics.contentInset.height - box.height)
+            : CGPoint(x: shell.minX + (layout.leftWidth - box.width) / 2,
+                      y: shell.maxY - (shell.height + box.height) / 2)
+        return CGRect(origin: origin, size: box)
+    }
+
+    /// What counts as clicking on the buddy. Grown a little: the face is 62×30,
+    /// and asking for a hit inside exactly that is asking for a miss.
+    private var buddyClickRect: CGRect { buddyScreenRect.insetBy(dx: -8, dy: -8) }
 
     /// Show an alert in the pill for a few seconds. Never interrupts an open panel.
     func present(_ alert: SessionAlert, for duration: TimeInterval = 4) {
@@ -579,6 +629,12 @@ final class NotchPanel: NSPanel {
     override func mouseUp(with event: NSEvent) {
         defer { dragArmed = false }
         snapPreview.hide()
+        // A click that went nowhere is a poke, and a poke on the face is
+        // funny. Checked before the drag bail-out below, which returns early
+        // precisely when nothing was dragged.
+        if !isDragging, buddyClickRect.contains(NSEvent.mouseLocation) {
+            gaze.amuse()
+        }
         guard isDragging, let geometry else { return }
         isDragging = false
         anchorFraction = NotchFrameSolver.snap(
