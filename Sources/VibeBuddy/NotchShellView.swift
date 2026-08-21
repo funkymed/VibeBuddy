@@ -81,12 +81,12 @@ struct NotchShellView: View {
                 // Anchored, not centred: animation frames differ in width and
                 // centring makes the buddy shuffle sideways every frame.
                 buddyContent
-                    .padding(.leading, PillLayout.outerPadding)
+                    .padding(.leading, PillLayout.buddyPadding)
                     .frame(width: layout.leftWidth, alignment: .leading)
                 // The cutout: a hole, anything drawn here is invisible.
                 Color.clear.frame(width: layout.notchWidth)
                 rightSlot
-                    .padding(.trailing, PillLayout.outerPadding)
+                    .padding(.trailing, PillLayout.counterPadding)
                     .frame(width: layout.rightWidth, alignment: .trailing)
             }
             .frame(height: layout.height)

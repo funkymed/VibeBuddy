@@ -10,7 +10,14 @@ public struct PillLayout: Sendable, Equatable {
 
     /// Inset on the outer edge of an ear. Take it from `slotPadding`, never add
     /// to it: the measured slot width already includes both sides.
-    public static let outerPadding: CGFloat = 6
+    ///
+    /// The two ears do not want the same number. The buddy's own screen fades
+    /// to black at its ends, so it carries a visual margin of its own and reads
+    /// as floating if you add much more; the counter is crisp text against the
+    /// edge and reads as cramped at the same inset. Measured on the shipped
+    /// buddy, the fade covers about fourteen points either side.
+    public static let buddyPadding: CGFloat = 3
+    public static let counterPadding: CGFloat = 10
 
     public static let emptySlotWidth: CGFloat = 18
 

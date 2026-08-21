@@ -127,7 +127,7 @@ livrer — pas sur une arborescence inventée d'avance :
 | Sessions | groupement, saut vers le terminal, tmux | RFC-008 |
 | Consommation | fenêtres suivies, rafraîchissement | RFC-004 |
 | Avancé | diagnostics (`--info` dans la fenêtre), réinitialisation | RFC-001 |
-| À propos | version, buddy actif, crédits MIT Notch-Pilot | RFC-011 |
+| À propos | version, buddy actif, auteur, crédits | RFC-011 |
 
 Trois règles de construction :
 

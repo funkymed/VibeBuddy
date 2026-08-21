@@ -280,8 +280,18 @@ final class NotchPanel: NSPanel {
     ) {
         let duration = growing ? PanelTiming.expand : PanelTiming.collapse
 
-        withAnimation(.easeOut(duration: duration)) {
+        // Nothing to grow from on the very first appearance. `drawnWidth`
+        // starts at zero, and `NotchShellView` wraps the three fixed slots —
+        // ear, cutout, ear — in a frame of that width. A frame narrower than
+        // its content centres it, so animating 0 → 404 slides both ears in
+        // from the middle and the buddy spends a quarter of a second cut in
+        // half: at launch you saw one eye instead of two.
+        if metrics.drawnWidth == 0 {
             metrics.drawnWidth = drawnWidth
+        } else {
+            withAnimation(.easeOut(duration: duration)) {
+                metrics.drawnWidth = drawnWidth
+            }
         }
         alphaValue = 1
 

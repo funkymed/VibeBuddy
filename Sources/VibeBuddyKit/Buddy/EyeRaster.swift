@@ -60,8 +60,12 @@ public enum EyeRaster {
         // blurred pixel grid, which is the one thing this look cannot afford.
         let turn = direction(animation.gaze.width)
         let lift = direction(animation.gaze.height)
-        let nearScale = 1 - 0.30 * abs(turn)
-        let farScale = 1 + 0.10 * abs(turn)
+        // 0.84/1.06, not 0.70/1.10. The stronger pair read as depth on an
+        // 80 pt screen with the eyes well apart; at 62 pt and closer together
+        // the same 57 % difference turns the near eye into a sliver and the
+        // face reads as broken rather than as turned.
+        let nearScale = 1 - 0.16 * abs(turn)
+        let farScale = 1 + 0.06 * abs(turn)
         // Looking up or down foreshortens both eyes the same way.
         halfHeight *= 1 - 0.16 * abs(lift)
         let leftHalf = (turn < 0 ? nearScale : (turn > 0 ? farScale : 1)) * stretch

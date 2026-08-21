@@ -105,6 +105,26 @@ public struct BuddyManifest: Sendable, Equatable {
         return (text.count == 6 || text.count == 8) && UInt32(text, radix: 16) != nil
     }
 
+    /// The same buddy, larger or smaller. The pill is measured from
+    /// `face.width`, so this is what makes the collapsed pill's width a
+    /// preference rather than a constant.
+    public func scaled(_ k: CGFloat) -> BuddyManifest {
+        guard k != 1, k > 0 else { return self }
+        var plate = face
+        plate.width *= k; plate.height *= k; plate.radius *= k
+        return BuddyManifest(
+            schema: schema, id: id, name: name, colour: colour, face: plate,
+            expressions: expressions.mapValues {
+                Expression(
+                    eye: EyeSpec(
+                        pose: $0.eye.pose.scaled(k), beat: $0.eye.beat,
+                        blink: $0.eye.blink, gaze: $0.eye.gaze,
+                        depthScale: $0.eye.depthScale,
+                        grain: $0.eye.grain, glitch: $0.eye.glitch),
+                    motion: $0.motion, colour: $0.colour)
+            })
+    }
+
     /// Settings for an expression, falling back to `idle`.
     public func expression(_ name: BuddyExpression) -> Expression? {
         expressions[name.rawValue] ?? expressions["idle"]

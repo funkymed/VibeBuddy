@@ -224,11 +224,12 @@ enum Diagnostics {
         var idleLoader = BuddyLoader()
         let traced = AppCoordinator.forcedFace ?? .idle
         if let spec = idleLoader.load(id: active).manifest.expressions[traced.rawValue]?.eye {
-            print("  séquence \(traced.rawValue) — un temps de \(spec.beat) s")
+            print("  séquence \(traced.rawValue) — un temps de \(spec.beatLength) s")
             for index in 0..<18 {
                 let beat = EyeAnimation.beat(at: index, spec: spec)
+                // Sampled past the crossing, on the beat's *effective* length.
                 let frame = EyeAnimation.at(
-                    phase: Double(index) * spec.beat + spec.beat * 0.7, spec: spec)
+                    phase: Double(index) * spec.beatLength + spec.beatLength * 0.7, spec: spec)
                 print(String(
                     format: "    %2d  %-7@ regard %+5.1f,%+5.1f pt   profondeur %.2f   ouverture %.2f   roulis %+.1f   dissymétrie %+.2f",
                     index, beat.rawValue as NSString,
@@ -307,7 +308,7 @@ enum Diagnostics {
         let size = CGSize(width: plate.width, height: plate.height)
         var phase = 0.0
         for index in 0..<64 where EyeAnimation.beat(at: index, spec: spec) == .ahead {
-            phase = Double(index) * spec.beat + spec.beat * 0.6
+            phase = Double(index) * spec.beatLength + spec.beatLength * 0.6
             break
         }
         let animation = EyeAnimation.at(phase: phase, spec: spec)

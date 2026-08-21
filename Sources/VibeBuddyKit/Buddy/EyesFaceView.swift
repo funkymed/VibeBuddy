@@ -144,6 +144,11 @@ struct FaceScreen: View {
         .allowsHitTesting(false)
     }
 
+    /// How far in from each end the scanlines finish fading, as a fraction of
+    /// the screen — derived from a fixed seven points so that a narrower screen
+    /// gets a narrower fade rather than a fade that reaches further in.
+    private var fade: CGFloat { min(0.30, 7 / max(plate.width, 1)) }
+
     /// A fall-off to black around the screen.
     ///
     /// It reaches full black inside the corners on purpose: the rounded
@@ -165,14 +170,20 @@ struct FaceScreen: View {
             // And a horizontal one on top, so every scanline **ends** in black
             // rather than being cut off by the corner it runs into. The
             // elliptical fall-off alone darkens the ends but never quite
-            // finishes them: on a screen this wide it reaches full black only
-            // in the last few points, which reads as a line that stops rather
-            // than one that fades out.
+            // finishes them: on a wide screen it reaches full black only in the
+            // last few points, which reads as a line that stops rather than one
+            // that fades out.
+            //
+            // A fixed **width in points**, not a fraction. As a fraction it
+            // followed the screen: narrowing the screen from 80 to 62 brought
+            // the fade twelve points closer to the middle, far enough in that a
+            // look to the side put an eye inside it — the eye did not clip, it
+            // went out.
             LinearGradient(
                 stops: [
                     .init(color: .black, location: 0),
-                    .init(color: .clear, location: 0.24),
-                    .init(color: .clear, location: 0.76),
+                    .init(color: .clear, location: fade),
+                    .init(color: .clear, location: 1 - fade),
                     .init(color: .black, location: 1),
                 ],
                 startPoint: .leading, endPoint: .trailing)

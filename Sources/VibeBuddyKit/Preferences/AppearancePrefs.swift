@@ -10,6 +10,7 @@ public final class AppearancePrefs {
     public enum Keys {
         public static let buddyID = "vibebuddy.buddy"
         public static let pixelSize = "vibebuddy.appearance.pixelSize"
+        public static let buddyScale = "vibebuddy.appearance.buddyScale"
         public static let overrides = "vibebuddy.buddy.overrides"
     }
 
@@ -25,6 +26,7 @@ public final class AppearancePrefs {
     }
 
     private var storedPixelSize: Double = 2
+    private var storedBuddyScale: Double = 1
 
     /// Device pixels backing one rendered pixel, bounded to 1…3: past three the
     /// kaomoji stop being legible.
@@ -59,6 +61,7 @@ public final class AppearancePrefs {
         defer { isReloading = false }
         buddyID = store.string(Keys.buddyID, default: BuiltInBuddy.id) ?? BuiltInBuddy.id
         storedPixelSize = min(max(store.double(Keys.pixelSize, default: 2), 1), 3)
+        storedBuddyScale = min(max(store.double(Keys.buddyScale, default: 1), 0.65), 1.35)
         overrides = BuddyOverrides.decode(store.data(Keys.overrides))
     }
 
@@ -73,6 +76,23 @@ public final class AppearancePrefs {
     }
 
     public func resolved(_ manifest: BuddyManifest) -> BuddyManifest {
-        overrides.apply(to: manifest)
+        overrides.apply(to: manifest).scaled(CGFloat(buddyScale))
+    }
+
+    /// How big the buddy is drawn, and therefore how wide the collapsed pill
+    /// is: `PillLayout` measures the ear from `face.width`.
+    ///
+    /// Bounded rather than free. Below about two thirds the eyes stop having
+    /// enough cells to hold a shape; above, the ear hits `maxSlotWidth` and the
+    /// buddy is scaled back down to fit, so the preference would stop doing
+    /// anything. Clamped in the setter, never in a `didSet` — see `pixelSize`.
+    public var buddyScale: Double {
+        get { storedBuddyScale }
+        set {
+            let clamped = min(max(newValue, 0.65), 1.35)
+            guard clamped != storedBuddyScale else { return }
+            storedBuddyScale = clamped
+            store.set(clamped, forKey: Keys.buddyScale)
+        }
     }
 }

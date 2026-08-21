@@ -82,7 +82,9 @@ struct SettingsShell: View {
         case .sessions:
             SessionsSection(l10n: l10n, prefs: layout)
         case .display:
-            DisplaySection(l10n: l10n, layout: layout, appearance: appearance)
+            DisplaySection(
+                l10n: l10n, layout: layout, appearance: appearance,
+                onBuddyChange: onBuddyChange)
         case .advanced:
             AdvancedSection(l10n: l10n, onReset: onReset)
         case .about:

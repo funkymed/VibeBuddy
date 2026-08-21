@@ -132,7 +132,9 @@ struct EyesFileTests {
         #expect(manifest.expressions["sleeping"]?.eye.pose.eye.shape == .arc)
         #expect(manifest.expressions["idle"]?.eye.pose.eye.shape == .oval)
         #expect(manifest.expressions["working"]?.eye.pose.eye.shape == .oval)
-        #expect(manifest.expressions["finished"]?.eye.pose.eye.shape == .arc)
+        // `finished` had thick arcs of its own; it took `awaiting`'s shape
+        // and rhythm instead, so the two now differ by behaviour, not by form.
+        #expect(manifest.expressions["finished"]?.eye.pose.eye.shape == .oval)
         #expect(manifest.expressions["failed"]?.eye.pose.eye.shape == .x)
         // Only `failed` tears; the rest are working screens.
         for name in BuddyExpression.allCases {

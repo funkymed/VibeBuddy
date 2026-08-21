@@ -63,6 +63,16 @@ public struct FaceFeature: Sendable, Equatable, Codable {
     /// Numbers blend; the shape does not. Half of a ring and a crescent is
     /// neither, so the shape flips at the midpoint and the sizes carry the
     /// movement across.
+    /// Every length multiplied, angles and fractions left alone. `thickness`
+    /// and `bend` are ratios of the feature's own box, so they scale with it
+    /// for free; multiplying them would thicken a shrinking face.
+    public func scaled(_ k: CGFloat) -> FaceFeature {
+        var out = self
+        out.width *= k; out.height *= k
+        out.radius *= k; out.offsetY *= k
+        return out
+    }
+
     public static func lerp(_ a: FaceFeature, _ b: FaceFeature, _ t: CGFloat) -> FaceFeature {
         let k = max(0, min(1, t))
         func mix(_ x: CGFloat, _ y: CGFloat) -> CGFloat { x + (y - x) * k }
@@ -87,6 +97,10 @@ public struct EyePose: Sendable, Equatable, Codable {
         eye: FaceFeature = FaceFeature(), gap: CGFloat = 14, mouth: FaceFeature? = nil
     ) {
         self.eye = eye; self.gap = gap; self.mouth = mouth
+    }
+
+    public func scaled(_ k: CGFloat) -> EyePose {
+        EyePose(eye: eye.scaled(k), gap: gap * k, mouth: mouth?.scaled(k))
     }
 
     public static func lerp(_ a: EyePose, _ b: EyePose, _ t: CGFloat) -> EyePose {
@@ -142,6 +156,8 @@ public enum GazeKind: String, Sendable, Equatable, CaseIterable, Codable {
     /// Looks nowhere, but leans in and pulls back. A face that is pleased with
     /// itself and has nothing left to look for.
     case calm
+    /// Up, and up again. Someone who has been waiting a while.
+    case bored
 
     /// `ahead` alternates with the directions on purpose, and the list is
     /// deliberately even in length: the step taken through it is always odd, so
@@ -152,6 +168,13 @@ public enum GazeKind: String, Sendable, Equatable, CaseIterable, Codable {
         switch self {
         case .none:   return [.ahead]
         case .calm:   return [.ahead, .near, .ahead, .far]
+        case .bored:
+            // Half the looks are upwards. The list alternates, and the walk
+            // through it takes an odd step, so an `ahead` always falls between
+            // two of them — four `up` entries never come out as a stare.
+            return [.ahead, .up, .ahead, .up, .ahead, .left,
+                    .ahead, .up, .ahead, .right, .ahead, .up,
+                    .ahead, .down, .ahead, .far]
         case .scan:
             // Mostly side to side — it is meant to read as reading — but it
             // still looks up and down now and then, and leans in.
@@ -185,6 +208,12 @@ public struct EyeSpec: Sendable, Equatable, Codable {
     /// Multiplier on how far the face leans in and out. `0` never moves in
     /// depth, `1` is the default amount, above exaggerates it.
     public var depthScale: CGFloat
+    /// What a beat actually lasts. Not `beat`: `dart` runs the same repertoire
+    /// at twice the tempo, so the two differ by a factor of two there — and a
+    /// caller that samples on `beat` alone lands on a different beat than the
+    /// one it asked about.
+    public var beatLength: Double { max(EyeSpec.minimumBeat, beat * gaze.tempo) }
+
     /// Share of dark cells the digital grain lights faintly, 0…1.
     public var grain: Double
     /// How badly the picture tears, 0…1. `0` is a screen that is working.
@@ -288,7 +317,7 @@ public struct EyeAnimation: Sendable, Equatable {
 
     public static func at(phase: Double, spec: EyeSpec) -> EyeAnimation {
         var animation = EyeAnimation()
-        let beatLength = max(EyeSpec.minimumBeat, spec.beat * spec.gaze.tempo)
+        let beatLength = spec.beatLength
         guard phase >= 0, beatLength > 0 else { return animation }
 
         let index = Int((phase / beatLength).rounded(.down))

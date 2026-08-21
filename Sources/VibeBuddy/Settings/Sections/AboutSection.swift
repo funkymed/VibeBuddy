@@ -8,6 +8,9 @@ struct AboutSection: View {
 
     private var s: SettingsStrings { l10n.settings }
 
+    /// Not translated: a handle is a handle in every language.
+    private static let author = "@funkymed"
+
     var body: some View {
         SettingsPage {
             VStack(alignment: .leading, spacing: 6) {
@@ -30,6 +33,13 @@ struct AboutSection: View {
             }
 
             SettingsGroup(title: s.credits) {
+                SettingsRow(title: s.author) {
+                    Text(Self.author)
+                        .font(.callout.monospaced())
+                        .foregroundStyle(.secondary)
+                        .textSelection(.enabled)
+                }
+                Divider()
                 SettingsRow(title: s.creditsBody) { EmptyView() }
             }
         }

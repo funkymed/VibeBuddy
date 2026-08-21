@@ -67,6 +67,7 @@ public struct SettingsStrings: Sendable {
     public let showUsage: String
     public let showPillWithoutSession: String
     public let pixelSize: String
+    public let buddyScale: String
 
     // Advanced
     public let resetEverything: String
@@ -76,6 +77,7 @@ public struct SettingsStrings: Sendable {
     // About
     public let credits: String
     public let creditsBody: String
+    public let author: String
 
     public static let french = SettingsStrings(
         general: Section(title: "Général", symbol: "gearshape"),
@@ -120,11 +122,13 @@ public struct SettingsStrings: Sendable {
         showUsage: "Afficher la consommation dans le panneau",
         showPillWithoutSession: "Garder la pastille visible sans session",
         pixelSize: "Grain des pixels du buddy",
+        buddyScale: "Taille du buddy (et largeur de la pastille)",
         resetEverything: "Réinitialiser tous les réglages",
         resetEverythingHint: "Supprime les préférences et les modifications de buddy. Les fichiers .buddy ne sont pas touchés.",
         openBuddyFolder: "Ouvrir le dossier",
         credits: "Crédits",
-        creditsBody: "Briques bas niveau réempruntées à Notch-Pilot (MIT), réécrites."
+        creditsBody: "Inspired by Notch-Pilot & VibeIsland",
+        author: "Auteur"
     )
 
     public static let english = SettingsStrings(
@@ -170,10 +174,12 @@ public struct SettingsStrings: Sendable {
         showUsage: "Show usage in the panel",
         showPillWithoutSession: "Keep the pill visible with no session",
         pixelSize: "Buddy pixel grain",
+        buddyScale: "Buddy size (and pill width)",
         resetEverything: "Reset every setting",
         resetEverythingHint: "Removes preferences and buddy edits. The .buddy files are left alone.",
         openBuddyFolder: "Open the folder",
         credits: "Credits",
-        creditsBody: "Low-level pieces reborrowed from Notch-Pilot (MIT), rewritten."
+        creditsBody: "Inspired by Notch-Pilot & VibeIsland",
+        author: "Author"
     )
 }

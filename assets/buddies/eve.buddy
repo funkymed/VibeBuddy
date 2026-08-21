@@ -32,8 +32,9 @@
 #   depth  amplitude des avancées et reculs : 0 immobile, 1 la valeur par
 #          défaut, au-dessus exagère
 #   gaze   none (droit devant, immobile) · calm (droit devant, mais avance et
-#          recule) · scan (gauche/droite, plus quelques haut/bas) · wander (les
-#          quatre directions) · dart (wander, deux fois plus vite)
+#          recule) · bored (une fois sur deux vers le haut) · scan
+#          (gauche/droite, plus quelques haut/bas) · wander (les quatre
+#          directions) · dart (wander, deux fois plus vite)
 #
 # Le regard n'est pas un glissement : l'œil du côté vers lequel la tête tourne
 # fuit derrière la courbe et se rétrécit, l'autre se rapproche et s'élargit,
@@ -42,23 +43,31 @@
 # grille de pixels ré-échantillonnée est une grille de pixels floue.
 #
 # L'écran est un rectangle arrondi, pas un ovale, et il n'a pas de contour :
-# ce sont les scanlines allumées qui dessinent sa surface. Il fait 80×30, soit
-# 40×15 cellules à 2 pt par pixel. C'est le maximum :
+# ce sont les scanlines allumées qui dessinent sa surface. Il fait 62×30, soit
+# 31×15 cellules à 2 pt par pixel — la pastille repliée est mesurée dessus, donc
+# chaque point de large ici en coûte deux à l'encoche.
+#
+# Il faisait 80 de large : mesuré, 16 à 20 pt ne s'allumaient jamais de chaque
+# côté. Le resserrement s'accompagne d'un « gap » réduit, sinon le regard perd
+# son débattement — EyeRaster borne le déplacement à
+# « largeur/2 − écart − demi-œil », donc rendre l'écart aux yeux leur rend le
+# déplacement. À 62 avec gap:10 ils vont toujours à 12 pt, comme à 80 avec
+# gap:16. C'est le maximum :
 # l'oreille de la pastille plafonne à 96 pt (PillLayout.maxSlotWidth) et la
 # hauteur est celle de l'encoche moins la marge.
 
 kind: eyes
-face: 80x30 r8
+face: 62x30 r8
 
 # Endormi : les paupières fermées, deux croissants, et une bouche minuscule.
 sleeping (blue #5AA8DC)
-eye   shape:arc w:22 h:10 t:0.34 bend:1 gap:6 y:0
+eye   shape:arc w:22 h:10 t:0.34 bend:1 gap:5 y:0
 # mouth shape:oval w:12 h:4 r:2 y:8
 time  beat:6 blink:0 grain:0.015 glitch:0 gaze:none
 
 # Au repos : deux ovales debout et un sourire plein.
 idle (amber #FFBB00)
-eye   shape:oval w:13 h:15 r:7 gap:16 y:0
+eye   shape:oval w:13 h:15 r:7 gap:10 y:0
 # mouth shape:arc w:24 h:9 t:0.6 bend:1 y:8
 time  beat:1.6 blink:0.3 grain:0.015 glitch:0 gaze:wander
 
@@ -69,25 +78,29 @@ time  beat:1.6 blink:0.3 grain:0.015 glitch:0 gaze:wander
 # l'œil à iris comme un œil de trop près. Regard qui ne
 # fait que gauche-droite, comme quelqu'un qui lit.
 working (green #70D46B)
-eye   shape:oval w:13 h:9 r:4.5 tilt:12 gap:16 y:0
+eye   shape:oval w:13 h:9 r:4.5 tilt:12 gap:10 y:0
 # mouth shape:oval w:14 h:5 r:2.5 y:8
 time  beat:1.2 blink:0.2 grain:0.012 glitch:0 gaze:scan
 
-# En attente : écarquillés, bouche ronde, et deux fois plus nerveux.
+# En attente : petits yeux qui regardent souvent en l'air — il attend, et ça
+# se voit. Écarquillé et nerveux (dart) disait « alerte » ; ce qu'il fait
+# vraiment, c'est patienter.
 awaiting (blue #5AB8FF)
-eye   shape:oval w:13 h:17 r:6.5 gap:16 y:0
+eye   shape:oval w:10 h:12 r:5 gap:12 y:0
 # mouth shape:oval w:10 h:10 r:5 y:8
-time  beat:1.4 blink:0.34 grain:0.015 glitch:0 gaze:dart
+time  beat:1.8 blink:0.3 grain:0.015 glitch:0 gaze:bored
 
-# Terminé : deux arches épaisses. Il ne cherche plus rien du regard — il
-# avance et recule sur place, un peu fier de lui.
+# Terminé : la forme et le rythme d'« awaiting », mais l'œil bien plus grand —
+# c'est ce qui les sépare, puisqu'ils partagent la couleur. Deux arches épaisses
+# avant, puis gaze:calm qui n'avançait et ne reculait que sur place : les deux
+# écartés à l'usage.
 finished (blue #5AB8FF)
-eye   shape:arc w:19 h:11 t:0.52 bend:-1 gap:10 y:0
+eye   shape:oval w:14 h:17 r:7 gap:10 y:0
 # mouth shape:arc w:20 h:9 t:0.4 bend:1 y:8
-time  beat:1.6 blink:0.15 depth:1.9 grain:0.012 glitch:0 gaze:calm
+time  beat:1.4 blink:0.34 grain:0.015 glitch:0 gaze:dart
 
 # Échec : deux croix, et l'image qui décroche.
 failed (red #FF5555)
-eye   shape:x w:14 h:14 t:0.30 gap:14 y:0
+eye   shape:x w:14 h:14 t:0.30 gap:9 y:0
 # mouth shape:arc w:20 h:8 t:0.38 bend:-1 y:8
 time  beat:0.5 blink:0.26 grain:0.07 glitch:0.85 gaze:scan

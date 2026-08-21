@@ -74,10 +74,19 @@ par ses réveils.
 
 ## Origine
 
-L'idée vient de **Notch-Pilot** (MIT). Réécriture, pas un fork : quelques
-briques bas niveau lui sont réempruntées en créditant MIT, chacune documentée
-dans la RFC qui la consomme — chaque fiche a sa section « Repris tel quel » avec
-le motif.
+L'idée vient de **Notch-Pilot**, et **VibeIsland** a inspiré la suite.
+
+**Aucune ligne n'en est reprise.** Réécriture intégrale, pas un fork. Ce qui a
+été gardé, ce sont des *constats* : une valeur de drapeau et la raison qui la
+justifie, un ordre d'opérations qui ne marche que dans ce sens, un séparateur
+choisi parce qu'un nom de session tmux peut contenir des espaces. Neuf fiches
+portent une section « Repris tel quel » qui les recense — le titre date de
+l'époque où l'emprunt était envisagé ; ce que ces tableaux contiennent est de
+l'empirisme, et leur colonne `fichier:ligne` désigne le dépôt de référence, pas
+le nôtre.
+
+Conséquence pratique : l'app ne porte pas de notice MIT, parce qu'elle n'a rien
+à couvrir. L'écran « À propos » dit *Inspired by Notch-Pilot & VibeIsland*.
 
 ## Liste des RFC
 
