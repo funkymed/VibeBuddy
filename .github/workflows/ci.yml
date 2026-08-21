@@ -26,23 +26,38 @@ concurrency:
 
 jobs:
   test:
-    # macOS 14 is the deployment target; building on the oldest supported
-    # runner is what keeps an accidental use of a newer API from shipping.
-    runs-on: macos-14
+    # The deployment target is macOS 14 and lives in Package.swift; the runner
+    # only has to be able to *build* it. Its default toolchain is Swift 5.10,
+    # and the package declares tools version 6.0 — hence the explicit Xcode
+    # selection below, without which every step fails on
+    # « is using Swift tools version 6.0.0 but the installed version is 5.10.0 ».
+    runs-on: macos-15
     timeout-minutes: 20
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Swift version
-        run: swift --version
+      # Whatever the newest installed Xcode is, rather than a pinned version
+      # that disappears with the next image refresh.
+      - name: Select the newest Xcode
+        run: |
+          latest=$(ls -d /Applications/Xcode*.app | sort -V | tail -1)
+          echo "sélection : $latest"
+          sudo xcode-select -s "$latest"
 
-      - name: Cache build products
-        uses: actions/cache@v4
-        with:
-          path: .build
-          key: ${{ runner.os }}-spm-${{ hashFiles('Package.resolved', 'Package.swift') }}
-          restore-keys: ${{ runner.os }}-spm-
+      - name: Swift version
+        run: |
+          swift --version
+          major=$(swift --version 2>&1 | sed -n 's/.*Swift version \([0-9]*\).*/\1/p' | head -1)
+          if [ "${major:-0}" -lt 6 ]; then
+            echo "::error::Swift $major — le paquet demande la 6, aucun Xcode assez récent sur ce runner"
+            exit 1
+          fi
+
+      # No cache. The project has **no external dependencies** — there is
+      # nothing to fetch and nothing to resolve, so `Package.resolved` does not
+      # even exist. Caching `.build` would only cache this repository's own
+      # object files, which change on every commit that matters.
 
       - name: Build
         run: swift build 2>&1 | tee /tmp/build.log
