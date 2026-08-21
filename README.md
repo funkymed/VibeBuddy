@@ -26,7 +26,33 @@ judged as such.
    command, edit a file or fetch a URL, the panel shows what is being asked and
    the decision goes back without touching the terminal.
 
-## Install and run
+## Install
+
+```sh
+brew install --cask funkymed/vibebuddy/vibebuddy
+xattr -dr com.apple.quarantine /Applications/VibeBuddy.app
+```
+
+**The second line is not optional.** Homebrew *adds* the quarantine attribute —
+`xattr -l` on the installed app shows "Homebrew Cask" as its writer — and macOS
+then refuses the first launch, offering to move the app to the Trash. The app
+is signed with a stable self-signed identity but is **not notarised**, and
+notarisation needs an Apple Developer membership at 99 €/year.
+
+`--no-quarantine` used to do this at install time; the option was removed in
+Homebrew 6.
+
+The tap is
+[`funkymed/homebrew-vibebuddy`](https://github.com/funkymed/homebrew-vibebuddy);
+releases are at [`funkymed/VibeBuddy`](https://github.com/funkymed/VibeBuddy/releases).
+
+To remove it, including the buddies, the preferences and the socket:
+
+```sh
+brew uninstall --zap --cask vibebuddy
+```
+
+## Build it yourself
 
 Everything goes through the `Makefile`; `make` on its own lists it.
 
@@ -35,6 +61,8 @@ make app                      # dist/VibeBuddy.app, universal, signed
 make dmg                      # dist/VibeBuddy-<version>.dmg
 make run                      # debug build, straight from source
 make stop                     # kill every instance and unlink the socket
+make test                     # 449 tests, 75 suites
+make publish version=0.1.0    # sign, package, tag, release
 ```
 
 Two instances fight over the same socket — the second unlinks it and binds its
@@ -55,47 +83,39 @@ stored in the repository:
 ./scripts/make-identity.sh
 ```
 
-### The first launch will be refused, and that is expected
+### Why macOS refuses the first launch
 
 VibeBuddy is signed with a self-signed certificate, not a notarised one.
-Notarisation costs an Apple developer account, and this project does not have
-one. So Gatekeeper says no the first time:
+Notarisation needs an Apple Developer membership at 99 €/year, and this project
+does not have one. So Gatekeeper says no:
 
 ```
-$ spctl -a -t exec -vv dist/VibeBuddy.app
-dist/VibeBuddy.app: rejected
+$ spctl -a -t exec -vv /Applications/VibeBuddy.app
+/Applications/VibeBuddy.app: rejected
 origin=VibeBuddy Self-Signed
 ```
 
-Open it once with **right-click → Open**, confirm, and macOS remembers. Every
-later launch is normal.
-
-What the signature does buy is a **stable identity**: permissions you grant
-survive updates. An ad-hoc signature changes identity on every build, which
-revokes them every time.
-
-If a future release ships through Homebrew, its cask will remove the quarantine
-flag for you:
+**Homebrew does not help here — it makes it worse.** Installing a cask *adds*
+the quarantine attribute; `xattr -l` on the installed app names "Homebrew Cask"
+as its writer. The `--no-quarantine` option that used to prevent it was removed
+in Homebrew 6. Hence the second line of the install:
 
 ```sh
 xattr -dr com.apple.quarantine /Applications/VibeBuddy.app
 ```
 
-That command disables a protection macOS applied on purpose. It is written here
-rather than run silently in a postflight script, because turning off someone's
-security check without telling them is not acceptable — even when the binary is
-your own.
+For a DMG downloaded by hand, **right-click → Open** once works too: macOS
+remembers, and every later launch is normal.
 
-Buddies live outside the binary, in
-`~/Library/Application Support/VibeBuddy/buddies/`. To edit the ones in the
-repository in place:
+That `xattr` command disables a protection macOS applied on purpose. It is
+written here rather than run silently from a cask postflight, because turning
+off someone's protection is their decision to make, not a package's.
 
-```sh
-mkdir -p ~/Library/Application\ Support/VibeBuddy/buddies
-ln -s "$PWD/assets/buddies/emoji.buddy" ~/Library/Application\ Support/VibeBuddy/buddies/
-```
-
-They reload when the file is saved, with no relaunch and no rebuild.
+What the signature *does* buy, and it is not nothing, is a **stable identity**:
+the permissions you grant — automation of your terminal, opening at login —
+survive updates. An ad-hoc signature changes identity on every build and
+revokes them every time, which is why `scripts/build.sh` refuses to fall back
+to one.
 
 ## Diagnostics and measurement
 

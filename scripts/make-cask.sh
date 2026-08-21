@@ -10,10 +10,11 @@
 # the tap being updated are two decisions, and conflating them is how a tap
 # ends up pointing at a DMG nobody uploaded.
 #
-# What the cask buys, and it is the whole point: `zap` and the quarantine
-# removal. The app is signed with a self-signed identity and is not notarised,
-# so Gatekeeper refuses the first launch — README.md:45-64 documents the manual
-# `xattr -dr com.apple.quarantine`. Homebrew does it for the user.
+# What the cask buys is `zap` and a one-line install. It does **not** solve
+# Gatekeeper: Homebrew *adds* the quarantine attribute rather than removing it
+# — verified on 2026-08-21 with `xattr -l`, which showed "Homebrew Cask" as the
+# writer, and `--no-quarantine` was removed in Homebrew 6. Users run
+# `xattr -dr com.apple.quarantine` once, or the app gets notarised.
 
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -47,9 +48,10 @@ cask "vibebuddy" do
 
   app "VibeBuddy.app"
 
-  # Signed with a stable self-signed identity, not notarised: Gatekeeper would
-  # refuse the first launch. Homebrew removes the quarantine attribute itself,
-  # which is the friction this cask exists to remove.
+  # Signed with a stable self-signed identity, not notarised. Homebrew adds the
+  # quarantine attribute, and Homebrew 6 dropped --no-quarantine. After
+  # installing:
+  #   xattr -dr com.apple.quarantine /Applications/VibeBuddy.app
 
   zap trash: [
     "~/Library/Application Support/VibeBuddy",
