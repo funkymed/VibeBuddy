@@ -2,10 +2,10 @@
 
 | | |
 |---|---|
-| **Status** | in-progress (95 %) — chemin complet vérifié en réel ; **l'attente de réponse est détectée** |
+| **Status** | **done (100 %)** — douze tâches livrées, T1 annulée ; chemin complet vérifié en réel, **l'attente de réponse est détectée** |
 | **Author** | Cyril Pereira |
 | **Created** | 2026-08-19 |
-| **Updated** | 2026-08-20 (soir) |
+| **Updated** | 2026-08-21 |
 | **Phase** | 4 — Intégration |
 | **Depends on** | RFC-003 · ~~RFC-006~~ — voir §3 |
 | **Related** | RFC-005 (expression du buddy) · RFC-010 (préférences) · R11 |

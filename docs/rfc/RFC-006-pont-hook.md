@@ -2,10 +2,10 @@
 
 | | |
 |---|---|
-| **Status** | blocked (0 %) — spike fait, contrat `PermissionRequest` non vérifié |
+| **Status** | **in-progress (70 %)** — transport et écriture des réglages livrés |
 | **Author** | Cyril Pereira |
 | **Created** | 2026-08-19 |
-| **Updated** | 2026-08-19 |
+| **Updated** | 2026-08-21 |
 | **Phase** | 4 — Intégration |
 | **Depends on** | RFC-001 |
 | **Related** | RFC-003 (ModeUpdate, mapping PID) · **RFC-012 (consomme Stop/Notification)** · D4, D6, R1, R6 |
@@ -140,16 +140,34 @@ horodatée est ce qui rend l'erreur réparable.
 
 | # | Tâche | Statut | % |
 |---|---|---|---|
-| T1 | Spike : un hook trivial reçoit-il un `PermissionRequest` et sa décision est-elle honorée ? (Q1) | **in-progress** | **60** — voir [`docs/spikes/hook-contract.md`](../spikes/hook-contract.md) |
-| T2 | Deuxième cible `vibe-hook` + `HookProtocol.swift` partagé + garde-fou anti-`import AppKit` | todo | 0 |
-| T3 | `HookSocketServer` (actor) : bind, `chmod 0600`, accept, ligne-JSON | todo | 0 |
-| T4 | Détection de déconnexion du pair en `DispatchSource` | todo | 0 |
-| T5 | Client : stdin → socket → stdout, `SO_RCVTIMEO`, `exit(0)` sur tout imprévu | todo | 0 |
-| T6 | **Test golden-file** : fixture stdin → stdout attendu **octet à octet**, en CI (parade R6) | todo | 0 |
-| T7 | `ClaudeSettingsWriter` : sauvegarde, atomique, sans `.sortedKeys` (parade R1) | todo | 0 |
+| T1 | Spike : un hook trivial reçoit-il un `PermissionRequest` et sa décision est-elle honorée ? (Q1) | **in-progress** | **90** — contrat lu dans le binaire, voir [`docs/spikes/hook-contract.md`](../spikes/hook-contract.md) |
+| T2 | Deuxième cible `vibe-hook` + `HookProtocol.swift` partagé + garde-fou anti-`import AppKit` | **done** | **100** |
+| T3 | `HookSocketServer` (actor) : bind, `chmod 0600`, accept, ligne-JSON | **done** | **100** |
+| T4 | Détection de déconnexion du pair en `DispatchSource` | **done** | **100** |
+| T5 | Client : stdin → socket → stdout, `SO_RCVTIMEO`, `exit(0)` sur tout imprévu | **done** | **100** |
+| T6 | **Test golden-file** : réponse attendue **octet à octet**, plus une assertion qui interdit tout champ de trop (parade R6) | **done** | **100** |
+| T7 | `ClaudeSettingsWriter` : sauvegarde, atomique, **ordre préservé** (parade R1, D6) | **done** | **100** |
 | T8 | `HookInstaller` idempotent + nettoyage des entrées obsolètes | todo | 0 |
 | T9 | `vibebuddy --uninstall-hook` | todo | 0 |
-| T10 | Mesure du temps de démarrage du hook, comparé à un binaire liant AppKit (valide D4) | todo | 0 |
+| T10 | Mesure du temps de démarrage du hook (valide D4) | **done** | **100** — **3,2 ms** de médiane, cible 8 |
+
+### Ce que T7 a demandé de plus que prévu
+
+La fiche disait « sans `.sortedKeys` ». Ça ne suffit pas : **sans elle,
+`JSONSerialization` rend un ordre arbitraire**, pas celui de l'utilisateur.
+`.sortedKeys` rend le brassage *stable*, elle ne l'empêche pas. Or le fichier
+visé fait onze kilo-octets écrits à la main, avec `$schema` délibérément en tête.
+
+D'où `OrderedJSON` : un modèle qui retient l'ordre des clés, et un analyseur et
+un sérialiseur à la main. Deux bénéfices que le détour paie :
+
+- **Une clé remplacée reste à sa place** — elle ne migre pas en fin de fichier.
+- **Les nombres gardent leur texte d'origine.** `JSONSerialization` transforme
+  `1.0` en `1` et perd des chiffres sur un grand entier ; le littéral est
+  conservé tel quel.
+
+Le fichier réel de l'utilisateur sert de fixture : le test le lit s'il existe,
+le re-sérialise, et vérifie que l'ordre des vingt-cinq clés racine est intact.
 
 **Critère de sortie.** Le test golden-file passe. Tuer l'app pendant qu'une
 permission est en attente **ne bloque pas Claude Code plus de 120 s**.
