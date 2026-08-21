@@ -1,0 +1,92 @@
+name: CI
+
+# Quality gates only, and that is a decision rather than an omission.
+#
+# The signed bundle is **not** built here. `scripts/build.sh` refuses to sign
+# ad hoc, because macOS ties granted permissions to the signing identity: an
+# identity that changes on every build revokes them on every update. The
+# certificate lives in the maintainer's login keychain and never in the
+# repository — so a runner cannot reproduce it without being handed the private
+# key, and a self-signed identity kept in a third-party secret store is a key
+# that can sign anything under this app's name.
+#
+# Releases are therefore built locally: `make dmg`, then the DMG is attached to
+# the tag by hand. See RFC-011.
+
+on:
+  push:
+    branches: [main, develop]
+    tags-ignore: ['**']
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    # macOS 14 is the deployment target; building on the oldest supported
+    # runner is what keeps an accidental use of a newer API from shipping.
+    runs-on: macos-14
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Swift version
+        run: swift --version
+
+      - name: Cache build products
+        uses: actions/cache@v4
+        with:
+          path: .build
+          key: ${{ runner.os }}-spm-${{ hashFiles('Package.resolved', 'Package.swift') }}
+          restore-keys: ${{ runner.os }}-spm-
+
+      - name: Build
+        run: swift build 2>&1 | tee /tmp/build.log
+
+      # A warning is a defect that compiles. The repository has none, and this
+      # is what keeps it that way.
+      - name: No warnings
+        run: |
+          if grep -E 'warning:' /tmp/build.log; then
+            echo "::error::des avertissements sont apparus"
+            exit 1
+          fi
+          echo "aucun avertissement"
+
+      - name: Test
+        run: swift test 2>&1 | tee /tmp/test.log
+
+      - name: Test summary
+        if: always()
+        run: |
+          grep -E 'Test run with' /tmp/test.log >> "$GITHUB_STEP_SUMMARY" || true
+
+      # The hook binary is spawned by Claude Code on every tool call of every
+      # session, so what it links is what it costs. A stray `import AppKit`
+      # would make dyld load the whole UI stack before `main()` runs — 3,2 ms
+      # becomes 40 to 60. A test asserts it, and this is the second lock.
+      - name: The hook links no UI
+        run: |
+          if grep -rn 'import AppKit\|import SwiftUI' Sources/VibeHook Sources/VibeHookProtocol; then
+            echo "::error::vibe-hook ne doit lier ni AppKit ni SwiftUI (décision D4)"
+            exit 1
+          fi
+          echo "vibe-hook est Foundation-only"
+
+      # Unsigned on purpose — see the note at the top. This proves the bundle
+      # assembles, the Info.plist is well formed and the icon is drawable.
+      - name: Bundle assembles, unsigned
+        run: ./scripts/build.sh --no-sign
+
+      - name: Bundle contents
+        run: |
+          {
+            echo '### Bundle'
+            echo '```'
+            find dist/VibeBuddy.app -type f | sed 's|dist/VibeBuddy.app/||' | sort
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

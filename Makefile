@@ -8,6 +8,10 @@ DEBUG_BIN  := .build/debug/$(APP)
 RELEASE_BIN:= .build/release/$(APP)
 BUNDLE     := dist/$(APP).app
 BUNDLE_BIN := $(BUNDLE)/Contents/MacOS/$(APP)
+# One source of truth for the version: the source file the app itself reads.
+VERSION    := $(shell grep -m1 'static let number' Sources/VibeBuddy/AppVersion.swift | sed 's/.*"\(.*\)".*/\1/')
+REPO       := funkymed/VibeBuddy
+TAP        := funkymed/homebrew-vibebuddy
 # Where an icon preview lands. Never in the repo: the icon is drawn by a
 # script, and dist/ is ignored — see scripts/generate-icon.swift.
 ICON_OUT   := /tmp/vibebuddy-icon
@@ -166,6 +170,53 @@ perf-busy: build-release
 perf-panel: build-release
 	./scripts/perfcheck.sh C $(or $(seconds),90) $(or $(rfc),001)
 .PHONY: perf-panel
+
+# The tap is its own repository — github.com/funkymed/homebrew-vibebuddy.
+# This writes the file; pushing it is a separate decision, because releasing a
+# version and pointing the tap at it are two acts, and doing them as one is how
+# a tap ends up naming a DMG nobody uploaded.
+## Write the Homebrew cask for the current version (needs `make dmg` first)
+cask:
+	$(call title,"Cask…")
+	./scripts/make-cask.sh Casks/vibebuddy.rb
+	echo "  copie-le dans le tap : github.com/funkymed/homebrew-vibebuddy"
+.PHONY: cask
+
+# `version=` is a **guard**, not an input: the version lives in
+# AppVersion.swift, and passing it here only asserts that you know which one
+# you are shipping. Bump the file first, with `make bump version=0.2.0`.
+#
+# The checks before the upload are the point. A release built from a dirty tree
+# cannot be reproduced from the tag it claims to be, and an unsigned DMG
+# installs an app whose identity changes on the next build — which revokes
+# every permission macOS had granted it.
+## Build, sign, package and publish a release — make publish version=0.1.0
+publish:
+	$(call title,"Publication $(VERSION)…")
+	if [ -n "$(version)" ] && [ "$(version)" != "$(VERSION)" ]; then \
+		printf "${RED}  version demandée $(version), source à $(VERSION)${NC}\n"; \
+		printf "  bump d'abord : make bump version=$(version)\n"; exit 1; \
+	fi
+	command -v gh >/dev/null || { printf "${RED}  gh absent${NC}\n"; exit 1; }
+	gh auth status >/dev/null 2>&1 || { printf "${RED}  gh non authentifié${NC}\n"; exit 1; }
+	test -z "$$(git status --porcelain)" || { printf "${RED}  arbre de travail sale — une release doit être reproductible depuis son tag${NC}\n"; exit 1; }
+	! git rev-parse "v$(VERSION)" >/dev/null 2>&1 || { printf "${RED}  le tag v$(VERSION) existe déjà${NC}\n"; exit 1; }
+	$(MAKE) dmg
+	codesign --verify --strict --deep $(BUNDLE) || { printf "${RED}  bundle non signé — refus de publier${NC}\n"; exit 1; }
+	$(MAKE) cask
+	git tag -a "v$(VERSION)" -m "VibeBuddy $(VERSION)"
+	git push origin "v$(VERSION)"
+	gh release create "v$(VERSION)" "dist/$(APP)-$(VERSION).dmg" \
+		--repo $(REPO) --title "$(APP) $(VERSION)" --generate-notes
+	printf "${GREEN}  publié${NC} — copie Casks/vibebuddy.rb dans $(TAP)\n"
+.PHONY: publish
+
+## Set the version — make bump version=0.2.0
+bump:
+	test -n "$(version)" || { printf "${RED}  usage : make bump version=0.2.0${NC}\n"; exit 1; }
+	sed -i '' 's/static let number = "[^"]*"/static let number = "$(version)"/' Sources/VibeBuddy/AppVersion.swift
+	printf "${GREEN}  version → $(version)${NC}\n"
+.PHONY: bump
 
 ## -- Icon
 Icon:

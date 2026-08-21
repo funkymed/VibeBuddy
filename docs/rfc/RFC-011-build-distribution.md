@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | **in-progress (75 %)** — bundle, icône, identité stable, signature et DMG livrés, README fait ; restent la CI et le perfcheck de release |
+| **Status** | **in-progress (95 %)** — tout livré sauf le perfcheck de release, qui demande une machine propre |
 | **Author** | Cyril Pereira |
 | **Created** | 2026-08-19 |
 | **Updated** | 2026-08-21 |
@@ -112,7 +112,8 @@ Homebrew et le glisser-déposer vers `/Applications` sont mieux servis par un DM
 | T4 | Certificat auto-signé à CN stable, hors dépôt, **sans repli ad-hoc** | **done** | **100** |
 | T5 | Signature des deux exécutables + `codesign --verify --strict --deep` | **done** | **100** |
 | T6 | `make-dmg.sh` | **done** | **100** |
-| T7 | Workflow GitHub Actions + bump du cask | todo | 0 |
+| T7 | Workflow GitHub Actions | **done** | **100** — `.github/workflows/ci.yml` |
+| T7b | Cask Homebrew + son bump | **done** | **100** — `scripts/make-cask.sh`, tap créé le 2026-08-21 |
 | T8 | README : documenter la friction Gatekeeper et le retrait de quarantaine | **done** | **100** — `README.md:45-64` |
 | T9 | Perfcheck de release : les 3 scénarios sur machine propre, collés dans la note de version | todo | 0 |
 | T10 | **Migration du domaine de préférences** vers l'identifiant du bundle | **done** | **100** |
@@ -179,6 +180,46 @@ DMG sur une machine propre. Le DMG installé sur un **second compte utilisateur
 macOS** se lance (le clic droit → Ouvrir est acceptable et documenté).
 `codesign --verify --strict --deep` passe. Le verdict de `spctl -a -t exec -vv`
 est consigné dans cette RFC, quel qu'il soit. Bundle < 5 Mo.
+
+### Pourquoi la CI ne signe pas, et ne publiera pas
+
+Décidé le 2026-08-21, en écrivant le workflow.
+
+`scripts/build.sh` **refuse tout repli ad-hoc**, et son commentaire dit
+pourquoi : macOS attache les autorisations accordées à l'identité de signature,
+donc une identité qui change à chaque build les révoque à chaque mise à jour.
+C'est la raison d'être de `make-identity.sh` et de son nom commun stable.
+
+Un runner ne peut pas reproduire cette identité sans qu'on lui confie la clé
+privée. La déposer en secret GitHub, c'est déposer une clé capable de signer
+n'importe quoi au nom de cette app, chez un tiers, pour un certificat
+auto-signé qui n'est de toute façon pas notarisé — le gain est nul et le risque
+réel.
+
+**La CI tient donc les portails de qualité**, et rien d'autre : build sans
+avertissement, tests, garde-fou D4 sur `vibe-hook` (aucun `import AppKit`), et
+assemblage du bundle **non signé** pour prouver que l'`Info.plist` est bien
+formé et l'icône dessinable.
+
+La release reste locale : `make dmg`, puis le DMG est attaché au tag à la main.
+Trois gestes, une fois par version, contre une clé privée hors de la machine.
+
+### Le cask, et pourquoi il n'est pas poussé tout seul
+
+Le tap existe depuis le 2026-08-21 : `github.com/funkymed/homebrew-vibebuddy`.
+`scripts/make-cask.sh` écrit la recette pour la version courante, avec le
+`sha256` **du DMG qui sera réellement téléchargé** — le calculer sur autre chose
+est la façon dont un cask livre une empreinte que personne ne peut reproduire.
+
+Il **écrit** le fichier et ne pousse rien. Publier une version et faire pointer
+le tap dessus sont deux actes ; les confondre est la façon dont un tap finit par
+nommer un DMG que personne n'a téléversé.
+
+Ce que le cask achète, et c'est tout son objet : `zap`, et **le retrait
+automatique de la quarantaine**. L'app est signée d'une identité auto-signée et
+n'est pas notarisée, donc Gatekeeper refuse le premier lancement — le README
+documente le `xattr -dr com.apple.quarantine` à faire à la main. Homebrew le
+fait pour l'utilisateur.
 
 ## 6. Open Questions
 

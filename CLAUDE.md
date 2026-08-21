@@ -104,7 +104,7 @@ Conséquence pratique : l'app ne porte pas de notice MIT, parce qu'elle n'a rien
 | [008](docs/rfc/RFC-008-vue-sessions.md) | Vue sessions et saut vers le terminal hôte | **in-progress** | **80 %** | v1.1 | 1-2 j |
 | [009](docs/rfc/RFC-009-index-activite.md) | Index d'activité persistant (heatmap et historique) | todo | 0 % | v1.2 | 3-4 j |
 | [010](docs/rfc/done/RFC-010-preferences-apparence.md) | Préférences, réglages segmentés et **aperçu de buddy** | **done** | **100 %** | v1 | ✔ |
-| [011](docs/rfc/RFC-011-build-distribution.md) | Build, empaquetage, signature, distribution | **in-progress** | **75 %** | v1 | 1 j |
+| [011](docs/rfc/RFC-011-build-distribution.md) | Build, empaquetage, signature, distribution | **in-progress** | **95 %** | v1 | 0,5 j |
 | [012](docs/rfc/done/RFC-012-detection-etat-alertes.md) | **Détection d'état et alertes** — depuis le transcript, sans hook | **done** | **100 %** | v1 | ✔ |
 | [013](docs/rfc/done/RFC-013-buddy-interactif.md) | **Buddy interactif** — regard, chasse, rire, icône | **done** | **100 %** | v1 | ✔ |
 | [014](docs/rfc/RFC-014-celebration-fin-de-tache.md) | **Célébration de fin de tâche** — mini-panneau, pouce, confettis | todo | 0 % | v1.1 | 1-2 j |
@@ -127,7 +127,7 @@ Ordre = ordre de réalisation, pas ordre de numérotation.
 3   —        Spike contrat de hook ← **prouvé en réel**      ████████████████████ 100 %   ✔      v1
 4   RFC-006  Pont hook + socket Unix                         ███████████████████░  95 %   0,5 j  v1
 5   RFC-007  Interception des permissions ← prouvée en réel  ███████████████████░  95 %   0,5 j  v1
-6   RFC-011  Build, signature, distribution                  ███████████████░░░░░  75 %   1 j    v1
+6   RFC-011  Build, signature, distribution                  ███████████████████░  95 %   0,5 j  v1
 7   RFC-008  Vue sessions + saut terminal/tmux               ████████████████░░░░  80 %   1-2 j  v1.1
 8   RFC-014  Célébration de fin de tâche                     ░░░░░░░░░░░░░░░░░░░░   0 %   1-2 j  v1.1
 9   RFC-015  Le son du buddy (paquet rechargeable)           ░░░░░░░░░░░░░░░░░░░░   0 %   1-2 j  v1.1
