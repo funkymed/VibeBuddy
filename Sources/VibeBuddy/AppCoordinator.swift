@@ -12,6 +12,14 @@ final class AppCoordinator: NSObject, NSApplicationDelegate {
     private(set) var geometry: NotchGeometry?
     private var panel: NotchPanel?
     private var sessions: SessionCoordinator?
+    /// Set by `--simulate-permission <genre>`; nil in normal use.
+    static let simulatedPermission: String? = {
+        let args = CommandLine.arguments
+        guard let index = args.firstIndex(of: "--simulate-permission") else { return nil }
+        return index + 1 < args.count ? args[index + 1] : "shell"
+    }()
+    /// The hook socket, and the permission requests it brings in.
+    private let hook = HookService()
     let usage = UsageState()
     let l10n = Localisation()
     /// One store, three models — RFC-010: splitting by who observes what keeps
@@ -54,6 +62,10 @@ final class AppCoordinator: NSObject, NSApplicationDelegate {
         }
         geometry = NotchGeometry.resolve()
         observeSystemState()
+        // Before the panel: a hook that connects to nothing exits cleanly, but
+        // one that connects to a half-built app is a Claude Code left waiting.
+        hook.start()
+        hook.watchForExpiry()
 
         let panel = NotchPanel(wake: wake, budget: animation)
         self.panel = panel
@@ -118,8 +130,53 @@ final class AppCoordinator: NSObject, NSApplicationDelegate {
                     "\(alert.projectName) \(label)", locale: self.l10n.locale)
             }
         }
+        // The queue pushes; the panel does not pull. One request on screen, the
+        // rest a number — arbitrage of 2026-08-21.
+        hook.permissions.onChange = { [weak self] in
+            guard let self else { return }
+            self.panel?.setPermission(
+                self.hook.permissions.head, waiting: self.hook.permissions.waiting)
+        }
+        // `--simulate-permission <genre>` : une demande de répétition, que
+        // personne n'attend au bout d'un socket. Répondre ne décide rien — et
+        // c'est bien ce qu'une répétition doit faire.
+        if let kind = Self.simulatedPermission {
+            hook.permissions.insertPreview(PermissionSamples.model(kind))
+        }
+
+        // The rules live behind the same writer as the hook's own entries
+        // (decision D6): one place in this app touches that file.
+        let rules = PermissionRules()
+        hook.permissions.alwaysAllowed = { rules.granted() }
+        panel.onPermissionAlwaysAllowAsked = { model in
+            PermissionConsent.make(for: model, rules: rules)
+        }
+        panel.onConsentConfirmed = { consent in
+            do {
+                let written = try rules.commit(adding: consent.rule)
+                PerfProbe.log.info(
+                    "permissions : « \(consent.rule, privacy: .public) » \(written ? "écrite" : "déjà présente", privacy: .public)")
+            } catch {
+                PerfProbe.log.error(
+                    "permissions : écriture impossible — \(String(describing: error), privacy: .public)")
+            }
+        }
+
+        panel.onPermissionDecision = { [weak self] id, decision in
+            guard let self else { return }
+            if let decision {
+                self.hook.permissions.decide(id, decision)
+            } else {
+                self.hook.permissions.expire(id)
+            }
+        }
+
         sessions.onChange = { [weak self] list in
             guard let self, let panel = self.panel else { return }
+            // A transcript that has moved on has overtaken any permission still
+            // waiting on it. Free: this callback already fires on the watcher's
+            // own events (RFC-007, T3).
+            self.hook.expireStale(against: list)
             let live = list.filter(\.isLive)
             // `onThePill`, not `aggregate`: with several sessions the face shows
             // that something is running. Alerts still carry the urgent ones.
@@ -160,6 +217,9 @@ final class AppCoordinator: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         wake.suspend()
+        // A socket file left behind is one a later `vibe-hook` connects to and
+        // waits on — and a hook that waits is a Claude Code that waits.
+        hook.stop()
         // The other moment a queued write must not be lost.
         prefs.flush()
     }

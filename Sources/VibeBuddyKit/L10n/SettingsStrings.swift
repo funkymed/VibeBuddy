@@ -20,9 +20,18 @@ public struct SettingsStrings: Sendable {
     public let notifications: Section
     public let sessions: Section
     public let usage: Section
+    public let permissions: Section
     public let advanced: Section
     public let about: Section
     public let advancedGroup: String
+
+    // Permissions
+    public let permissionsTitle: String
+    public let permissionsNone: String
+    public let permissionsOpen: String
+    public let permissionsGranted: String
+    public let permissionsDenied: String
+    public let permissionsNotAsked: String
 
     // General
     public let system: String
@@ -83,9 +92,16 @@ public struct SettingsStrings: Sendable {
         notifications: Section(title: "Notifications", symbol: "bell.badge"),
         sessions: Section(title: "Sessions", symbol: "list.bullet.rectangle"),
         usage: Section(title: "Affichage", symbol: "textformat.size"),
+        permissions: Section(title: "Autorisations", symbol: "lock.shield"),
         advanced: Section(title: "Avancé", symbol: "wrench.and.screwdriver"),
         about: Section(title: "À propos", symbol: "info.circle"),
         advancedGroup: "Avancé",
+        permissionsTitle: "CE QUE MACOS LAISSE FAIRE À L'APP",
+        permissionsNone: "Rien à autoriser sur cette machine.",
+        permissionsOpen: "Ouvrir les réglages",
+        permissionsGranted: "autorisé",
+        permissionsDenied: "refusé",
+        permissionsNotAsked: "jamais demandé",
         system: "Système",
         startAtLogin: "Ouvrir à l'ouverture de session",
         startAtLoginUnavailable: "Indisponible tant que l'app n'est pas empaquetée (RFC-011)",
@@ -133,9 +149,16 @@ public struct SettingsStrings: Sendable {
         notifications: Section(title: "Notifications", symbol: "bell.badge"),
         sessions: Section(title: "Sessions", symbol: "list.bullet.rectangle"),
         usage: Section(title: "Display", symbol: "textformat.size"),
+        permissions: Section(title: "Permissions", symbol: "lock.shield"),
         advanced: Section(title: "Advanced", symbol: "wrench.and.screwdriver"),
         about: Section(title: "About", symbol: "info.circle"),
         advancedGroup: "Advanced",
+        permissionsTitle: "WHAT MACOS LETS THE APP DO",
+        permissionsNone: "Nothing to grant on this machine.",
+        permissionsOpen: "Open Settings",
+        permissionsGranted: "granted",
+        permissionsDenied: "refused",
+        permissionsNotAsked: "never asked",
         system: "System",
         startAtLogin: "Open at login",
         startAtLoginUnavailable: "Unavailable until the app is packaged (RFC-011)",

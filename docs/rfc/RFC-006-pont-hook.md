@@ -2,10 +2,10 @@
 
 | | |
 |---|---|
-| **Status** | **in-progress (70 %)** — transport et écriture des réglages livrés |
+| **Status** | **in-progress (95 %)** — transport, installateur et contrat **prouvé en réel** ; reste **T11 seule**, un défaut d'affamement de fils trouvé le 2026-08-21 et non corrigé |
 | **Author** | Cyril Pereira |
 | **Created** | 2026-08-19 |
-| **Updated** | 2026-08-21 |
+| **Updated** | 2026-08-21 (soir) |
 | **Phase** | 4 — Intégration |
 | **Depends on** | RFC-001 |
 | **Related** | RFC-003 (ModeUpdate, mapping PID) · **RFC-012 (consomme Stop/Notification)** · D4, D6, R1, R6 |
@@ -140,16 +140,46 @@ horodatée est ce qui rend l'erreur réparable.
 
 | # | Tâche | Statut | % |
 |---|---|---|---|
-| T1 | Spike : un hook trivial reçoit-il un `PermissionRequest` et sa décision est-elle honorée ? (Q1) | **in-progress** | **90** — contrat lu dans le binaire, voir [`docs/spikes/hook-contract.md`](../spikes/hook-contract.md) |
+| T1 | Spike : un hook trivial reçoit-il un `PermissionRequest` et sa décision est-elle honorée ? (Q1) | **done** | **100** — **observé en réel le 2026-08-21** : émis, reçu, décidé à la souris, honoré |
 | T2 | Deuxième cible `vibe-hook` + `HookProtocol.swift` partagé + garde-fou anti-`import AppKit` | **done** | **100** |
 | T3 | `HookSocketServer` (actor) : bind, `chmod 0600`, accept, ligne-JSON | **done** | **100** |
 | T4 | Détection de déconnexion du pair en `DispatchSource` | **done** | **100** |
 | T5 | Client : stdin → socket → stdout, `SO_RCVTIMEO`, `exit(0)` sur tout imprévu | **done** | **100** |
 | T6 | **Test golden-file** : réponse attendue **octet à octet**, plus une assertion qui interdit tout champ de trop (parade R6) | **done** | **100** |
 | T7 | `ClaudeSettingsWriter` : sauvegarde, atomique, **ordre préservé** (parade R1, D6) | **done** | **100** |
-| T8 | `HookInstaller` idempotent + nettoyage des entrées obsolètes | todo | 0 |
-| T9 | `vibebuddy --uninstall-hook` | todo | 0 |
+| T8 | `HookInstaller` idempotent + nettoyage des entrées obsolètes | **done** | **100** |
+| T9 | `vibebuddy --uninstall-hook` | **done** | **100** |
 | T10 | Mesure du temps de démarrage du hook (valide D4) | **done** | **100** — **3,2 ms** de médiane, cible 8 |
+| T11 | **Instabilité du socket sous charge parallèle** — 1 échec sur 6, cause **inconnue**, deux correctifs tentés et annulés | todo | 0 |
+
+### Ce que T8 et T9 ont demandé de plus que prévu
+
+**Le marqueur ne suffit pas seul.** La fiche disait « marqueur explicite dans
+l'entrée », en remplacement de l'heuristique `cmd.hasSuffix(" --hook")` de la
+référence. Nécessaire, mais une entrée dont le marqueur a été effacé à la main
+reste la nôtre — et si on ne la reconnaît plus, `--uninstall-hook` la laisse
+derrière lui. `HookInstaller.isOurs` teste donc le marqueur **ou**, à défaut, le
+nom de l'exécutable.
+
+**Une entrée se remplace sur place.** Ajouter un groupe à chaque installation la
+déplaçait en fin de fichier au premier passage et la dupliquait à tous les
+suivants. `placed(_:in:)` réécrit la première entrée à nous là où elle est.
+
+**L'écriture est un geste consenti, pas un effet de bord du lancement.** L'app
+n'écrit rien au démarrage : `vibebuddy --install-hook` et `--uninstall-hook`
+affichent le **diff** du fichier et attendent un oui. `--yes` saute la question,
+`--settings <chemin>` vise un autre fichier — nécessaire parce que
+`NSHomeDirectory()` ignore `$HOME`, donc sans ce drapeau il n'existe aucun moyen
+de répéter la manœuvre ailleurs que sur le vrai `~/.claude/settings.json`.
+
+**La mise en forme n'est pas préservée, l'ordre l'est.** Un objet que
+l'utilisateur avait écrit sur une ligne revient développé, une clé par ligne.
+C'est l'ordre que D6 protège ; la mise en page, non.
+
+**Ce que la sauvegarde protège vraiment.** `backedUpThisRun` était un drapeau
+global : deux fichiers de réglages écrits dans la même exécution se volaient la
+sauvegarde, et seul le premier en avait une. Une sauvegarde par **fichier** et
+par exécution — c'est ce que la règle voulait dire.
 
 ### Ce que T7 a demandé de plus que prévu
 
@@ -168,6 +198,56 @@ un sérialiseur à la main. Deux bénéfices que le détour paie :
 
 Le fichier réel de l'utilisateur sert de fixture : le test le lit s'il existe,
 le re-sérialise, et vérifie que l'ordre des vingt-cinq clés racine est intact.
+
+### Défaut ouvert — la lecture bloque un fil, trouvé le 2026-08-21
+
+`HookSocketServer.read` poste un `HookSocket.readLine` **bloquant** sur la file
+globale, un fil par connexion ouverte. Tout le reste de ce fichier est
+événementiel (`DispatchSource` sur l'écoute, `DispatchSource` sur le
+raccrochage) ; ce point ne l'est pas.
+
+Mesuré : la suite `Hook: the socket, end to end` échouait environ **une fois sur
+six** en parallèle, **zéro fois sur dix** en isolé. L'un de ses tests tient un
+puits endormi 30 s ; six serveurs à la fois affament le pool de fils, et un
+événement qui n'est jamais ordonnancé ressemble exactement à un événement perdu.
+
+La suite est sérialisée pour arrêter la fausse alerte. Le défaut reste : Claude
+Code lance ses hooks **par rafales** — le commentaire d'`acceptOne` le dit — donc
+l'affamement est atteignable en production, pas seulement ici.
+
+**Une première tentative de correctif a empiré les choses, et c'est le plus
+utile qu'on ait appris.** Remplacer la lecture bloquante par un
+`DispatchSource` a fait passer l'échec de **1 sur 6 à 3 sur 8**, et le chemin
+qui cassait n'était plus le même : la réponse d'un `PermissionRequest`
+n'arrivait plus du tout.
+
+La raison : le chemin bloquant utilise **déjà** un `DispatchSource` par
+connexion — le veilleur de raccrochage. Lire depuis une source en ajoute une
+**seconde sur le même descripteur**, créée pendant que la première est encore en
+train de s'annuler. L'annulation d'une source est asynchrone, et les deux se
+marchent dessus.
+
+**Deuxième tentative, le 2026-08-21 également : une seule source par connexion,
+portant la lecture puis le raccrochage.** Écrite, compilée, tests unitaires
+verts. Résultat en parallèle : **3 échecs sur 8**, pire que les 1 sur 6 de
+départ. Retour arrière, remesuré à **0 sur 8** avec la suite sérialisée.
+
+**Ce que les deux tentatives ont éliminé** — et c'est tout ce qu'on sait :
+
+- Ce n'est **pas** l'affamement de fils. La seconde version ne parquait plus
+  aucun fil et échouait davantage.
+- Ce n'est **pas** deux sources sur le même descripteur. La seconde version n'en
+  avait qu'une.
+- Ce n'est **pas** la limite de 5 s du client de test. Portée à 20 s, l'échec
+  demeure.
+- L'échec est **toujours le même** : `a permission request gets its decision
+  back`, la réponse n'arrive jamais. Jamais en isolé (0 sur 10).
+
+La cause reste **inconnue**. Ce qui est acquis, c'est que le chemin bloquant
+d'origine est le plus fiable des trois essayés, et qu'il a servi une dizaine de
+permissions réelles dans la soirée sans en perdre une. Une prochaine tentative
+devrait commencer par instrumenter le serveur — quel appel rend quoi, dans
+quel ordre — plutôt que par proposer une architecture.
 
 **Critère de sortie.** Le test golden-file passe. Tuer l'app pendant qu'une
 permission est en attente **ne bloque pas Claude Code plus de 120 s**.

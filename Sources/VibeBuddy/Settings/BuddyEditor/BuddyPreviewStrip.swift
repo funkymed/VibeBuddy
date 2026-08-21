@@ -5,6 +5,12 @@ import VibeBuddyKit
 ///
 /// See RFC-010, "Notes d'implémentation".
 struct BuddyPreviewStrip: View {
+
+    /// Held at `.still` on purpose: the preview draws through `BuddyView` like
+    /// everything else, but a settings window is not a place to spend a clock.
+    /// Six faces at thirty frames a second, to look at one.
+    @MainActor static let still = AnimationBudget()
+
     let manifest: BuddyManifest
     let expressions: [BuddyExpression]
     @Binding var selection: BuddyExpression
@@ -15,7 +21,7 @@ struct BuddyPreviewStrip: View {
                 Button { selection = expression } label: {
                     BuddyView(
                         manifest: manifest, expression: expression,
-                        budget: BuddyEditorBudget.shared)
+                        budget: Self.still)
                         .fixedSize()
                         .opacity(expression == selection ? 1 : 0.45)
                 }

@@ -12,7 +12,7 @@ est du confort, et se juge comme tel.
 1. **Être alerté sans regarder** — quand l'agent a terminé, et quand il attend
    une réponse. C'est la raison d'être. → [RFC-012](docs/rfc/done/RFC-012-detection-etat-alertes.md)
 2. **Suivre sa consommation** — le vrai % de limite, pas une estimation.
-   → [RFC-004](docs/rfc/RFC-004-usage-live.md)
+   → [RFC-004](docs/rfc/done/RFC-004-usage-live.md)
 3. **Suivre plusieurs sessions à la fois**, chacune avec son état propre.
    → [RFC-003](docs/rfc/done/RFC-003-collecte-sessions.md)
 4. **De manière ludique, dans la notch** — le buddy est le porteur de l'état.
@@ -93,22 +93,25 @@ Conséquence pratique : l'app ne porte pas de notice MIT, parce qu'elle n'a rien
 | RFC | Titre | Statut | % | Jalon | Charge |
 |---|---|---|---|---|---|
 | — | [Spike](docs/spikes/keychain-oauth-usage.md) keychain + oauth-usage — débloquait RFC-004 | **done** | **100 %** | v1 | ✔ |
-| — | [Spike](docs/spikes/hook-contract.md) contrat de hook — **contrat établi**, reste 1 min de confirmation | **in-progress** | **90 %** | v1 | ✔ |
+| — | [Spike](docs/spikes/hook-contract.md) contrat de hook — **prouvé en réel le 2026-08-21** | **done** | **100 %** | v1 | ✔ |
 | [001](docs/rfc/done/RFC-001-socle-applicatif.md) | Socle applicatif, cycle de vie, budget de performance | **done** | **100 %** | v1 | ✔ |
 | [002](docs/rfc/RFC-002-fenetre-notch.md) | Fenêtre notch : NSPanel, click-through, multi-écran | **in-progress** | **95 %** | v1 | 4-6 j |
 | [003](docs/rfc/done/RFC-003-collecte-sessions.md) | Collecte de sessions : source de vérité unique | **done** | **100 %** | v1 | ✔ |
-| [004](docs/rfc/RFC-004-usage-live.md) | Utilisation live : Keychain + endpoint OAuth | **in-progress** | **95 %** | v1 | 0,5 j |
+| [004](docs/rfc/done/RFC-004-usage-live.md) | Utilisation live : Keychain + endpoint OAuth | **done** | **100 %** | v1 | ✔ |
 | [005](docs/rfc/done/RFC-005-rendu-buddy.md) | Buddy : visage, format `.buddy`, rendu | **done** | **100 %** | v1 | ✔ |
-| [006](docs/rfc/RFC-006-pont-hook.md) | Pont hook Claude Code : binaire dédié + socket Unix | **in-progress** | **70 %** | v1 | 1-2 j |
-| [007](docs/rfc/RFC-007-interception-permissions.md) | Interception des permissions : file, rendu, décisions | todo | 0 % | v1 | 5-7 j |
+| [006](docs/rfc/RFC-006-pont-hook.md) | Pont hook Claude Code : binaire dédié + socket Unix | **in-progress** | **95 %** | v1 | 0,5 j |
+| [007](docs/rfc/RFC-007-interception-permissions.md) | Interception des permissions : file, rendu, décisions | **in-progress** | **95 %** | v1 | 0,5 j |
 | [008](docs/rfc/RFC-008-vue-sessions.md) | Vue sessions et saut vers le terminal hôte | **in-progress** | **80 %** | v1.1 | 1-2 j |
 | [009](docs/rfc/RFC-009-index-activite.md) | Index d'activité persistant (heatmap et historique) | todo | 0 % | v1.2 | 3-4 j |
-| [010](docs/rfc/RFC-010-preferences-apparence.md) | Préférences, réglages segmentés et **éditeur de buddy** | **in-progress** | **90 %** | v1 | 0,5 j |
-| [011](docs/rfc/RFC-011-build-distribution.md) | Build, empaquetage, signature, distribution | **in-progress** | **60 %** | v1 | 1-2 j |
+| [010](docs/rfc/done/RFC-010-preferences-apparence.md) | Préférences, réglages segmentés et **aperçu de buddy** | **done** | **100 %** | v1 | ✔ |
+| [011](docs/rfc/RFC-011-build-distribution.md) | Build, empaquetage, signature, distribution | **in-progress** | **75 %** | v1 | 1 j |
 | [012](docs/rfc/done/RFC-012-detection-etat-alertes.md) | **Détection d'état et alertes** — depuis le transcript, sans hook | **done** | **100 %** | v1 | ✔ |
+| [013](docs/rfc/done/RFC-013-buddy-interactif.md) | **Buddy interactif** — regard, chasse, rire, icône | **done** | **100 %** | v1 | ✔ |
+| [014](docs/rfc/RFC-014-celebration-fin-de-tache.md) | **Célébration de fin de tâche** — mini-panneau, pouce, confettis | todo | 0 % | v1.1 | 1-2 j |
+| [015](docs/rfc/RFC-015-son-du-buddy.md) | **Le son du buddy** — paquet de sons rechargeable à chaud | todo | 0 % | v1.1 | 1-2 j |
 
-**Reste pour le v1 : 8-16 j-h** (001, 003, 005 et **012** faites ; 002 et 004 à
-95 %, 010 à 90 % ; spike keychain fait) · plan complet restant : 18,5-29,5 j-h. Dev solo en parallèle d'autres projets →
+**Reste pour le v1 : 1,5-4,5 j-h** (001, 003, 005 et **012** faites ; 002, 004 et
+**006** à 95 %, 010 et **013** à 90 % ; spike keychain fait) · plan complet restant : 15,5-24 j-h. Dev solo en parallèle d'autres projets →
 tabler sur un facteur calendaire ×2 à ×3.
 
 ## Gantt
@@ -120,25 +123,29 @@ Ordre = ordre de réalisation, pas ordre de numérotation.
 ── EN COURS ──
 #   RFC      Titre                                          Avancement            %    Reste   Jalon
 1   RFC-002  Fenêtre notch (NSPanel, click-through)          ███████████████████░  95 %   0,5 j  v1
-2   —        Spike keychain + oauth-usage                    ████████████████████ 100 %   ✔     v1
-3   RFC-004  Utilisation live (Keychain + OAuth)             ███████████████████░  95 %   0,5 j  v1
-4   —        Spike contrat de hook ← contrat établi          ██████████████████░░  90 %   1 min  v1
-5   RFC-006  Pont hook + socket Unix                         ██████████████░░░░░░  70 %   1-2 j  v1
-6   RFC-007  Interception des permissions     ⚠ à confirmer  ░░░░░░░░░░░░░░░░░░░░   0 %   5-7 j  v1
-7   RFC-010  Réglages segmentés + éditeur de buddy           ██████████████████░░  90 %   0,5 j  v1
-8   RFC-011  Build, signature, distribution                  ████████████░░░░░░░░  60 %   1-2 j  v1
-9   RFC-008  Vue sessions + saut terminal/tmux               ████████████████░░░░  80 %   1-2 j  v1.1
+2   —        Spike keychain + oauth-usage                    ████████████████████ 100 %   ✔      v1
+3   —        Spike contrat de hook ← **prouvé en réel**      ████████████████████ 100 %   ✔      v1
+4   RFC-006  Pont hook + socket Unix                         ███████████████████░  95 %   0,5 j  v1
+5   RFC-007  Interception des permissions ← prouvée en réel  ███████████████████░  95 %   0,5 j  v1
+6   RFC-011  Build, signature, distribution                  ███████████████░░░░░  75 %   1 j    v1
+7   RFC-008  Vue sessions + saut terminal/tmux               ████████████████░░░░  80 %   1-2 j  v1.1
+8   RFC-014  Célébration de fin de tâche                     ░░░░░░░░░░░░░░░░░░░░   0 %   1-2 j  v1.1
+9   RFC-015  Le son du buddy (paquet rechargeable)           ░░░░░░░░░░░░░░░░░░░░   0 %   1-2 j  v1.1
 10  RFC-009  Index d'activité (heatmap + historique)         ░░░░░░░░░░░░░░░░░░░░   0 %   3-4 j  v1.2
 
 ── DONE ──
+—   RFC-010  Réglages segmentés + aperçu de buddy            ████████████████████ 100 %   —      v1
+—   RFC-013  Buddy interactif (regard, chasse, rire)         ████████████████████ 100 %   —      v1
+—   RFC-004  Utilisation live (Keychain + OAuth)             ████████████████████ 100 %   —      v1
 —   RFC-012  Détection d'état et alertes  ← objectif n°1     ████████████████████ 100 %   —      v1
 —   RFC-005  Buddy : visage, format .buddy, rendu            ████████████████████ 100 %   —      v1
 —   RFC-001  Socle applicatif, budget de performance         ████████████████████ 100 %   —      v1
 —   RFC-003  Collecte de sessions (source de vérité unique)  ████████████████████ 100 %   —      v1
 ```
 
-**Chemin critique : 006 → 007.** RFC-012, l'objectif n°1, est close depuis le
-2026-08-21 ; le bloc hook est ce qui reste de long sur le v1.
+**Chemin critique : 007.** RFC-006 est à 95 % — transport, installateur et
+désinstallation livrés, il ne reste que la confirmation d'une minute du spike.
+RFC-007 est désormais le seul gros morceau du v1.
 
 RFC-003 a établi que **quatre des signaux que RFC-012 devait prendre au hook sont
 déjà dans le transcript** : mode de permission, fin de tour, cycle de vie des

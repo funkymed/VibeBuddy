@@ -1,14 +1,14 @@
-# RFC-010 — Préférences, réglages segmentés et éditeur de buddy
+# RFC-010 — Préférences, réglages segmentés et aperçu de buddy
 
 | | |
 |---|---|
-| **Status** | in-progress (90 %) — modèle, fenêtre segmentée et éditeur de buddy livrés ; reste le login item (bloqué par RFC-011) et les vérifications terrain |
+| **Status** | **done (100 %)** — modèle, fenêtre segmentée, aperçu de buddy et login item livrés et éprouvés |
 | **Author** | Cyril Pereira |
 | **Created** | 2026-08-19 |
-| **Updated** | 2026-08-20 |
+| **Updated** | 2026-08-21 (soir) |
 | **Phase** | 5 — Confort |
 | **Depends on** | RFC-001 |
-| **Related** | D2 · D7 · consommée par RFC-002, RFC-005 et RFC-012 · format `.buddy` défini en RFC-005 |
+| **Related** | RFC-013 (a supprimé deux réglages de cette fiche) · D2 · D7 · consommée par RFC-002, RFC-005 et RFC-012 · format `.buddy` défini en RFC-005 |
 | **Blocks** | — |
 
 ## 1. Context & Problem
@@ -232,7 +232,7 @@ fenêtre coûtent plus de comptabilité qu'elles n'en clarifient.
 | T1 | Les trois modèles `@Observable` + `PreferencesStore` | **done** | **100** |
 | T2 | Écritures coalescées (60 changements → 1 écriture, sous test) | **done** | **100** |
 | T3 | Cadre de migration généralisé | **done** | **100** |
-| T4 | `applyStartAtLogin` + réconciliation au premier lancement | **partial** | **60** |
+| T4 | `applyStartAtLogin` + réconciliation au premier lancement | **done** | **100** — éprouvé sur le bundle le 2026-08-21, dans les deux sens |
 | T5 | `SettingsView` + sous-vues (< 200 l. chacune) | **done** | **100** |
 | T9 | **Internationalisation** — hors périmètre initial, voir ci-dessous | **done** | **100** |
 | T6 | Pop-out de fin de session + dédup — **livré par RFC-012** (`AlertPresenter`, `AlertPolicy`) | **done** | **100** |
@@ -354,6 +354,51 @@ La fenêtre est **un cran au-dessus de `.statusBar`**, pas à `.floating`
 (`SettingsWindow.swift:78`). C'est une correction, pas un détail : `.floating`
 vaut 3 et `.statusBar` vaut 25, donc une fenêtre « flottante » s'ouvrait
 **sous** la pastille qui venait de l'ouvrir.
+
+### T4, éprouvé le 2026-08-21
+
+**La case fonctionne dans les deux sens**, sur le bundle : cocher inscrit l'app
+au démarrage de session, décocher l'en retire. Vérifié par l'utilisateur, à la
+main, dans les Réglages Système.
+
+Un faux diagnostic a précédé, et il vaut d'être gardé : `--info` lancé
+**directement** sur `Contents/MacOS/VibeBuddy` rend `SMAppService.status ==
+notFound` alors même que `bundleIdentifier` est bon. Invoquer l'exécutable sans
+passer par LaunchServices ne donne pas à l'app le contexte que `SMAppService`
+attend. Le `notFound` mesurait la façon de lancer, pas l'app — c'est la même
+famille d'erreur que les deux instruments qui ont menti sur ce projet.
+
+### Ce que la fiche disait avant l'épreuve
+
+`StartAtLogin.swift` est complet et la réconciliation est **sans objet par
+construction** : l'état est relu à chaque affichage depuis `SMAppService.mainApp
+.status` plutôt que gardé dans une préférence, donc il n'y a rien à réconcilier
+au lancement. Un drapeau stocké aurait menti — `didSet` ne part jamais depuis
+`init`, donc un `true` enregistré n'aurait jamais atteint le système.
+
+Ce qui manque n'est pas du code, c'est une **épreuve** : `SMAppService` refuse de
+s'enregistrer sur un binaire nu, et rien n'a encore été essayé sur le bundle
+signé de `dist/`. Tant que ça n'a pas tourné, la tâche n'est pas finie.
+
+### L'éditeur de buddy, retiré le 2026-08-21
+
+Cette fiche a livré un éditeur d'expressions : forme, taille et couleur d'un œil,
+modifiables depuis les réglages. Il est **supprimé**, et l'aperçu reste.
+
+Les modifications vivaient dans `UserDefaults`, pas dans le `.buddy` — deux
+sources de vérité pour un visage, réconciliées à chaque lecture par
+`BuddyOverrides.apply(to:)`. Le format est le bon endroit pour éditer : c'est du
+texte, il se recharge à l'enregistrement sans relancer, et c'est ce qu'un tiers
+livrerait. Un second éditeur, plus faible, à côté, était un coût d'entretien pour
+ce que le fichier fait déjà mieux.
+
+L'aperçu, lui, sert : c'est le moyen le plus rapide de voir les six visages d'un
+manifeste, y compris pendant qu'on en écrit un. Il dessine par `BuddyView` comme
+le reste, avec un `AnimationBudget` tenu à `.still` — une fenêtre de réglages
+n'est pas un endroit où dépenser une horloge.
+
+Emporté avec lui : `ExpressionEditorView` (94 lignes), `BuddyActionsRow` (35), et
+`BuddySection` qui passe de 173 à 82.
 
 ## 6. Open Questions
 

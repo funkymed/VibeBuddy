@@ -132,12 +132,20 @@ enum BenchHarness {
                 _ = notch
                 _ = sessionCoordinator
                 _ = appCoordinator
+                FileHandle.standardError.write(Data("bench: fin normale du minuteur\n".utf8))
                 exit(0)
             }
         }
         done.resume()
 
         app.run()
+        // `app.run()` is not supposed to return here: the run ends on the
+        // `done` timer above. If it does, something terminated the
+        // application, and a run that stops early has been seen three times on
+        // this project without ever being explained. Say so out loud rather
+        // than exiting quietly with a short, valid-looking CSV.
+        FileHandle.standardError.write(Data(
+            "bench: ARRÊT PRÉMATURÉ — app.run() a rendu la main avant le minuteur\n".utf8))
         exit(0)
     }
 

@@ -2,10 +2,10 @@
 
 | | |
 |---|---|
-| **Status** | in-progress (60 %) — bundle, icône, identité stable, signature et DMG livrés ; reste CI, README et perfcheck de release |
+| **Status** | **in-progress (75 %)** — bundle, icône, identité stable, signature et DMG livrés, README fait ; restent la CI et le perfcheck de release |
 | **Author** | Cyril Pereira |
 | **Created** | 2026-08-19 |
-| **Updated** | 2026-08-20 |
+| **Updated** | 2026-08-21 |
 | **Phase** | 6 — Livraison |
 | **Depends on** | RFC-006 (nom de la seconde cible) |
 | **Related** | R7 · décision « auto-signé, zéro API Accessibilité » |
@@ -113,7 +113,7 @@ Homebrew et le glisser-déposer vers `/Applications` sont mieux servis par un DM
 | T5 | Signature des deux exécutables + `codesign --verify --strict --deep` | **done** | **100** |
 | T6 | `make-dmg.sh` | **done** | **100** |
 | T7 | Workflow GitHub Actions + bump du cask | todo | 0 |
-| T8 | README : documenter la friction Gatekeeper et le retrait de quarantaine | todo | 0 |
+| T8 | README : documenter la friction Gatekeeper et le retrait de quarantaine | **done** | **100** — `README.md:45-64` |
 | T9 | Perfcheck de release : les 3 scénarios sur machine propre, collés dans la note de version | todo | 0 |
 | T10 | **Migration du domaine de préférences** vers l'identifiant du bundle | **done** | **100** |
 

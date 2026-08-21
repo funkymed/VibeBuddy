@@ -71,6 +71,38 @@ public struct Strings: Sendable {
     public let alertFailed: String
     public let alertWaiting: String
 
+    // Permissions — RFC-007
+    public let permissionAutomation: @Sendable (String) -> String
+    public let permissionAutomationWhy: String
+    public let permissionLoginItem: String
+    public let permissionLoginItemWhy: String
+    /// What a refusal tells the model. Load-bearing: an empty message reads as
+    /// a refusal with no reason, and the model tries again another way.
+    public let permissionDenied: String
+    public let permissionTitle: String
+    public let consentTitle: String
+    public let consentCancel: String
+    public let consentConfirm: String
+    /// Told the folder where a wrong write can be undone from.
+    public let consentBackup: @Sendable (String) -> String
+    /// How many requests are queued behind the one on screen.
+    public let permissionWaiting: @Sendable (Int) -> String
+    public let permissionDeny: String
+    public let permissionAllow: String
+    public let permissionAlwaysAllow: String
+    /// Names the file the button writes to, out loud: the consent half of R1.
+    public let permissionAlwaysAllowHint: String
+    /// Under an `AskUserQuestion`'s options: clicking one answers Claude, it
+    /// does not grant anything. The only panel where those two differ.
+    public let permissionAnswerHint: String
+    /// A diff whose left side is empty: the file does not exist yet.
+    public let permissionNewFile: String
+    /// A write of nothing at all — said out loud, because an empty box reads as
+    /// a rendering bug rather than as an empty file.
+    public let permissionNoContent: String
+    /// Caption above the host: what a fetch actually grants.
+    public let permissionDomain: String
+
     public static let french = Strings(
         noSessions: "aucune session",
         sessionsIdle: { "\($0) au repos" },
@@ -121,7 +153,26 @@ public struct Strings: Sendable {
         toolQuestion: "question",
         alertFinished: "terminé",
         alertFailed: "erreur",
-        alertWaiting: "attend une réponse"
+        alertWaiting: "attend une réponse",
+        permissionAutomation: { "Piloter \($0)" },
+        permissionAutomationWhy: "Nécessaire pour ouvrir l'onglet de terminal d'une session depuis le panneau.",
+        permissionLoginItem: "Ouvrir à l'ouverture de session",
+        permissionLoginItemWhy: "Sans quoi il faut lancer l'app à la main après chaque redémarrage.",
+        permissionDenied: "Refusé par l'utilisateur depuis VibeBuddy. N'essaie pas une autre façon de faire la même chose : demande-lui ce qu'il veut.",
+        permissionTitle: "AUTORISATION",
+        consentTitle: "ÉCRIRE CETTE RÈGLE DANS VOS RÉGLAGES",
+        consentCancel: "Annuler",
+        consentConfirm: "Écrire",
+        consentBackup: { "Une sauvegarde horodatée est prise avant écriture, dans \($0)" },
+        permissionWaiting: { "+\($0) en attente" },
+        permissionDeny: "Refuser",
+        permissionAllow: "Autoriser",
+        permissionAlwaysAllow: "Toujours autoriser",
+        permissionAlwaysAllowHint: "Ajoute une règle dans ~/.claude/settings.json",
+        permissionAnswerHint: "Votre choix est renvoyé à Claude comme réponse.",
+        permissionNewFile: "nouveau fichier",
+        permissionNoContent: "Aucun contenu",
+        permissionDomain: "DOMAINE"
     )
 
     public static let english = Strings(
@@ -174,7 +225,26 @@ public struct Strings: Sendable {
         toolQuestion: "question",
         alertFinished: "done",
         alertFailed: "error",
-        alertWaiting: "needs an answer"
+        alertWaiting: "needs an answer",
+        permissionAutomation: { "Control \($0)" },
+        permissionAutomationWhy: "Needed to open a session's terminal tab from the panel.",
+        permissionLoginItem: "Open at login",
+        permissionLoginItemWhy: "Without it the app has to be started by hand after every restart.",
+        permissionDenied: "Refused by the user from VibeBuddy. Do not try another way to do the same thing: ask them what they want.",
+        permissionTitle: "PERMISSION",
+        consentTitle: "WRITE THIS RULE TO YOUR SETTINGS",
+        consentCancel: "Cancel",
+        consentConfirm: "Write",
+        consentBackup: { "A timestamped backup is taken before writing, in \($0)" },
+        permissionWaiting: { "+\($0) waiting" },
+        permissionDeny: "Deny",
+        permissionAllow: "Allow",
+        permissionAlwaysAllow: "Always allow",
+        permissionAlwaysAllowHint: "Adds a rule to ~/.claude/settings.json",
+        permissionAnswerHint: "Your choice is sent back to Claude as the answer.",
+        permissionNewFile: "new file",
+        permissionNoContent: "No content",
+        permissionDomain: "DOMAIN"
     )
 
     /// Single translation point for `ToolLabel`; without it every view duplicates the switch.

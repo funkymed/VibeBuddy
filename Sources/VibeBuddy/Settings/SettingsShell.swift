@@ -15,7 +15,7 @@ struct SettingsShell: View {
     let onReset: () -> Void
 
     enum Tab: String, CaseIterable, Identifiable {
-        case general, buddy, notifications, sessions, display, advanced, about
+        case general, buddy, notifications, sessions, display, permissions, advanced, about
         var id: String { rawValue }
 
         /// Everything below the separator in the sidebar.
@@ -28,6 +28,7 @@ struct SettingsShell: View {
             case .notifications: return s.notifications
             case .sessions: return s.sessions
             case .display: return s.usage
+            case .permissions: return s.permissions
             case .advanced: return s.advanced
             case .about: return s.about
             }
@@ -83,6 +84,8 @@ struct SettingsShell: View {
             SessionsSection(l10n: l10n, prefs: layout)
         case .display:
             DisplaySection(l10n: l10n, layout: layout)
+        case .permissions:
+            PermissionsSection(l10n: l10n)
         case .advanced:
             AdvancedSection(l10n: l10n, onReset: onReset)
         case .about:

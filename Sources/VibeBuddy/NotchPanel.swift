@@ -1,6 +1,7 @@
 import AppKit
 import SwiftUI
 import VibeBuddyKit
+import VibeHookProtocol
 
 /// The window. Geometry arithmetic lives in `NotchFrameSolver`, where it is
 /// testable without a display. One state, exactly one frame per transition.
@@ -37,6 +38,17 @@ final class NotchPanel: NSPanel {
     /// Clicking a live session row. The pid is the agent's, not the terminal's.
     var onJump: (pid_t) -> Void = { _ in }
     private var jumpNote: String?
+    /// The permission on screen, and what answering it does. Held as plain
+    /// values like the rest of the panel's inputs: observing the queue would
+    /// re-evaluate this view on every change to it.
+    private var permission: PermissionRequestModel?
+    private var permissionWaiting = 0
+    var onPermissionDecision: ((String, HookDecision?) -> Void)?
+    /// Asked to build the consent for a request, and to write it once confirmed.
+    /// Held as closures so the panel never learns the shape of the settings file.
+    var onPermissionAlwaysAllowAsked: ((PermissionRequestModel) -> PermissionConsent?)?
+    var onConsentConfirmed: ((PermissionConsent) -> Void)?
+    private var consent: PermissionConsent?
     /// Panel-facing preferences (RFC-010), held as plain values: observing the
     /// models would re-evaluate the view on every preference write.
     private var groupByDirectory = true
@@ -403,12 +415,84 @@ final class NotchPanel: NSPanel {
                        onSettings: onSettings, onQuit: onQuit,
                        onJump: onJump, onSelect: { [weak self] in self?.select($0) },
                        jumpNote: jumpNote,
-                       gaze: gaze, groupByDirectory: groupByDirectory,
+                       gaze: gaze,
+                       permission: permission, permissionWaiting: permissionWaiting,
+                       onPermissionDeny: { [weak self] in self?.answerPermission(.deny(message: self?.l10n.permissionDenied ?? "")) },
+                       onPermissionAllow: { [weak self] in self?.answerPermission(.allow) },
+                       onPermissionAlwaysAllow: { [weak self] in self?.alwaysAllowPermission() },
+                       onPermissionAnswer: { [weak self] in self?.answerPermission(.deny(message: $0)) },
+                       consent: consent,
+                       onConsentCancel: { [weak self] in self?.cancelConsent() },
+                       onConsentConfirm: { [weak self] in self?.confirmConsent() },
+                       groupByDirectory: groupByDirectory,
                        jumpOnClick: jumpOnClick, showUsage: showUsage)
     }
 
     private func rebuildContent() {
         host.hosting.rootView = shellView
+    }
+
+    // MARK: - Permissions
+
+    /// Shows a request, or takes the last one away.
+    ///
+    /// A request **forces the panel open** and holds it there: it is the one
+    /// thing more urgent than whatever the user was doing with the notch. When
+    /// the last one goes, the panel returns to the pill rather than falling
+    /// back to the session list — the user did not ask for that list, a
+    /// permission put the panel on screen.
+    func setPermission(_ model: PermissionRequestModel?, waiting: Int) {
+        let had = permission != nil
+        guard model?.id != permission?.id || waiting != permissionWaiting else { return }
+        permission = model
+        permissionWaiting = waiting
+
+        if model != nil {
+            if state != .panel { state = .panel } else { rebuildContent() }
+        } else if consent != nil {
+            // The request went away under the consent screen — expired, or
+            // answered in the terminal. There is nothing left to grant.
+            consent = nil
+            state = .pill
+        } else if had {
+            state = .pill
+        } else {
+            rebuildContent()
+        }
+    }
+
+    private func answerPermission(_ decision: HookDecision?) {
+        guard let id = permission?.id else { return }
+        onPermissionDecision?(id, decision)
+    }
+
+    /// « Toujours autoriser » is a decision **and** a write to the user's own
+    /// settings. The two are separated on purpose: this shows the exact diff
+    /// and waits (T8). Nothing is written until it comes back confirmed.
+    ///
+    /// When there is nothing to write — the rule is already granted — it is
+    /// simply an allow, with no screen in the way.
+    private func alwaysAllowPermission() {
+        guard let model = permission,
+              let pending = onPermissionAlwaysAllowAsked?(model)
+        else { answerPermission(.allow); return }
+        consent = pending
+        rebuildContent()
+    }
+
+    private func cancelConsent() {
+        consent = nil
+        rebuildContent()
+    }
+
+    /// Writes, then answers. In that order: an allow that reached Claude Code
+    /// before the rule was on disk would be granted once and asked again next
+    /// time, which reads as the button not working.
+    private func confirmConsent() {
+        guard let pending = consent else { return }
+        consent = nil
+        onConsentConfirmed?(pending)
+        answerPermission(.allow)
     }
 
     /// Identifier of the buddy currently loaded.

@@ -27,6 +27,20 @@ struct NotchShellView: View {
     var onSelect: ((String) -> Void)?
     var jumpNote: String?
     var gaze: PointerGaze?
+    /// The request on screen, if there is one. It takes the panel over: a
+    /// permission is the one thing more urgent than the list behind it.
+    var permission: PermissionRequestModel?
+    var permissionWaiting = 0
+    var onPermissionDeny: () -> Void = {}
+    var onPermissionAllow: () -> Void = {}
+    var onPermissionAlwaysAllow: () -> Void = {}
+    var onPermissionAnswer: (String) -> Void = { _ in }
+    /// Set while « Toujours autoriser » is waiting to be confirmed. The consent
+    /// screen takes the panel over: it is the same question, one step further
+    /// in, not a second thing on screen.
+    var consent: PermissionConsent?
+    var onConsentCancel: () -> Void = {}
+    var onConsentConfirm: () -> Void = {}
     var groupByDirectory = true
     var jumpOnClick = true
     var showUsage = true
@@ -65,7 +79,22 @@ struct NotchShellView: View {
     /// Absent while collapsed, so nothing of it is built until it is on screen.
     @ViewBuilder
     private var panelContent: some View {
-        if state == .panel, showPanelContent {
+        if state == .panel, showPanelContent, let consent {
+            PermissionConsentView(
+                rule: consent.rule, diff: consent.diff,
+                backupDirectory: consent.backupDirectory, l10n: l10n,
+                onCancel: onConsentCancel, onConfirm: onConsentConfirm)
+                .transition(.opacity.animation(.easeOut(duration: 0.12)))
+        } else if state == .panel, showPanelContent, let permission {
+            PermissionPanelView(
+                model: permission, buddyBox: layout?.buddyBox ?? .zero,
+                waiting: permissionWaiting, l10n: l10n,
+                onDeny: onPermissionDeny, onAllow: onPermissionAllow,
+                onAlwaysAllow: onPermissionAlwaysAllow, onAnswer: onPermissionAnswer)
+                .transition(
+                    .opacity.combined(with: .offset(y: -6))
+                        .animation(.easeOut(duration: 0.14)))
+        } else if state == .panel, showPanelContent {
             PanelContentView(
                 sessions: sessions, buddy: buddy,
                 // The pill's own measurement, so the buddy is the same size

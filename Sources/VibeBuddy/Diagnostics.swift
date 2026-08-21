@@ -1,12 +1,33 @@
 import AppKit
+import ServiceManagement
 import VibeBuddyKit
 
 /// `--info` — what the app resolved about this machine, and what it costs now.
 @MainActor
 enum Diagnostics {
 
+    private static func describe(_ status: SMAppService.Status) -> String {
+        switch status {
+        case .notRegistered: return "notRegistered — jamais inscrite, et l'API la voit"
+        case .enabled: return "enabled — inscrite au démarrage"
+        case .requiresApproval: return "requiresApproval — refusée dans les Réglages Système"
+        case .notFound: return "notFound — l'API ne voit rien (binaire nu ?)"
+        @unknown default: return "inconnu (\(status.rawValue))"
+        }
+    }
+
     static func run() -> Never {
         _ = NSApplication.shared  // needed for NSScreen
+
+        // Read-only, and that is the point: `SMAppService.status` answers
+        // without registering anything. A bare binary has no bundle identifier
+        // and gets `.notFound`; the signed bundle gets `.notRegistered`. That
+        // difference alone is what RFC-010 T4 could never check, since the
+        // login item cannot be exercised from `.build/release`.
+        print("── ouverture à la session ──")
+        print("  identifiant du bundle : \(Bundle.main.bundleIdentifier ?? "aucun — binaire nu")")
+        print("  état SMAppService     : \(describe(SMAppService.mainApp.status))")
+        print("")
 
         print("── écrans ──")
         for screen in NSScreen.screens {

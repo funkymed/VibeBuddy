@@ -68,6 +68,11 @@ cat > "$APP/Contents/Info.plist" <<PLIST
     <key>LSMinimumSystemVersion</key><string>14.0</string>
     <!-- Accessory app: no Dock icon, no menu bar. The pill is the whole UI. -->
     <key>LSUIElement</key><true/>
+    <!-- Sans cette clé, macOS refuse l'automatisation au lieu de la demander :
+         le saut vers l'onglet de terminal échouerait en silence dans le bundle
+         signé, alors qu'il marche depuis le binaire nu. -->
+    <key>NSAppleEventsUsageDescription</key>
+    <string>VibeBuddy ouvre l'onglet de terminal de la session sur laquelle vous cliquez.</string>
     <!-- Counts directly against the energy budget on dual-GPU machines. -->
     <key>NSSupportsAutomaticGraphicsSwitching</key><true/>
     <key>NSHumanReadableCopyright</key><string>MIT</string>

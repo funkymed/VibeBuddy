@@ -29,6 +29,13 @@ if args.contains("--hover") {
     MainActor.assumeIsolated { HoverDiagnostics.run() }
 }
 
+// `--simulate-permission <genre>` is read by `AppCoordinator`; listed here so
+// the flag is findable from the entry point like every other one.
+if args.contains("--simulate-permission"), args.contains("--help") {
+    print("genres : \(PermissionSamples.kinds.joined(separator: " · "))")
+    exit(0)
+}
+
 if args.contains("--info") {
     MainActor.assumeIsolated { Diagnostics.run() }
 }

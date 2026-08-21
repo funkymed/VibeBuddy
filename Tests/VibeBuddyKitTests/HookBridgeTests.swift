@@ -175,7 +175,10 @@ private func send(_ json: String, to path: String, expectingReply: Bool) -> Stri
     return String(data: reply, encoding: .utf8)
 }
 
-@Suite("Hook: the socket, end to end")
+/// Serialised. In parallel this suite fails about one run in six, and the cause
+/// is **not known** — two attempts at fixing it on 2026-08-21 each made it
+/// worse. See RFC-006 T11, which records both and what they ruled out.
+@Suite("Hook: the socket, end to end", .serialized)
 struct HookSocketServerTests {
 
     @Test("a fire-and-forget event reaches the app")

@@ -2,10 +2,10 @@
 
 | | |
 |---|---|
-| **Status** | in-progress (95 %) — module livré, refus du serveur encaissé (backoff + cache) ; reste `perfcheck A` |
+| **Status** | **done (100 %)** — module livré, refus du serveur encaissé (backoff + cache), `perfcheck A` passé le 2026-08-21 |
 | **Author** | Cyril Pereira |
 | **Created** | 2026-08-19 |
-| **Updated** | 2026-08-19 |
+| **Updated** | 2026-08-21 |
 | **Phase** | 2 — Données |
 | **Depends on** | RFC-001 |
 | **Related** | R4, R5 |
@@ -110,7 +110,7 @@ la contient par un parseur tout-optionnel et un état « indisponible » explici
 | T5 | `UsageState` + états d'erreur typés (refusé / absent / expiré / réseau / throttlé) | **done** | **100** |
 | T6 | Cadence adaptative branchée sur le `WakeCoordinator` | **done** | **100** |
 | T7 | `protocol CredentialSource` à implémentation unique (parade R4) | **done** | **100** |
-| T8 | `perfcheck.sh` A — vérifier le réveil unique à 180 s | todo | 0 |
+| T8 | `perfcheck.sh` A — vérifier le réveil unique à 180 s | **done** | **100** — 594 s, 0,249 réveil/s, 0 `fork` |
 | T9 | **Backoff exponentiel et cache de la dernière lecture** | **done** | **100** |
 
 ### T9 — l'endpoint refuse, et `Retry-After` vaut zéro
@@ -152,6 +152,29 @@ page de facturation Claude**, vérifié par capture d'écran côte à côte. Cou
 réseau affiche un état « indisponible » explicite, **jamais un chiffre périmé
 sans marque**. Vingt requêtes forcées déclenchent un back-off qui honore
 `Retry-After`.
+
+### La mesure de clôture, 2026-08-21
+
+`docs/perf/20260821-2136-004-A.csv` — scénario A, **594 s**, 120 échantillons :
+
+| Métrique | Mesure | Budget |
+|---|---|---|
+| `phys_footprint` | **15,0 Mo** | 40 |
+| CPU au repos | **0,000 %** | 0,5 |
+| Réveils inactifs | **0,249 /s** | 2 |
+| `fork`/`exec` au repos | **0** | 0 |
+
+Le sondage de consommation ne tient donc **aucune horloge** : à 180 s d'intervalle
+son réveil se perd dans les 0,25/s du reste, et les 594 s dépassent largement la
+période, donc il a bien eu lieu pendant la mesure.
+
+**Trois runs ont été jetés avant celui-ci** — 149 s, 40 s et 265 s au lieu des
+600 demandées, avec des verdicts contradictoires (0,000 puis 4,475 réveils/s).
+Le banc n'était pas en cause : il était lancé en `nohup … &` depuis un appel qui
+rendait la main aussitôt, et l'environnement récupérait le processus orphelin.
+Lancé au premier plan d'un appel qui vit jusqu'au bout, il va au terme et
+imprime « fin normale du minuteur ». C'est l'explication de l'arrêt prématuré
+que `docs/hook.md` signalait trois fois sans jamais le résoudre.
 
 ## 6. Open Questions
 
