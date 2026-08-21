@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="./docs/icon.png" alt="Notch Pilot" width="192" />
+</p>
+
 # VibeBuddy
 
 A native macOS app that turns the MacBook notch into a dashboard for your coding
