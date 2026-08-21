@@ -6,3 +6,8 @@ docs/hook.md
 __pycache__/
 *.pyc
 docs/perf
+
+# Généré par `make cask`, et sa vraie maison est le tap
+# (github.com/funkymed/homebrew-vibebuddy). Un fichier généré qui vit à deux
+# endroits finit par diverger.
+Casks/
