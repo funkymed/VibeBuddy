@@ -5,6 +5,10 @@
 // one, because at 16 px a pair of identical dots is every other icon in the bar,
 // and the mismatched pair is a mark you can pick out at a glance.
 //
+// No wordmark: the app's name was drawn under the eyes for a while and taken
+// back out. The Finder already writes it under the icon, and Apple's own
+// guidance is against text on a macOS icon — at 16 px it is a smudge.
+//
 // Drawn rather than shipped, so a colour change is a diff and not a binary blob.
 //
 //   swift scripts/generate-icon.swift <output.iconset>
@@ -125,7 +129,11 @@ func draw(size: Int) -> Data? {
     // thirteen the same rule allows five cells of radius, and a circle comes
     // out a circle — which is the whole reason the pair works as a mark.
     let eyeHalf = rect.width * 0.175
-    let gap = rect.width * 0.105
+    // Close together, and off the same line: the round one sits low, the square
+    // one high. A pair centred and evenly spaced is a pair of dots; staggered,
+    // it reads as a face looking at something.
+    let gap = rect.width * 0.035
+    let stagger = eyeHalf * 0.42
     let y = rect.midY
     let cells: CGFloat = 13
     var pitch = eyeHalf * 2 / cells
@@ -133,8 +141,8 @@ func draw(size: Int) -> Data? {
     // draw the two shapes solid — the mark is the pair, not the pixels.
     let celled = pitch >= 2
 
-    let left = CGPoint(x: rect.midX - gap - eyeHalf, y: y)
-    let right = CGPoint(x: rect.midX + gap + eyeHalf, y: y)
+    let left = CGPoint(x: rect.midX - gap - eyeHalf, y: y - stagger)
+    let right = CGPoint(x: rect.midX + gap + eyeHalf, y: y + stagger)
 
     if celled {
         blue.setFill()

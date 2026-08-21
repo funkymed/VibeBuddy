@@ -517,9 +517,12 @@ final class NotchPanel: NSPanel {
     ///
     /// `idle` and `finished` follow it: they have nothing better to do. Working
     /// does **not** — a face that is working should look busy, not
-    /// distractible — but a deliberate shake still gets through, and turns into
-    /// a chase. `sleeping` is left alone: it carries no clock by design, and a
-    /// look with no clock to draw it is a look that never moves.
+    /// distractible.
+    ///
+    /// A **shake** gets through to all of them and starts a chase, working or
+    /// not: one gesture, one meaning. `sleeping` is left alone, and only that
+    /// one: it carries no clock by design, and a look with no clock to draw it
+    /// is a look that never moves.
     private func updateGaze() {
         let follows = expression == .idle || expression == .finished
         // Everything but `sleeping`, which carries no clock by design: a laugh
@@ -527,7 +530,6 @@ final class NotchPanel: NSPanel {
         let wanted = state.isVisible && expression != .sleeping
         gaze.isEnabled = wanted
         gaze.followsPointer = follows
-        gaze.shakeMeans = expression == .working ? .chase : .laugh
         gaze.anchor = wanted ? buddyScreenRect : .zero
         // The bands are read off the display the face is on, so a second
         // monitor of another size divides in the same places.

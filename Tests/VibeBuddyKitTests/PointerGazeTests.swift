@@ -129,10 +129,29 @@ struct PointerGazeTests {
         return now
     }
 
-    @Test("shaking the mouse makes it laugh")
-    func wiggleAmuses() {
+    // One gesture, one meaning, whatever the face was doing: a shake starts a
+    // chase. It used to depend on the expression — working chased, everyone
+    // else laughed — which made the gesture unpredictable.
+    @Test("shaking the mouse starts a chase, from any face")
+    func wiggleChases() {
         var state = Self.tracker()
         let now = Self.shake(&state, turns: 7, swing: 60)
+        #expect(state.isChasing)
+        guard case .chasing = state.mood(at: now) else {
+            Issue.record("attendu .chasing, obtenu \(state.mood(at: now))"); return
+        }
+    }
+
+    @Test("shaking again, mid-chase, is the joke")
+    func secondShakeLaughs() {
+        var state = Self.tracker()
+        var now = Self.shake(&state, turns: 7, swing: 60)
+        var x: CGFloat = 900
+        for i in 0..<9 {
+            x += (i % 2 == 0) ? 60 : -60
+            state.note(CGPoint(x: x, y: 600), at: now)
+            now = now.addingTimeInterval(0.04)
+        }
         guard case .amused = state.mood(at: now) else {
             Issue.record("attendu .amused, obtenu \(state.mood(at: now))"); return
         }
@@ -144,27 +163,28 @@ struct PointerGazeTests {
     func correctingIsNotAShake() {
         var state = Self.tracker()
         // Wide enough legs, but only three turns.
-        let few = Self.shake(&state, turns: 3, swing: 60)
-        if case .amused = state.mood(at: few) { Issue.record("trois virages ont suffi") }
+        _ = Self.shake(&state, turns: 3, swing: 60)
+        #expect(!state.isChasing, "trois virages ont suffi")
 
         // Plenty of turns, but each one a wobble rather than a swing.
         var wobbly = Self.tracker()
-        let small = Self.shake(&wobbly, turns: 11, swing: 8)
-        if case .amused = wobbly.mood(at: small) { Issue.record("des tremblements ont suffi") }
+        _ = Self.shake(&wobbly, turns: 11, swing: 8)
+        #expect(!wobbly.isChasing, "des tremblements ont suffi")
     }
 
     @Test("a shake spread out over time is not a shake either")
     func slowShakeIsNotAShake() {
         var state = Self.tracker()
         // Wide legs, enough of them, but one every third of a second.
-        let now = Self.shake(&state, turns: 9, swing: 60, step: 0.3)
-        if case .amused = state.mood(at: now) { Issue.record("une secousse lente a suffi") }
+        _ = Self.shake(&state, turns: 9, swing: 60, step: 0.3)
+        #expect(!state.isChasing, "une secousse lente a suffi")
     }
 
     @Test("the fit passes")
     func amusementEnds() {
         var state = Self.tracker()
-        let now = Self.shake(&state, turns: 7, swing: 60)
+        let now = Self.start
+        state.amuse(at: now)
         let after = now.addingTimeInterval(
             PointerGazeState.amusementDuration + PointerGazeState.restDelay + 0.1)
         #expect(state.mood(at: after) == .resting)
@@ -323,13 +343,13 @@ struct PointerGazeTests {
 @Suite("The chase")
 struct PointerChaseTests {
 
+    /// What the panel sets while the buddy is working: it does not look up at
+    /// passing movement, but a shake still reaches it.
     static func busy() -> PointerGazeState {
         var state = PointerGazeState()
         state.anchor = PointerGazeTests.anchor
         state.screen = PointerGazeTests.screen
-        // What the panel sets while the buddy is working.
         state.followsPointer = false
-        state.shakeMeans = .chase
         return state
     }
 
@@ -349,11 +369,22 @@ struct PointerChaseTests {
         }
     }
 
-    @Test("a working buddy laughs at nothing: a shake is a chase, not a joke")
+    @Test("a first shake is a chase, never a joke")
     func shakeDoesNotAmuseWhileBusy() {
         var state = Self.busy()
         let now = PointerGazeTests.shake(&state, turns: 7, swing: 60)
         if case .amused = state.mood(at: now) { Issue.record("il a ri au lieu de chasser") }
+    }
+
+    // The point of the change: `finished` chases too, and so does every other
+    // face that carries a clock.
+    @Test("a buddy that has finished chases just the same")
+    func finishedChasesToo() {
+        var state = PointerGazeTests.tracker()   // follows the pointer, like idle and finished
+        let now = PointerGazeTests.shake(&state, turns: 7, swing: 60)
+        guard case .chasing = state.mood(at: now) else {
+            Issue.record("attendu .chasing, obtenu \(state.mood(at: now))"); return
+        }
     }
 
     @Test("the chase lasts as long as the pointer keeps moving, and not a moment longer")
@@ -506,17 +537,17 @@ struct PointerPokeTests {
 @Suite("Laughing, from anywhere")
 struct LaughterEntryPointsTests {
 
-    /// The three ways a laugh starts, each producing the same mood.
-    @Test("a shake at rest, a click, and a shake mid-chase all laugh")
+    /// The ways a laugh starts, each producing the same mood.
+    @Test("a click at rest, a click while busy, and a shake mid-chase all laugh")
     func everyRouteLaughs() {
-        // 1 — shaking at an idle buddy.
+        // 1 — clicking on an idle buddy.
         var idle = PointerGazeTests.tracker()
-        let shaken = PointerGazeTests.shake(&idle, turns: 7, swing: 60)
-        guard case .amused = idle.mood(at: shaken) else {
-            Issue.record("la secousse au repos n'a pas fait rire"); return
+        idle.amuse(at: PointerGazeTests.start)
+        guard case .amused = idle.mood(at: PointerGazeTests.start) else {
+            Issue.record("le clic au repos n'a pas fait rire"); return
         }
 
-        // 2 — clicking on it, whatever it was doing.
+        // 2 — clicking on one that is busy.
         var poked = PointerChaseTests.busy()
         poked.amuse(at: PointerGazeTests.start)
         guard case .amused = poked.mood(at: PointerGazeTests.start) else {

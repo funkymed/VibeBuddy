@@ -24,14 +24,6 @@ public enum PointerMood: Sendable, Equatable {
     case chasing(progress: Double)
 }
 
-/// What a shake gets, which depends on what the buddy was doing.
-public enum ShakeResponse: String, Sendable, Equatable {
-    /// A buddy with nothing to do finds it funny.
-    case laugh
-    /// A buddy that was working drops everything and gives chase.
-    case chase
-}
-
 public extension PointerMood {
     /// The colour this mood insists on, over the manifest's own. Only the
     /// chase has one: it is the whole point of it being a mode rather than a
@@ -154,8 +146,6 @@ public struct PointerGazeState: Sendable, Equatable {
     /// Whether an ordinary movement is worth looking at. False while the buddy
     /// is busy: it keeps working, and only a shake gets its attention.
     public var followsPointer = true
-    /// What a shake earns.
-    public var shakeMeans: ShakeResponse = .laugh
     /// The display the face is on. The bands below are read off this, so a
     /// second monitor of another size divides in the same places.
     public var screen: CGRect = .zero
@@ -227,16 +217,14 @@ public struct PointerGazeState: Sendable, Equatable {
                 reversals.append(now)
                 reversals.removeAll { now.timeIntervalSince($0) > Self.wiggleWindow }
                 if reversals.count >= Self.wiggleReversals {
-                    // One way in for laughter, whatever caused it — a shake
-                    // here, a click from the panel, anything later.
-                    switch shakeMeans {
-                    case .laugh:
-                        amuse(at: now)
-                    case .chase:
-                        // The first shake starts the chase; shaking at a buddy
-                        // that is *already* chasing is a joke it gets.
-                        if chasingSince == nil { chasingSince = now } else { amuse(at: now) }
-                    }
+                    // A shake means the same thing to every face, whatever it
+                    // was doing: the first one starts the chase, and shaking at
+                    // a buddy that is *already* chasing is a joke it gets.
+                    //
+                    // It used to depend on the expression — a working buddy
+                    // chased, everyone else laughed. Two behaviours for one
+                    // gesture is a gesture nobody can predict.
+                    if chasingSince == nil { chasingSince = now } else { amuse(at: now) }
                     reversals.removeAll(keepingCapacity: true)
                 }
             } else {
@@ -484,15 +472,6 @@ public final class PointerGaze {
         set {
             guard newValue != state.followsPointer else { return }
             state.followsPointer = newValue
-        }
-    }
-
-    /// What a shake earns: a laugh, or a chase.
-    public var shakeMeans: ShakeResponse {
-        get { state.shakeMeans }
-        set {
-            guard newValue != state.shakeMeans else { return }
-            state.shakeMeans = newValue
         }
     }
 
