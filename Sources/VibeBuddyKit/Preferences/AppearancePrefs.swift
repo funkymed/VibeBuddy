@@ -25,9 +25,6 @@ public final class AppearancePrefs {
 
 
 
-    public var overrides = BuddyOverrides() {
-        didSet { persistOverrides() }
-    }
 
     public init(store: PreferencesStore) {
         self.store = store
@@ -41,7 +38,11 @@ public final class AppearancePrefs {
         isReloading = true
         defer { isReloading = false }
         buddyID = store.string(Keys.buddyID, default: BuiltInBuddy.id) ?? BuiltInBuddy.id
-        overrides = BuddyOverrides.decode(store.data(Keys.overrides))
+        // The buddy edit layer was removed on 2026-08-21 with the editor that
+        // fed it. Its key is dropped here rather than left behind: a preference
+        // nothing reads is a preference that comes back to life the day someone
+        // reintroduces the name.
+        if store.data(Keys.overrides) != nil { store.remove(Keys.overrides) }
     }
 
     private func persist(_ value: Any, _ key: String) {
@@ -49,17 +50,12 @@ public final class AppearancePrefs {
         store.set(value, forKey: key)
     }
 
-    private func persistOverrides() {
-        guard !isReloading, let data = overrides.encoded() else { return }
-        store.set(data, forKey: Keys.overrides)
-    }
 
-    /// The manifest as it will be drawn — the user's own edits applied, and
-    /// **nothing else**. The pill's size is not applied here on purpose:
-    /// `scaled` re-rasterises the face onto a different number of cells, so a
-    /// wider pill used to mean differently-shaped eyes, not bigger ones.
-    public func resolved(_ manifest: BuddyManifest) -> BuddyManifest {
-        overrides.apply(to: manifest)
-    }
+    /// The manifest as it will be drawn — which is the manifest, unchanged.
+    ///
+    /// Kept as a seam rather than inlined at the call sites: it was the edit
+    /// layer's hook, and it is where a per-company buddy override would go if
+    /// one is ever wanted. Empty is the honest state, not a placeholder.
+    public func resolved(_ manifest: BuddyManifest) -> BuddyManifest { manifest }
 
 }

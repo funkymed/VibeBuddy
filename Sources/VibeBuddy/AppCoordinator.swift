@@ -331,12 +331,10 @@ final class AppCoordinator: NSObject, NSApplicationDelegate {
     }
 
     private func loadBuddy(_ id: String?) {
-        // A buddy created in the editor has no file, so the loader cannot find
-        // it. Overrides are applied afterwards either way.
-        if let id, let created = appearance.overrides.manifest(forCreated: id) {
-            panel?.setBuddy(appearance.resolved(created))
-            return
-        }
+        // Every buddy now comes from a file. The branch that used to sit here
+        // rebuilt one from `UserDefaults`, for manifests the editor created
+        // without ever writing them to disk — a buddy that existed only in a
+        // preference, which is what made two sources of truth for one face.
         var loader = BuddyLoader()
         let loaded = loader.load(id: id)
         panel?.setBuddy(appearance.resolved(loaded.manifest))

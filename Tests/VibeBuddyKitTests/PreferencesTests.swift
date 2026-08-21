@@ -104,7 +104,6 @@ struct PreferencesTests {
             let notifications = NotificationPrefs(store: store)
 
             appearance.buddyID = "orb"
-            appearance.overrides.created["orb"] = BuddyOverrides.Created(name: "Orb")
             layout.groupByDirectory = false
             layout.showUsage = false
             notifications.voice = true
@@ -119,7 +118,6 @@ struct PreferencesTests {
             notifications.reload()
 
             #expect(appearance.buddyID == BuiltInBuddy.id)
-            #expect(appearance.overrides == BuddyOverrides())
             #expect(layout.groupByDirectory)
             #expect(layout.showUsage)
             #expect(notifications.voice == false)
