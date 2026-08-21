@@ -16,6 +16,43 @@ enum Diagnostics {
         }
     }
 
+    /// Runs an async job and waits for it, from a synchronous entry point.
+    ///
+    /// `--info` is a command-line tool: it prints and exits, so blocking is the
+    /// honest shape. What is **not** honest is writing the result into a
+    /// captured `var` — the value crosses a concurrency boundary, and
+    /// `nonisolated(unsafe)` only silenced the compiler that noticed. A newer
+    /// toolchain refused it outright, and it was right to: the local was read
+    /// after the semaphore without anything ordering the two.
+    ///
+    /// A box handed to the task, and read only once the task has signalled, is
+    /// the same wait with the race removed.
+    ///
+    /// Detached on purpose: a plain `Task` starts on the current actor, and
+    /// this thread is about to block — it would never get to run.
+    private static func blocking<Value: Sendable>(
+        timeout: TimeInterval = 5, _ job: @escaping @Sendable () async -> Value
+    ) -> Value? {
+        let box = Box<Value>()
+        let semaphore = DispatchSemaphore(value: 0)
+        Task.detached {
+            box.value = await job()
+            semaphore.signal()
+        }
+        guard semaphore.wait(timeout: .now() + timeout) == .success else { return nil }
+        return box.value
+    }
+
+    /// One value, one lock. Small enough to be obviously right.
+    private final class Box<Value: Sendable>: @unchecked Sendable {
+        private let lock = NSLock()
+        private var stored: Value?
+        var value: Value? {
+            get { lock.lock(); defer { lock.unlock() }; return stored }
+            set { lock.lock(); stored = newValue; lock.unlock() }
+        }
+    }
+
     static func run() -> Never {
         _ = NSApplication.shared  // needed for NSScreen
 
@@ -154,14 +191,10 @@ enum Diagnostics {
         print("  types non reconnus : \(unrecognised.isEmpty ? "aucun" : String(describing: unrecognised))")
 
         print("\n── sessions vivantes (processus + transcript) ──")
-        let store = SessionStore()
-        let sem = DispatchSemaphore(value: 0)
-        nonisolated(unsafe) var live: [AgentSession] = []
         let t0 = Date()
-        // Detached: a plain `Task` starts on the current actor, and the main
-        // thread is about to block on the semaphore — it would never run.
-        Task.detached { live = await store.refresh(); sem.signal() }
-        _ = sem.wait(timeout: .now() + 5)
+        // A timeout reads as « aucune session », which is what the empty case
+        // already prints. `--info` reports; it does not diagnose itself.
+        let live = blocking { await SessionStore().refresh() } ?? []
         let refreshMs = Date().timeIntervalSince(t0) * 1000
 
         if live.isEmpty {
@@ -280,10 +313,9 @@ enum Diagnostics {
         }
 
         print("\n── consommation Claude ──")
-        let usageSem = DispatchSemaphore(value: 0)
-        nonisolated(unsafe) var outcome: UsageOutcome = .failed("timeout")
-        Task.detached { outcome = await UsageClient().fetch(); usageSem.signal() }
-        _ = usageSem.wait(timeout: .now() + 10)
+        // Same shape as the session refresh above, same reason — see `blocking`.
+        let outcome = blocking(timeout: 10) { await UsageClient().fetch() }
+            ?? .failed("timeout")
         switch outcome {
         case let .success(u):
             for (label, w) in [("session (5 h)", u.fiveHour), ("semaine (7 j)", u.sevenDay)] {
