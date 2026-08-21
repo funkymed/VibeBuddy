@@ -223,6 +223,8 @@ enum Diagnostics {
         // without launching the app and waiting for the right state.
         var idleLoader = BuddyLoader()
         let traced = AppCoordinator.forcedFace ?? .idle
+        let loaded = idleLoader.load(id: active).manifest
+        let screen = CGSize(width: loaded.face.width, height: loaded.face.height)
         if let spec = idleLoader.load(id: active).manifest.expressions[traced.rawValue]?.eye {
             print("  séquence \(traced.rawValue) — un temps de \(spec.beatLength) s")
             for index in 0..<18 {
@@ -230,11 +232,16 @@ enum Diagnostics {
                 // Sampled past the crossing, on the beat's *effective* length.
                 let frame = EyeAnimation.at(
                     phase: Double(index) * spec.beatLength + spec.beatLength * 0.7, spec: spec)
+                // What the screen let through, not what the animation asked for.
+                let drawn = EyeRaster.frame(
+                    in: screen, pose: spec.pose, animation: frame,
+                    pitch: BuddyView.defaultPixelSize).drift
                 print(String(
-                    format: "    %2d  %-7@ regard %+5.1f,%+5.1f pt   profondeur %.2f   ouverture %.2f   roulis %+.1f   dissymétrie %+.2f",
+                    format: "    %2d  %-7@ demandé %+5.1f,%+5.1f → dessiné %+5.1f,%+5.1f pt   profondeur %.2f   ouverture %.2f   roulis %+.1f",
                     index, beat.rawValue as NSString,
                     Double(frame.gaze.width), Double(frame.gaze.height),
-                    Double(frame.depth), Double(frame.squeeze), Double(frame.roll), Double(frame.lopsided)))
+                    Double(drawn.width), Double(drawn.height),
+                    Double(frame.depth), Double(frame.squeeze), Double(frame.roll)))
             }
         }
         print("  dossier : \(BuddyLoader.searchPath)")

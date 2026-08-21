@@ -257,10 +257,14 @@ public struct EyeSpec: Sendable, Equatable, Codable {
     /// stops the eye at the edge is the clamp in `EyeRaster`, which measures
     /// the frame rather than trusting a constant here.
     static let reachX: CGFloat = 0.95
-    /// Vertical reach used to be 0.22, which on a 15 pt eye came to three
-    /// points — one cell, and one cell is not a look upwards, it is a rounding
-    /// error. The plate has room for three.
-    static let reachY: CGFloat = 0.42
+    /// It went 0.22 → 0.42 → 0.85. At 0.22, a 15 pt eye moved three points —
+    /// one cell, which is a rounding error rather than a look upwards.
+    ///
+    /// What actually stops it now is not this number but the screen:
+    /// `EyeRaster` keeps the whole eye inside, so an eye of height `h` on a
+    /// 30 pt screen can rise at most `(30 - h) / 2`. Raising this further does
+    /// nothing; shortening the eye is what buys the travel.
+    static let reachY: CGFloat = 0.85
 
     /// How much further the narrowed eye closes than its neighbour when the
     /// face is sizing you up.

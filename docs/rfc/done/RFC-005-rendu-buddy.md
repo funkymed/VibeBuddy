@@ -2,10 +2,10 @@
 
 | | |
 |---|---|
-| **Status** | in-progress (95 %) — format texte animé livré, reste le scénario C |
+| **Status** | **done (100 %)** — visage livré, budget remesuré le 2026-08-21 |
 | **Author** | Cyril Pereira |
 | **Created** | 2026-08-19 |
-| **Updated** | 2026-08-19 |
+| **Updated** | 2026-08-21 |
 | **Phase** | 3 — Surface visible |
 | **Depends on** | RFC-001, RFC-002, RFC-003 |
 | **Related** | RFC-012 (produit l'état exprimé) · RFC-010 (AppearancePrefs) · R3 |
@@ -264,7 +264,7 @@ tête est ronde.
 | T8 | Mapping `BuddyExpression` ← état RFC-012, fonction pure + tests | **done** | **100** |
 | T9 | `perfcheck.sh` A et B | **done** | **100** |
 | T12 | Animation par images, rechargement à chaud, taille et couleur par expression | **done** | **100** |
-| T10 | `perfcheck.sh` C (curseur en mouvement, panneau déployé) | todo | 0 |
+| T10 | `perfcheck.sh` C (curseur en mouvement, panneau déployé) | **done** | **100** |
 | T13 | **Vitesse d'animation** : `speed:` global et par expression, en images/seconde | **done** | **100** |
 | T14 | **Mise à l'échelle pour tenir dans la fente** : plafond de largeur, visage réduit plutôt que rogné | **done** | **100** |
 | T15 | Mémoïsation des mesures, calculs hissés hors du corps du `TimelineView` | **done** | **100** |
@@ -274,6 +274,9 @@ tête est ronde.
 | T18 | Séquence discrète — temps, clignement à durée fixe, marche à pas impair | **done** | **100** |
 | T19 | Buddy `eve` : six visages, premier client du genre `eyes` | **done** | **100** |
 | T20 | Aperçu ASCII des visages dans `--info` | **done** | **100** |
+| T21 | Écran ovale ou arrondi, grain, arrachement, perspective, roulis | **done** | **100** |
+| T22 | Saccade à trajet — dépassement, étirement, profondeur, plissement | **done** | **100** |
+| T23 | Largeur de la pastille réglable (`buddyScale`) | **done** | **100** |
 
 **Critère de sortie — atteint le 2026-08-19.**
 
@@ -284,6 +287,35 @@ tête est ronde.
 | Un manifeste corrompu retombe sur le buddy intégré sans planter | **PASS** — six modes de défaillance testés |
 | Pastille masquée → 0 réveil imputable au buddy | **PASS** — 0,000 réveil inactif/s |
 | Coût de l'app complète | **PASS** — 8,3 Mo, 0,042 % CPU |
+
+### Le coût, après le passage au visage
+
+Remesuré le 2026-08-21, scénario B, 24 échantillons sur 114 s :
+
+| | |
+|---|---|
+| `phys_footprint` crête | **15,6 Mo** — budget 40 |
+| CPU au repos | **0,000 %** — budget 3 % |
+| réveils inactifs | **3,9 /s** — budget 30 /s |
+
+**Moins cher que le format texte qu'il remplace** (21 Mo), alors qu'il dessine un
+écran, des scanlines, du grain, trois dégradés et une aberration chromatique.
+
+Les réveils montent de 0,2 à 3,9 par seconde : c'est le prix assumé de la
+saccade, qui a besoin de la cadence pleine pour avoir un trajet plutôt qu'une
+coupure. Voir `BuddyView.tier` — un visage qui ne peut pas bouger n'a **aucune**
+horloge, ce qui garde le scénario A à zéro.
+
+Le chemin pour y arriver, parce que deux des trois étapes étaient des pièges :
+
+| Mesure | `phys_footprint` |
+|---|---|
+| `Canvas` par image | **95 Mo** |
+| ↳ remplacé par `Shape` | 38 Mo |
+| ↳ halo ramené de trois ombres à une | 23 Mo |
+| dégradés ajoutés dans le chemin par image | **127 Mo** |
+| ↳ écran sorti dans `FaceScreen`, hors de la phase | 37 Mo |
+| ↳ écran ramené de 80 à 62 pt de large | **15 Mo** |
 
 ### La validation qui compte
 

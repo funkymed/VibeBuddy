@@ -16,7 +16,7 @@ est du confort, et se juge comme tel.
 3. **Suivre plusieurs sessions à la fois**, chacune avec son état propre.
    → [RFC-003](docs/rfc/RFC-003-collecte-sessions.md)
 4. **De manière ludique, dans la notch** — le buddy est le porteur de l'état.
-   → [RFC-005](docs/rfc/RFC-005-rendu-buddy.md)
+   → [RFC-005](docs/rfc/done/RFC-005-rendu-buddy.md)
 
 ### Direction, au-delà du v1
 
@@ -98,7 +98,7 @@ Conséquence pratique : l'app ne porte pas de notice MIT, parce qu'elle n'a rien
 | [002](docs/rfc/RFC-002-fenetre-notch.md) | Fenêtre notch : NSPanel, click-through, multi-écran | **in-progress** | **95 %** | v1 | 4-6 j |
 | [003](docs/rfc/done/RFC-003-collecte-sessions.md) | Collecte de sessions : source de vérité unique | **done** | **100 %** | v1 | ✔ |
 | [004](docs/rfc/RFC-004-usage-live.md) | Utilisation live : Keychain + endpoint OAuth | **in-progress** | **95 %** | v1 | 0,5 j |
-| [005](docs/rfc/RFC-005-rendu-buddy.md) | Buddy : format `.buddy` animé et rendu | **in-progress** | **95 %** | v1 | 0,5 j |
+| [005](docs/rfc/done/RFC-005-rendu-buddy.md) | Buddy : visage, format `.buddy`, rendu | **done** | **100 %** | v1 | ✔ |
 | [006](docs/rfc/RFC-006-pont-hook.md) | Pont hook Claude Code : binaire dédié + socket Unix | **blocked** | **0 %** | v1 | 3-5 j |
 | [007](docs/rfc/RFC-007-interception-permissions.md) | Interception des permissions : file, rendu, décisions | todo | 0 % | v1 | 5-7 j |
 | [008](docs/rfc/RFC-008-vue-sessions.md) | Vue sessions et saut vers le terminal hôte | **in-progress** | **80 %** | v1.1 | 1-2 j |
@@ -107,8 +107,8 @@ Conséquence pratique : l'app ne porte pas de notice MIT, parce qu'elle n'a rien
 | [011](docs/rfc/RFC-011-build-distribution.md) | Build, empaquetage, signature, distribution | **in-progress** | **60 %** | v1 | 1-2 j |
 | [012](docs/rfc/RFC-012-detection-etat-alertes.md) | **Détection d'état et alertes** — depuis le transcript, sans hook | **in-progress** | **95 %** | v1 | 0,5 j |
 
-**Reste pour le v1 : 9-17 j-h** (001 et 003 faites ; 002, 004, 005 et 012 à 90-95 % ;
-spike keychain fait) · plan complet restant : 19-30 j-h. Dev solo en parallèle d'autres projets →
+**Reste pour le v1 : 8,5-16,5 j-h** (001, 003 et 005 faites ; 002, 004 et 012 à
+90-95 % ; spike keychain fait) · plan complet restant : 19-30 j-h. Dev solo en parallèle d'autres projets →
 tabler sur un facteur calendaire ×2 à ×3.
 
 ## Gantt
@@ -121,18 +121,18 @@ Ordre = ordre de réalisation, pas ordre de numérotation.
 #   RFC      Titre                                          Avancement            %    Reste   Jalon
 1   RFC-002  Fenêtre notch (NSPanel, click-through)          ███████████████████░  95 %   0,5 j  v1
 2   RFC-012  Détection d'état et alertes  ← objectif n°1     ███████████████████░  95 %   0,5 j  v1
-3   RFC-005  Buddy : format .buddy animé et rendu            ███████████████████░  95 %   0,5 j  v1
-4   —        Spike keychain + oauth-usage                    ████████████████████ 100 %   ✔     v1
-5   RFC-004  Utilisation live (Keychain + OAuth)             ███████████████████░  95 %   0,5 j  v1
-6   —        Spike contrat de hook                           ████████████░░░░░░░░  60 %   ⚠      v1
-7   RFC-006  Pont hook + socket Unix          ⚠ BLOQUÉE      ░░░░░░░░░░░░░░░░░░░░   0 %   3-5 j  v1
-8   RFC-007  Interception des permissions      ⚠ BLOQUÉE     ░░░░░░░░░░░░░░░░░░░░   0 %   5-7 j  v1
-9   RFC-010  Réglages segmentés + éditeur de buddy           ██████████████████░░  90 %   0,5 j  v1
-10  RFC-011  Build, signature, distribution                  ████████████░░░░░░░░  60 %   1-2 j  v1
-11  RFC-008  Vue sessions + saut terminal/tmux               ████████████████░░░░  80 %   1-2 j  v1.1
-12  RFC-009  Index d'activité (heatmap + historique)         ░░░░░░░░░░░░░░░░░░░░   0 %   3-4 j  v1.2
+3   —        Spike keychain + oauth-usage                    ████████████████████ 100 %   ✔     v1
+4   RFC-004  Utilisation live (Keychain + OAuth)             ███████████████████░  95 %   0,5 j  v1
+5   —        Spike contrat de hook                           ████████████░░░░░░░░  60 %   ⚠      v1
+6   RFC-006  Pont hook + socket Unix          ⚠ BLOQUÉE      ░░░░░░░░░░░░░░░░░░░░   0 %   3-5 j  v1
+7   RFC-007  Interception des permissions      ⚠ BLOQUÉE     ░░░░░░░░░░░░░░░░░░░░   0 %   5-7 j  v1
+8   RFC-010  Réglages segmentés + éditeur de buddy           ██████████████████░░  90 %   0,5 j  v1
+9   RFC-011  Build, signature, distribution                  ████████████░░░░░░░░  60 %   1-2 j  v1
+10  RFC-008  Vue sessions + saut terminal/tmux               ████████████████░░░░  80 %   1-2 j  v1.1
+11  RFC-009  Index d'activité (heatmap + historique)         ░░░░░░░░░░░░░░░░░░░░   0 %   3-4 j  v1.2
 
 ── DONE ──
+—   RFC-005  Buddy : visage, format .buddy, rendu            ████████████████████ 100 %   —      v1
 —   RFC-001  Socle applicatif, budget de performance         ████████████████████ 100 %   —      v1
 —   RFC-003  Collecte de sessions (source de vérité unique)  ████████████████████ 100 %   —      v1
 ```

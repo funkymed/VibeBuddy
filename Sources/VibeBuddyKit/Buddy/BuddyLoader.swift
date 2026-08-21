@@ -113,6 +113,9 @@ public enum BuiltInBuddy {
     #   t      épaisseur du trait, pour les autres formes (fraction, 0…1)
     #   bend   sens d'un « arc » : +1 sourit, −1 boude. Incline aussi « wing ».
     #   tilt   degrés, en miroir entre les deux yeux
+    #          Une remarque de hauteur : l'œil ne peut monter que de
+    #          (hauteur_écran − h) / 2, parce que la rastérisation le garde entier
+    #          dans l'écran. Un œil plus court regarde plus haut.
     #   y      décalage vertical depuis le milieu de l'écran (négatif = vers le
     #          haut). À zéro partout ici : sans bouche, rien ne justifie de
     #          remonter les yeux.
@@ -164,7 +167,7 @@ public enum BuiltInBuddy {
 
     # Au repos : deux ovales debout et un sourire plein.
     idle (amber #FFBB00)
-    eye   shape:oval w:13 h:15 r:7 gap:10 y:0
+    eye   shape:oval w:13 h:12 r:6 gap:10 y:0
     # mouth shape:arc w:24 h:9 t:0.6 bend:1 y:8
     time  beat:1.6 blink:0.3 grain:0.015 glitch:0 gaze:wander
 
@@ -183,7 +186,7 @@ public enum BuiltInBuddy {
     # se voit. Écarquillé et nerveux (dart) disait « alerte » ; ce qu'il fait
     # vraiment, c'est patienter.
     awaiting (blue #5AB8FF)
-    eye   shape:oval w:10 h:12 r:5 gap:12 y:0
+    eye   shape:oval w:10 h:11 r:5 gap:12 y:0
     # mouth shape:oval w:10 h:10 r:5 y:8
     time  beat:1.8 blink:0.3 grain:0.015 glitch:0 gaze:bored
 
@@ -192,7 +195,7 @@ public enum BuiltInBuddy {
     # avant, puis gaze:calm qui n'avançait et ne reculait que sur place : les deux
     # écartés à l'usage.
     finished (blue #5AB8FF)
-    eye   shape:oval w:14 h:17 r:7 gap:10 y:0
+    eye   shape:oval w:14 h:14 r:7 gap:10 y:0
     # mouth shape:arc w:20 h:9 t:0.4 bend:1 y:8
     time  beat:1.4 blink:0.34 grain:0.015 glitch:0 gaze:dart
 

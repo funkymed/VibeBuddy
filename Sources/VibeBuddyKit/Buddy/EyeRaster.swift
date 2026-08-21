@@ -16,6 +16,11 @@ public enum EyeRaster {
         public var lit: [CGRect] = []
         /// Half lit: the body of a filled eye.
         public var dim: [CGRect] = []
+        /// What the look was actually worth once the screen had its say. The
+        /// animation asks for a distance; the clamp below decides what fits.
+        /// Reported because the two differ, and a trace that showed only the
+        /// request sent me chasing a bug that was not there.
+        public var drift: CGSize = .zero
         /// The digital grain, fainter still. A separate list because it is not
         /// the same strength: at the body's opacity the speckles stop reading
         /// as noise on a screen and start reading as dirt on one.
@@ -112,6 +117,7 @@ public enum EyeRaster {
         }
 
         var output = Frame()
+        output.drift = CGSize(width: driftX, height: driftY)
         var y: CGFloat = 0
         var row = 0
         while y < size.height {
