@@ -8,6 +8,14 @@ public actor SessionStore {
 
     public static let staleAfter: TimeInterval = 15 * 60
 
+    /// How long a session stays listed after its process is gone.
+    ///
+    /// Short on purpose. `staleAfter` decides whether a transcript is worth
+    /// reading at all; this decides how long a dead row keeps a place in a list
+    /// whose whole point is what is happening *now*. Long enough to see that
+    /// the thing finished, short enough that the list is never mostly history.
+    public static let lingerAfterDeath: TimeInterval = 10
+
     /// Above this many prompt tokens the 1M window is *proved*. Backstop only — a
     /// session at 142k on 1M read 71 % instead of 14 % before `ContextWindowResolver`.
     public static let largeContextThreshold = 200_000
@@ -85,6 +93,17 @@ public actor SessionStore {
                     isLive: isLive
                 ))
             }
+        }
+
+        // Ten seconds after it stops, a session stops being news.
+        //
+        // Measured from its own last activity rather than from when this
+        // process first noticed it was dead. Stateless — nothing to remember,
+        // nothing to bound — and it behaves at launch: a session that ended an
+        // hour ago is not shown for ten seconds and then withdrawn, it is
+        // simply never shown.
+        sessions.removeAll {
+            !$0.isLive && now.timeIntervalSince($0.lastActivity) >= Self.lingerAfterDeath
         }
 
         sessions.sort { $0.lastActivity > $1.lastActivity }

@@ -24,6 +24,7 @@ struct NotchShellView: View {
     var onSettings: () -> Void = {}
     var onQuit: () -> Void = {}
     var onJump: (pid_t) -> Void = { _ in }
+    var onSelect: ((String) -> Void)?
     var jumpNote: String?
     var pixelSize: Double = Double(BuddyView.defaultPixelSize)
     var groupByDirectory = true
@@ -62,7 +63,7 @@ struct NotchShellView: View {
                 sessions: sessions, buddy: buddy, expression: expression,
                 budget: budget, usage: usage, l10n: l10n, locale: locale,
                 onSettings: onSettings, onQuit: onQuit,
-                onJump: onJump, jumpNote: jumpNote,
+                onJump: onJump, onSelect: onSelect, jumpNote: jumpNote,
                 pixelSize: pixelSize, groupByDirectory: groupByDirectory,
                 jumpOnClick: jumpOnClick, showUsage: showUsage
             )

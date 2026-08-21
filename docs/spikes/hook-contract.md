@@ -1,6 +1,7 @@
 # Spike — contrat de hook Claude Code
 
-**Date** : 2026-08-20 · **Version** : Claude Code 2.1.234 · **Bloque** : RFC-006, RFC-007
+**Date** : 2026-08-20 · **Repris le** : 2026-08-21 · **Version** : Claude Code 2.1.234
+puis **2.1.237** · **Bloque** : RFC-006, RFC-007
 
 ## Question
 
@@ -57,22 +58,98 @@ session interactive demande un vrai terminal, pas un stdin redirigé.
 que la plupart des outils s'exécutent sans jamais demander. Toute vérification du
 chemin de permission doit en tenir compte.
 
-## Conséquence
+## Reprise du 2026-08-21 — la question centrale est tranchée
 
-**Le sort de RFC-006 et RFC-007 reste indéterminé.** Ce spike devait trancher, il
-ne l'a pas fait — et le reconnaître vaut mieux que de bâtir 8 à 12 jours-homme sur
-une hypothèse.
+Version 2.1.237. Trois manches, sans main humaine.
 
-Ce qu'il faut pour conclure, et qui demande une main humaine :
+### 1. Le hook ne part toujours pas — mais pas pour la raison supposée
+
+`--include-hook-events` énumère **tous** les hooks qui tournent. Sur un
+`claude -p` avec ce même `settings.json` :
+
+```
+SessionStart:startup · UserPromptSubmit · PreToolUse:Read · Stop     (12 hooks)
+```
+
+Aucun `PermissionRequest`, `received.jsonl` jamais créé — alors que la lecture
+de `/etc/hosts` **a bien été refusée**. Mais le refus venait du contrôle « hors
+du répertoire de travail », qui court-circuite avant le circuit de permission.
+
+Seconde manche avec un `Bash`, qui passe normalement par ce circuit : la commande
+**s'est exécutée**. En mode `--print`, aucune permission n'est jamais demandée —
+l'outil tourne. Le hook ne peut donc pas partir, et cela **n'apprend rien** sur
+son existence.
+
+### 2. Enregistrer un hook ne prouve rien
+
+Un fichier de réglages déclarant `CeciNestPasUnEvenement` est accepté **en
+silence**, sans avertissement. Claude Code ne valide pas les noms d'événements :
+`PermissionRequest` dans un `settings.json` est indiscernable d'une faute de
+frappe. C'est ce qui rendait la première manche ininterprétable.
+
+### 3. Le binaire, lui, répond
+
+`strings` sur `/Users/…/.local/share/claude/versions/2.1.237` :
+
+| Preuve | Ce qu'elle établit |
+|---|---|
+| `executePermissionRequestHooks called for tool: ${e}` | la fonction existe |
+| `hook_event_name:kt("PermissionRequest"), tool_name:H(), tool_input:Mn(), permission_suggestions:mt(…).optional()` | **le schéma de la charge utile**, `permission_suggestions` compris |
+| `buildAllow(d, {decisionReason:{type:"hook", hookName:"PermissionRequest"}})` | une décision **`allow`** est honorée |
+| `buildDeny(g.message ‖ "Permission denied by hook", …)` | une décision **`deny`** l'est aussi, avec son message |
+| `{behavior:"allow", updatedInput:l, …}` | le hook peut **réécrire l'entrée** de l'outil |
+| `if(a.interrupt)` sur la branche `deny` | il peut interrompre |
+| `catch(s){T("PermissionRequest hook fai…")}` | un hook qui échoue **ne bloque pas** |
+| « a plan_token requires a one-time project approval, which is not available in subagent or **PermissionRequest-hook sessions** » | le produit nomme ces sessions dans ses propres messages |
+
+**La prémisse de RFC-007 tient.** Un hook `PermissionRequest` reçoit la demande,
+et sa décision est honorée — `allow` comme `deny`.
+
+### Ce qui reste
+
+Une manche interactive, une minute, pour voir le hook partir en vrai. Elle ne
+conditionne plus la faisabilité : elle confirme un contrat déjà lisible dans le
+binaire.
 
 ```sh
 cd docs/spikes/hook/project
 claude --settings ../settings.json --permission-mode manual
-# puis, dans la session : « Lis le fichier /etc/hosts »
-# → si le hook fonctionne, Claude annonce un refus portant « REFUS-SPIKE-7f3a »
-#   et hook/received.jsonl contient la demande.
+# puis, dans la session : « Exécute la commande shell : echo bonjour-spike »
+# → le refus doit porter « REFUS-SPIKE-7f3a », et received.jsonl exister
 ```
 
-Ce qui **ne** dépend **pas** de cette réponse : RFC-012 (alertes) tire ses quatre
-signaux du transcript, comme RFC-003 l'a établi. Le cœur du produit tient quoi
-qu'il arrive.
+Choisir un outil qui **demande vraiment** — un `Bash`, pas une lecture hors du
+répertoire, qui est refusée en amont par un autre contrôle.
+
+## Conséquence
+
+**RFC-006 et RFC-007 sont faisables.** Le contrat que RFC-007 suppose est écrit
+dans le binaire : un hook `PermissionRequest` reçoit `tool_name`, `tool_input` et
+`permission_suggestions`, et sa décision est honorée — `allow`, `deny`, avec
+réécriture de l'entrée et interruption. C'est la question qui bloquait 8 à
+12 jours-homme.
+
+Ce spike avait conclu à l'indétermination, et il avait raison de le faire : ce
+qu'il observait ne permettait pas de trancher. Ce qui manquait n'était pas une
+manche de plus au même endroit, c'était **de cesser d'interroger le comportement
+pour interroger le produit** — `--include-hook-events` pour savoir ce qui part
+vraiment, un nom d'événement bidon pour savoir si l'enregistrement prouve quelque
+chose, puis `strings` sur le binaire.
+
+Trois enseignements que la première manche ne pouvait pas donner :
+
+1. **Un `settings.json` accepté ne veut rien dire.** Les noms d'événements ne
+   sont pas validés.
+2. **`--print` ne demande jamais de permission.** Un `Bash` s'y exécute
+   directement. Toute manche non interactive était condamnée d'avance.
+3. **Un refus n'est pas l'autre.** Lire hors du répertoire de travail est refusé
+   par un contrôle en amont qui court-circuite le circuit de permission — c'est
+   très probablement ce que mesurait la manche d'origine.
+
+Reste une confirmation d'une minute, décrite plus haut. Elle ne conditionne plus
+rien : elle vérifie qu'un contrat lisible dans le binaire se comporte comme il
+est écrit.
+
+Ce qui **ne** dépendait **pas** de cette réponse, et n'en dépend toujours pas :
+RFC-012 (alertes) tire ses quatre signaux du transcript, comme RFC-003 l'a
+établi. Le cœur du produit tient quoi qu'il arrive.

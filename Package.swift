@@ -18,6 +18,7 @@ let package = Package(
         // performance probe. No UI.
         .target(
             name: "VibeBuddyKit",
+            dependencies: ["VibeHookProtocol"],
             path: "Sources/VibeBuddyKit"
         ),
 
@@ -37,7 +38,7 @@ let package = Package(
 
         .testTarget(
             name: "VibeBuddyKitTests",
-            dependencies: ["VibeBuddyKit"],
+            dependencies: ["VibeBuddyKit", "VibeHookProtocol"],
             path: "Tests/VibeBuddyKitTests"
         ),
     ]

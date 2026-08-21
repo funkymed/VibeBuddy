@@ -27,6 +27,26 @@ public enum SessionDisplayState: String, Sendable, CaseIterable {
         return .idle
     }
 
+    /// What the collapsed pill shows, which is not the most *urgent* state.
+    ///
+    /// The pill is the ambient view: with several sessions running, "one of
+    /// them is working" is what the face is for, and it is what you glance at
+    /// all day.
+    ///
+    /// **Only while something is running.** With nothing in flight the ordinary
+    /// urgency order comes back, so a question takes the face — objective n°1
+    /// of the product is to be told that the agent is waiting, and an idle
+    /// machine has nothing better to say.
+    ///
+    /// `aggregate` is untouched either way: it still decides what an alert says
+    /// and what the panel chip counts, so an urgent state is never lost even
+    /// while work hides it here.
+    public static func onThePill(of sessions: [AgentSession]) -> SessionDisplayState? {
+        let states = sessions.map(of)
+        if states.contains(.working) { return .working }
+        return aggregate(of: sessions)
+    }
+
     /// Nil when nothing is alive. Otherwise the most urgent live state.
     public static func aggregate(of sessions: [AgentSession]) -> SessionDisplayState? {
         var best = urgency.count

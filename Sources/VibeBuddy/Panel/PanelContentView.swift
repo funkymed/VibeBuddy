@@ -13,6 +13,7 @@ struct PanelContentView: View {
     var onSettings: () -> Void
     var onQuit: () -> Void
     var onJump: (pid_t) -> Void = { _ in }
+    var onSelect: ((String) -> Void)?
     /// Set only when the last jump has something to say: tab not found,
     /// permission refused.
     var jumpNote: String?
@@ -93,7 +94,8 @@ struct PanelContentView: View {
                         ForEach(visible) { group in
                             SessionRow(
                                 group: group, l10n: l10n,
-                                onJump: jumpOnClick ? onJump : nil).equatable()
+                                onJump: jumpOnClick ? onJump : nil,
+                                onSelect: onSelect).equatable()
                         }
                     }
                 }

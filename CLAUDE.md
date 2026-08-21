@@ -93,7 +93,7 @@ Conséquence pratique : l'app ne porte pas de notice MIT, parce qu'elle n'a rien
 | RFC | Titre | Statut | % | Jalon | Charge |
 |---|---|---|---|---|---|
 | — | [Spike](docs/spikes/keychain-oauth-usage.md) keychain + oauth-usage — débloquait RFC-004 | **done** | **100 %** | v1 | ✔ |
-| — | [Spike](docs/spikes/hook-contract.md) contrat de hook — bloque RFC-006 **et** RFC-007 | **in-progress** | **60 %** | v1 | 0,5 j |
+| — | [Spike](docs/spikes/hook-contract.md) contrat de hook — **contrat établi**, reste 1 min de confirmation | **in-progress** | **90 %** | v1 | ✔ |
 | [001](docs/rfc/done/RFC-001-socle-applicatif.md) | Socle applicatif, cycle de vie, budget de performance | **done** | **100 %** | v1 | ✔ |
 | [002](docs/rfc/RFC-002-fenetre-notch.md) | Fenêtre notch : NSPanel, click-through, multi-écran | **in-progress** | **95 %** | v1 | 4-6 j |
 | [003](docs/rfc/done/RFC-003-collecte-sessions.md) | Collecte de sessions : source de vérité unique | **done** | **100 %** | v1 | ✔ |
@@ -123,9 +123,9 @@ Ordre = ordre de réalisation, pas ordre de numérotation.
 2   RFC-012  Détection d'état et alertes  ← objectif n°1     ███████████████████░  95 %   0,5 j  v1
 3   —        Spike keychain + oauth-usage                    ████████████████████ 100 %   ✔     v1
 4   RFC-004  Utilisation live (Keychain + OAuth)             ███████████████████░  95 %   0,5 j  v1
-5   —        Spike contrat de hook                           ████████████░░░░░░░░  60 %   ⚠      v1
-6   RFC-006  Pont hook + socket Unix          ⚠ BLOQUÉE      ░░░░░░░░░░░░░░░░░░░░   0 %   3-5 j  v1
-7   RFC-007  Interception des permissions      ⚠ BLOQUÉE     ░░░░░░░░░░░░░░░░░░░░   0 %   5-7 j  v1
+5   —        Spike contrat de hook ← contrat établi          ██████████████████░░  90 %   1 min  v1
+6   RFC-006  Pont hook + socket Unix          ⚠ à confirmer   ░░░░░░░░░░░░░░░░░░░░   0 %   3-5 j  v1
+7   RFC-007  Interception des permissions      ⚠ à confirmer  ░░░░░░░░░░░░░░░░░░░░   0 %   5-7 j  v1
 8   RFC-010  Réglages segmentés + éditeur de buddy           ██████████████████░░  90 %   0,5 j  v1
 9   RFC-011  Build, signature, distribution                  ████████████░░░░░░░░  60 %   1-2 j  v1
 10  RFC-008  Vue sessions + saut terminal/tmux               ████████████████░░░░  80 %   1-2 j  v1.1

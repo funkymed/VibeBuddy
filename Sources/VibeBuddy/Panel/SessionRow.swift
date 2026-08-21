@@ -10,6 +10,11 @@ struct SessionRow: View, Equatable {
     let l10n: Strings
     /// Nil for a row with nothing to jump to: no pointer, no highlight, no click.
     var onJump: ((pid_t) -> Void)?
+    /// Told which session was clicked, so the face can take that session's
+    /// state. Fires alongside the jump rather than instead of it: one click,
+    /// two consequences — you go to the terminal, and the buddy follows you
+    /// there.
+    var onSelect: ((String) -> Void)?
 
     @State private var hovering = false
 
@@ -26,7 +31,10 @@ struct SessionRow: View, Equatable {
     var body: some View {
         // A dead row is not a control: no button, no hover, no tooltip.
         if let pid = jumpPID {
-            Button { onJump?(pid) } label: { content }
+            Button {
+                onSelect?(group.id)
+                onJump?(pid)
+            } label: { content }
                 .buttonStyle(.plain)
                 .pointingHandCursor { hovering = $0 }
                 .help(l10n.jumpHint)

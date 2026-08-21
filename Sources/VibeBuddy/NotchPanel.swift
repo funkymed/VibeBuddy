@@ -228,6 +228,10 @@ final class NotchPanel: NSPanel {
 
         if state.isVisible { orderFrontRegardless() }
 
+        // Closing the panel ends the question, so the face goes back to
+        // speaking for everything rather than for one session.
+        if state != .panel { clearSelection() }
+
         revealWork?.cancel()
         if state == .panel {
             contentRevealed = false
@@ -394,7 +398,8 @@ final class NotchPanel: NSPanel {
                        showPanelContent: contentRevealed, usage: usage,
                        l10n: l10n, locale: locale,
                        onSettings: onSettings, onQuit: onQuit,
-                       onJump: onJump, jumpNote: jumpNote,
+                       onJump: onJump, onSelect: { [weak self] in self?.select($0) },
+                       jumpNote: jumpNote,
                        pixelSize: pixelSize, groupByDirectory: groupByDirectory,
                        jumpOnClick: jumpOnClick, showUsage: showUsage)
     }
@@ -449,14 +454,58 @@ final class NotchPanel: NSPanel {
     func setSessions(_ list: [AgentSession]) {
         guard list != sessions else { return }
         sessions = list
+        // A chosen session that has since ended stops speaking for the face.
+        if let chosen, !list.contains(where: { $0.id == chosen }) { self.chosen = nil }
+        applyExpression()
         if state == .panel { rebuildContent() }
     }
+
+    /// The session the user clicked, if any. While one is chosen the face shows
+    /// *that* session rather than the aggregate: you asked about this one, so
+    /// the buddy answers about this one.
+    private var chosen: String?
+
+    private func select(_ id: String) {
+        chosen = (chosen == id) ? nil : id
+        applyExpression()
+        rebuildContent()
+    }
+
+    /// Clears the choice. The panel closing means the question is over.
+    private func clearSelection() {
+        guard chosen != nil else { return }
+        chosen = nil
+        applyExpression()
+    }
+
+    /// The face: the chosen session if there is one, the aggregate otherwise.
+    private func applyExpression() {
+        guard let chosen, let session = sessions.first(where: { $0.id == chosen }) else {
+            if aggregateExpression != expression { setExpression(aggregateExpression) }
+            return
+        }
+        let state = SessionDisplayState.of(session)
+        setExpression(BuddyExpression.from(
+            activity: state.activity, hasLiveSession: session.isLive, isVisible: true))
+    }
+
+    /// What the face would show with nobody chosen. Kept so the choice can be
+    /// undone without waiting for the next refresh.
+    private var aggregateExpression: BuddyExpression = .sleeping
 
     func setSessionCount(_ count: Int) {
         guard count != sessionCount else { return }
         sessionCount = count
         // The counter feeds the pill width: `×9` and `×10` differ.
         applyState(animated: false)
+    }
+
+    /// Called by the coordinator with the aggregate. Remembered, then applied
+    /// only if the user has not chosen a session to follow instead.
+    func setAggregateExpression(_ next: BuddyExpression) {
+        aggregateExpression = next
+        guard chosen == nil else { return }
+        setExpression(next)
     }
 
     func setExpression(_ next: BuddyExpression) {

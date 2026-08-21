@@ -84,6 +84,99 @@ public enum HookWire {
                 "decision": inner,
             ]
         ]
-        return try JSONSerialization.data(withJSONObject: payload)
+        // Sorted on purpose, and only here. A dictionary has no order, so the
+        // bytes would otherwise differ between runs and the golden test of R6
+        // would flake instead of catching the thing it exists to catch.
+        //
+        // Not to be confused with D6, which forbids `.sortedKeys` when writing
+        // the *user's* `settings.json` — that one must keep their order.
+        return try JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys])
+    }
+}
+
+// MARK: - What the hook reads on stdin
+
+/// One event as Claude Code hands it over: the name, and the raw object.
+///
+/// The payload is kept as `Data` rather than decoded into fields. The hook's job
+/// is to carry it, and every field it learns to read is a field it can break on
+/// when Claude Code adds one — the failure mode R6 describes.
+public struct HookRequest: Sendable, Equatable {
+    public let event: HookEventName
+    public let payload: Data
+
+    public init(event: HookEventName, payload: Data) {
+        self.event = event
+        self.payload = payload
+    }
+
+    /// Reads what Claude Code wrote on stdin. `nil` for anything unexpected —
+    /// the caller must then exit 0 and let Claude fall back to its own prompt.
+    public static func parse(_ stdin: Data) -> HookRequest? {
+        guard let object = try? JSONSerialization.jsonObject(with: stdin),
+              let dictionary = object as? [String: Any],
+              let name = dictionary["hook_event_name"] as? String,
+              let event = HookEventName(rawValue: name)
+        else { return nil }
+        return HookRequest(event: event, payload: stdin)
+    }
+}
+
+// MARK: - The line protocol between the hook and the app
+
+/// One JSON object per line, in both directions. A line, not a length prefix:
+/// the payload is already JSON and JSON never contains a bare newline, so the
+/// framing costs one byte and stays readable in a `nc` session when something
+/// goes wrong at three in the morning.
+public enum HookLine {
+    public static let version = 1
+
+    public static func encodeRequest(_ request: HookRequest) throws -> Data {
+        let payload = (try? JSONSerialization.jsonObject(with: request.payload)) ?? [:]
+        var line = try JSONSerialization.data(withJSONObject: [
+            "v": version,
+            "event": request.event.rawValue,
+            "payload": payload,
+        ])
+        line.append(0x0A)
+        return line
+    }
+
+    public static func decodeRequest(_ line: Data) -> HookRequest? {
+        guard let object = try? JSONSerialization.jsonObject(with: line),
+              let dictionary = object as? [String: Any],
+              dictionary["v"] as? Int == version,
+              let name = dictionary["event"] as? String,
+              let event = HookEventName(rawValue: name),
+              let payload = dictionary["payload"],
+              let data = try? JSONSerialization.data(withJSONObject: payload)
+        else { return nil }
+        return HookRequest(event: event, payload: data)
+    }
+
+    public static func encodeDecision(_ decision: HookDecision) throws -> Data {
+        var body: [String: Any] = [:]
+        switch decision {
+        case .allow:
+            body["behavior"] = "allow"
+        case let .deny(message):
+            body["behavior"] = "deny"
+            body["message"] = message
+        }
+        var line = try JSONSerialization.data(withJSONObject: body)
+        line.append(0x0A)
+        return line
+    }
+
+    public static func decodeDecision(_ line: Data) -> HookDecision? {
+        guard let object = try? JSONSerialization.jsonObject(with: line),
+              let dictionary = object as? [String: Any],
+              let behavior = dictionary["behavior"] as? String
+        else { return nil }
+        switch behavior {
+        case "allow": return .allow
+        case "deny":  return .deny(message: dictionary["message"] as? String ?? "")
+        default:      return nil
+        }
     }
 }

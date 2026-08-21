@@ -121,8 +121,10 @@ final class AppCoordinator: NSObject, NSApplicationDelegate {
         sessions.onChange = { [weak self] list in
             guard let self, let panel = self.panel else { return }
             let live = list.filter(\.isLive)
-            let activity = SessionDisplayState.aggregate(of: list)?.activity
-            panel.setExpression(Self.forcedFace ?? BuddyExpression.from(
+            // `onThePill`, not `aggregate`: with several sessions the face shows
+            // that something is running. Alerts still carry the urgent ones.
+            let activity = SessionDisplayState.onThePill(of: list)?.activity
+            panel.setAggregateExpression(Self.forcedFace ?? BuddyExpression.from(
                 activity: activity, hasLiveSession: !live.isEmpty, isVisible: true))
             panel.setSessionCount(live.count)
             panel.setSessions(list)
@@ -131,7 +133,7 @@ final class AppCoordinator: NSObject, NSApplicationDelegate {
                 live.isEmpty ? panel.hide() : panel.show()
             }
         }
-        if let face = Self.forcedFace { panel.setExpression(face) }
+        if let face = Self.forcedFace { panel.setAggregateExpression(face) }
         sessions.onChangeLog = { list in
             let live = list.filter(\.isLive).count
             PerfProbe.log.info("sessions: \(live, privacy: .public) live / \(list.count, privacy: .public)")

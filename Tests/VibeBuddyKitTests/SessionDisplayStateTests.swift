@@ -97,3 +97,67 @@ struct SessionDisplayStateTests {
         #expect(SessionDisplayState.idle.activity == .idle)
     }
 }
+
+/// The face on the collapsed pill, which is not the same question as "what is
+/// the most urgent thing happening".
+@Suite("The face on the pill")
+struct PillFaceTests {
+
+    @Test("something running takes the face")
+    func workingWins() {
+        let states = SessionDisplayState.onThePill(of: [
+            session("a", awaiting: true),
+            session("b", action: .shell),
+        ])
+        #expect(states == .working)
+    }
+
+    /// The concession that matters. With nothing running, the question is the
+    /// most important thing on the machine — objective n°1 of the product.
+    @Test("with nothing running, a question takes the face back")
+    func awaitingWinsWhenIdle() {
+        #expect(SessionDisplayState.onThePill(of: [
+            session("a", awaiting: true),
+            session("b", turnEnded: true),
+        ]) == .awaiting)
+    }
+
+    @Test("and so does a failure")
+    func failureWinsWhenIdle() {
+        #expect(SessionDisplayState.onThePill(of: [
+            session("a", error: true),
+            session("b"),
+        ]) == .failed)
+    }
+
+    @Test("a question still outranks a failure")
+    func questionOutranksFailure() {
+        #expect(SessionDisplayState.onThePill(of: [
+            session("a", error: true),
+            session("b", awaiting: true),
+        ]) == .awaiting)
+    }
+
+    @Test("delegating counts as running, so it takes the face too")
+    func delegationCountsAsWork() {
+        #expect(SessionDisplayState.onThePill(of: [
+            session("a", awaiting: true),
+            session("b", subagents: 2),
+        ]) == .working)
+    }
+
+    @Test("nothing alive shows nothing")
+    func nothingAlive() {
+        #expect(SessionDisplayState.onThePill(of: [session("a", live: false)]) == nil)
+        #expect(SessionDisplayState.onThePill(of: []) == nil)
+    }
+
+    @Test("a dead session never takes the face from a live one")
+    func deadDoesNotWin() {
+        #expect(SessionDisplayState.onThePill(of: [
+            session("a", action: .shell, live: false),
+            session("b", awaiting: true),
+        ]) == .awaiting)
+    }
+}
+
