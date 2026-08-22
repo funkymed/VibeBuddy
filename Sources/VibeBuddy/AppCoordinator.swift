@@ -12,12 +12,30 @@ final class AppCoordinator: NSObject, NSApplicationDelegate {
     private(set) var geometry: NotchGeometry?
     private var panel: NotchPanel?
     private var sessions: SessionCoordinator?
+    /// Held for the life of the app: a `DispatchSourceSignal` that is not
+    /// retained is cancelled, and the signal goes back to killing us outright.
+    private var terminationSignals: [DispatchSourceSignal] = []
     /// Set by `--simulate-permission <genre>`; nil in normal use.
     static let simulatedPermission: String? = {
         let args = CommandLine.arguments
         guard let index = args.firstIndex(of: "--simulate-permission") else { return nil }
         return index + 1 < args.count ? args[index + 1] : "shell"
     }()
+    /// Set by `--simulate-questions [n]`. A **queue**, because one request
+    /// shows a panel and only several show the queue: the counter counting
+    /// down, the next question taking the place of the answered one, the window
+    /// resizing between two of different lengths.
+    static let simulatedQuestions: Int? = {
+        let args = CommandLine.arguments
+        guard let index = args.firstIndex(of: "--simulate-questions") else { return nil }
+        let next = index + 1 < args.count ? Int(args[index + 1]) : nil
+        return max(1, next ?? 3)
+    }()
+    /// Set by `--simulate-finished`: the end-of-task alert in the pill, which
+    /// is objective n°1 of the product and the one thing that cannot be
+    /// summoned on demand — it arrives when an agent finishes, not when you are
+    /// ready to look at it.
+    static let simulatesFinished = CommandLine.arguments.contains("--simulate-finished")
     /// The hook socket, and the permission requests it brings in.
     private let hook = HookService()
     let usage = UsageState()
@@ -62,6 +80,7 @@ final class AppCoordinator: NSObject, NSApplicationDelegate {
         }
         geometry = NotchGeometry.resolve()
         observeSystemState()
+        observeTermination()
         // Before the panel: a hook that connects to nothing exits cleanly, but
         // one that connects to a half-built app is a Claude Code left waiting.
         hook.start()
@@ -137,12 +156,7 @@ final class AppCoordinator: NSObject, NSApplicationDelegate {
             self.panel?.setPermission(
                 self.hook.permissions.head, waiting: self.hook.permissions.waiting)
         }
-        // `--simulate-permission <genre>` : une demande de répétition, que
-        // personne n'attend au bout d'un socket. Répondre ne décide rien — et
-        // c'est bien ce qu'une répétition doit faire.
-        if let kind = Self.simulatedPermission {
-            hook.permissions.insertPreview(PermissionSamples.model(kind))
-        }
+        applySimulationFlags(to: panel)
 
         // The rules live behind the same writer as the hook's own entries
         // (decision D6): one place in this app touches that file.
@@ -213,6 +227,85 @@ final class AppCoordinator: NSObject, NSApplicationDelegate {
         }
 
         PerfProbe.log.info("launched · notch=\(self.geometry?.hasNotch ?? false, privacy: .public)")
+    }
+
+    /// Takes the windows off the screen before dying on `SIGTERM` or `SIGINT`.
+    ///
+    /// The default disposition kills the process where it stands: AppKit never
+    /// runs, no window is ordered out, and what was on screen is left for
+    /// whatever is behind it to repaint — which, over a still terminal window,
+    /// can be a long time. Three panels from three successive `make stop` runs
+    /// stayed visible on 2026-08-22, and a screenshot taken with **zero
+    /// instances alive** still showed one whole. It reads as several copies of
+    /// the app running at once, which is a defect this project already has for
+    /// real (RFC-011) — a ghost that imitates a known bug is worse than a
+    /// ghost.
+    ///
+    /// `SIG_IGN` first is not optional: the source only ever fires for a signal
+    /// the process is not already being killed by.
+    ///
+    /// **The cost, said out loud:** an app whose main loop is wedged no longer
+    /// dies on `SIGTERM`, because we have just told the kernel to leave it to
+    /// us. `make stop` follows up with `-9` for that case.
+    private func observeTermination() {
+        for number in [SIGTERM, SIGINT] {
+            signal(number, SIG_IGN)
+            let source = DispatchSource.makeSignalSource(signal: number, queue: .main)
+            source.setEventHandler { [weak self] in
+                MainActor.assumeIsolated { self?.terminateCleanly() }
+            }
+            source.resume()
+            terminationSignals.append(source)
+        }
+    }
+
+    /// Off the screen first, then the ordinary quit.
+    ///
+    /// `terminate` is what runs `applicationWillTerminate`, and that is where
+    /// the queue is drained and the socket unlinked — the things that decide
+    /// whether a Claude Code somewhere waits out its 120 s. Ordering the
+    /// windows out first only makes the screen right; it is the terminate that
+    /// makes the exit right, and duplicating its work here would be a second
+    /// source of truth for shutting down.
+    private func terminateCleanly() {
+        for window in NSApp.windows { window.orderOut(nil) }
+        NSApp.terminate(nil)
+    }
+
+    // MARK: - Rehearsals
+
+    /// The `--simulate-*` flags, in one place.
+    ///
+    /// They exist because the alternative is running a real Claude Code and
+    /// hoping it does the thing you wanted to look at. A permission of the
+    /// right kind, three questions in a row, an agent finishing — each arrives
+    /// when the model decides to, which is never while you are looking at the
+    /// pixel you are trying to judge.
+    ///
+    /// Every one of them puts requests in with **nobody waiting on the other
+    /// end**: answering decides nothing, which is exactly what a rehearsal is.
+    private func applySimulationFlags(to panel: NotchPanel) {
+        if let kind = Self.simulatedPermission {
+            hook.permissions.insertPreview(PermissionSamples.model(kind))
+        }
+        if let count = Self.simulatedQuestions {
+            for model in PermissionSamples.questions(count) {
+                hook.permissions.insertPreview(model)
+            }
+        }
+        if Self.simulatesFinished {
+            // The pill has to be on screen for an alert to have somewhere to
+            // go: `present` refuses from `.hidden`, and « pastille visible sans
+            // session » is off by default (D7).
+            panel.show()
+            // Long enough to be looked at rather than caught. The real one is
+            // four seconds, which is right for a notification and useless for
+            // judging one.
+            panel.present(
+                SessionAlert(sessionID: "simulation", projectName: "notch",
+                             kind: .finished, at: Date()),
+                for: 30)
+        }
     }
 
     func applicationWillTerminate(_ notification: Notification) {

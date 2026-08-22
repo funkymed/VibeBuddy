@@ -8,10 +8,37 @@ import VibeHookProtocol
 @MainActor
 final class NotchPanel: NSPanel {
 
-    static let panelSize = CGSize(width: 560, height: 460)
+    /// The largest the panel gets: the sessions view is written to this, and a
+    /// permission never grows past it — the text was already cut at parse time,
+    /// but a diff of forty lines would still ask for a window taller than the
+    /// screen.
+    static let panelMaxSize = CGSize(width: 560, height: 460)
+    /// The smallest. Below this the header, one line of summary and the
+    /// decision bar start crowding each other, and a panel that changes height
+    /// by twenty points between two requests reads as jitter rather than as
+    /// fit.
+    static let panelMinHeight: CGFloat = 200
     /// Kept at panel width even in pill state, so the transition never jumps
     /// horizontally. `ClickThroughHostView` keeps the margins click-through.
     static let carrierWidth: CGFloat = 560
+
+    /// What the panel is actually sized to right now.
+    ///
+    /// Width never varies. Height follows what a permission needs and falls
+    /// back to the full box for the sessions view, which is laid out against
+    /// it. Clamped both ways: `panelMinHeight` keeps a one-line request from
+    /// looking like a mistake, `panelMaxSize.height` keeps a long diff on the
+    /// screen.
+    var panelSize: CGSize {
+        guard let measured = measuredPanelHeight else { return Self.panelMaxSize }
+        return CGSize(
+            width: Self.panelMaxSize.width,
+            height: min(max(measured, Self.panelMinHeight), Self.panelMaxSize.height))
+    }
+
+    /// The height the permission panel asked for, or nil when the panel is not
+    /// showing one. Recomputed when what it shows changes, never per frame.
+    private var measuredPanelHeight: CGFloat?
 
     private typealias Host = ClickThroughHostView<NotchShellView>
 
@@ -128,19 +155,37 @@ final class NotchPanel: NSPanel {
             guard let self, !self.suppressesHover else { return }
             self.logHover(source: "zone", hovering: hovering)
             if hovering, state == .pill { state = .panel }
-            else if !hovering, state == .panel, !self.opening { state = .pill }
+            else if !hovering, state == .panel, !self.opening, !self.isHoldingAnAsk {
+                state = .pill
+            }
         }
 
         hover.onChange = { [weak self] hovering in
             guard let self, !self.suppressesHover else { return }
             self.logHover(source: "sonde", hovering: hovering)
             if hovering, state == .pill { state = .panel }
-            else if !hovering, state == .panel, !self.opening { state = .pill }
+            else if !hovering, state == .panel, !self.opening, !self.isHoldingAnAsk {
+                state = .pill
+            }
         }
 
         refreshGeometry()
         rebuildContent()
     }
+
+    /// Whether the panel is holding something that waits on a **person**.
+    ///
+    /// A panel opened by hovering closes when the pointer leaves — that is what
+    /// hovering means. A panel that opened by itself to ask a question did not
+    /// come from the pointer, and it does not go with it: the user reads the
+    /// question, looks away, goes back to their terminal to check something,
+    /// and comes back. Closing under them mid-thought is the same mistake as
+    /// the « terminal au premier plan » expiry of 2026-08-21 — an alert may be
+    /// withdrawn, a question may not. It leaves when it is answered, and by no
+    /// other route.
+    ///
+    /// The pointer can still open the panel; only the closing is held.
+    private var isHoldingAnAsk: Bool { permission != nil || consent != nil }
 
     /// Do not allow key: `.nonactivatingPanel` stops activation but not key
     /// theft from the terminal underneath. Cost: no keyboard shortcuts inside.
@@ -183,7 +228,7 @@ final class NotchPanel: NSPanel {
     }
 
     private func targetFrame(for state: PanelState) -> CGRect? {
-        let size = state == .panel ? Self.panelSize : pillSize
+        let size = state == .panel ? panelSize : pillSize
         let carrier = CGSize(width: Self.carrierWidth, height: size.height)
         return geometry.map {
             NotchFrameSolver.frame(size: carrier, geometry: $0, fraction: anchorFraction)
@@ -227,7 +272,7 @@ final class NotchPanel: NSPanel {
         let state = self.state
         frameGeneration += 1
         let generation = frameGeneration
-        let size = state == .panel ? Self.panelSize : pillSize
+        let size = state == .panel ? panelSize : pillSize
         let carrier = CGSize(width: Self.carrierWidth, height: size.height)
 
         // Destination region up front: interpolating it drops the pointer out
@@ -393,7 +438,7 @@ final class NotchPanel: NSPanel {
     /// **going** rather than where it currently is.
     private func hoverRect(for state: PanelState) -> CGRect {
         guard let target = targetFrame(for: state) else { return pillScreenRect }
-        let width = state == .panel ? Self.panelSize.width : pillSize.width
+        let width = state == .panel ? panelSize.width : pillSize.width
         return CGRect(
             x: target.midX - width / 2, y: target.minY,
             width: width, height: target.height)
@@ -401,7 +446,7 @@ final class NotchPanel: NSPanel {
 
     private var pillScreenRect: CGRect {
         let f = frame
-        let w = state == .panel ? Self.panelSize.width : pillSize.width
+        let w = state == .panel ? panelSize.width : pillSize.width
         return CGRect(x: f.midX - w / 2, y: f.minY, width: w, height: f.height)
     }
 
@@ -420,7 +465,7 @@ final class NotchPanel: NSPanel {
                        onPermissionDeny: { [weak self] in self?.answerPermission(.deny(message: self?.l10n.permissionDenied ?? "")) },
                        onPermissionAllow: { [weak self] in self?.answerPermission(.allow) },
                        onPermissionAlwaysAllow: { [weak self] in self?.alwaysAllowPermission() },
-                       onPermissionAnswer: { [weak self] in self?.answerPermission(.deny(message: $0)) },
+                       onPermissionAnswer: { [weak self] in self?.answerPermission(QuestionAnswer.decision(for: $0)) },
                        consent: consent,
                        onConsentCancel: { [weak self] in self?.cancelConsent() },
                        onConsentConfirm: { [weak self] in self?.confirmConsent() },
@@ -447,17 +492,139 @@ final class NotchPanel: NSPanel {
         permission = model
         permissionWaiting = waiting
 
+        // The request went away under the consent screen — expired, or
+        // answered in the terminal. There is nothing left to grant.
+        let hadConsent = consent != nil
+        if model == nil, hadConsent { consent = nil }
+
+        // Measured once everything the panel shows has settled, and
+        // **unconditionally**. Left over from a request that is gone, it would
+        // size the sessions view to a permission nobody is looking at any more:
+        // answer a question, hover the notch again, and the panel opens at the
+        // height of the question instead of its own. `nil` is what puts the
+        // full box back, and only measuring on the way in never produces it.
+        //
+        // Before the state moves, too: `applyState` reads `panelSize`, so the
+        // panel opens at the right height rather than opening at the full box
+        // and shrinking into place.
+        measuredPanelHeight = measurePermissionHeight()
+
         if model != nil {
-            if state != .panel { state = .panel } else { rebuildContent() }
-        } else if consent != nil {
-            // The request went away under the consent screen — expired, or
-            // answered in the terminal. There is nothing left to grant.
-            consent = nil
-            state = .pill
-        } else if had {
+            if state != .panel {
+                state = .panel
+            } else {
+                // Already open on another request. Swap the content, then move
+                // the frame to what the new one needs.
+                rebuildContent()
+                resizeToContent(animated: true)
+            }
+        } else if hadConsent || had {
             state = .pill
         } else {
             rebuildContent()
+        }
+
+        // The face was pinned to `idle` while the ask was up; put back whatever
+        // the sessions are actually doing now that it is gone.
+        applyExpression()
+    }
+
+    // MARK: - Sizing to what is on screen
+
+    /// Measures what the permission panel wants, and moves the window to it.
+    ///
+    /// Called when what the panel *shows* changes — a request arrives, another
+    /// takes its place, the consent screen opens or closes — and never per
+    /// frame.
+    private func refreshPanelHeight(animated: Bool) {
+        let previous = measuredPanelHeight
+        measuredPanelHeight = measurePermissionHeight()
+        guard measuredPanelHeight != previous else { return }
+        guard state == .panel else { return }  // the next `applyState` will use it
+        resizeToContent(animated: animated)
+    }
+
+    /// The height the panel's current content lays out to, at panel width.
+    ///
+    /// Measured off screen on a throwaway host rather than read back from the
+    /// live one: the view being measured is not the view being shown, so its
+    /// height is free, and nothing it reports can feed back into the frame it
+    /// was measured at. Width is fixed and does not depend on height, so this
+    /// settles in one pass.
+    ///
+    /// `AnyView` here is deliberate and does not contradict D2's ban on it:
+    /// that ban is about the *displayed* host, where boxing destroys the
+    /// structural comparison SwiftUI uses to skip untouched subtrees. This host
+    /// is built once per request, asked its size, and dropped.
+    private func measurePermissionHeight() -> CGFloat? {
+        // The buddy's seat is reserved by the shared header, so its height is
+        // part of what gets measured. `alertText` is left out: it widens the
+        // ears, it does not change the seat.
+        let buddyBox = geometry.map {
+            PillLayout.resolve(geometry: $0, buddy: buddy, sessionCount: sessionCount)
+                .buddyBox
+        } ?? .zero
+        let header = PanelHeader(
+            buddy: buddy, expression: expression, buddyBox: buddyBox,
+            sessions: sessions, budget: budget, l10n: l10n,
+            onSettings: {}, onQuit: {})
+
+        let content: AnyView
+        if let consent {
+            content = AnyView(PermissionConsentView(
+                rule: consent.rule, diff: consent.diff,
+                backupDirectory: consent.backupDirectory, l10n: l10n,
+                onCancel: {}, onConfirm: {}))
+        } else if let permission {
+            content = AnyView(PermissionPanelView(
+                model: permission, waiting: permissionWaiting,
+                l10n: l10n, onDeny: {}, onAllow: {}, onAlwaysAllow: {}, onAnswer: { _ in }))
+        } else {
+            // The sessions view is laid out against the full box; it does not
+            // ask for a size, it is given one.
+            return nil
+        }
+
+        // The same wrapper the screen draws, header and padding included —
+        // measuring the body alone and adding a guessed header height is how
+        // the number drifts from what is on screen.
+        let width = Self.panelMaxSize.width
+        let host = NSHostingView(
+            rootView: DeployedPanel(header: header) { content }.frame(width: width))
+        host.layoutSubtreeIfNeeded()
+        let height = host.fittingSize.height
+        return height > 0 ? height : nil
+    }
+
+    /// Animates the window to the height the content asked for, without
+    /// disturbing anything else about the state.
+    ///
+    /// Deliberately **not** a call to `applyState`: that one hides the content
+    /// and schedules it back in, which is right when the panel opens and wrong
+    /// here — a second request arriving while the first is on screen would make
+    /// the whole panel blink. What it does borrow is the two things that must
+    /// never lag behind the frame: the hover rect is set to the *destination*
+    /// (a probe still holding the old rect closes a panel the pointer is inside
+    /// of), and `finishStateChange` re-asserts the tracking area on the settled
+    /// frame.
+    private func resizeToContent(animated: Bool) {
+        guard let target = targetFrame(for: .panel) else { return }
+        frameGeneration += 1
+        let generation = frameGeneration
+        hover.pillRect = hoverRect(for: .panel)
+
+        let reduceMotion = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+        guard animated, !reduceMotion else {
+            setFrameImmediately(target)
+            finishStateChange(generation: generation)
+            return
+        }
+        NSAnimationContext.runAnimationGroup { ctx in
+            ctx.duration = PanelTiming.collapse
+            ctx.timingFunction = Self.expandCurve
+            animator().setFrame(target, display: true)
+        } completionHandler: { [weak self] in
+            MainActor.assumeIsolated { self?.finishStateChange(generation: generation) }
         }
     }
 
@@ -478,11 +645,13 @@ final class NotchPanel: NSPanel {
         else { answerPermission(.allow); return }
         consent = pending
         rebuildContent()
+        refreshPanelHeight(animated: true)
     }
 
     private func cancelConsent() {
         consent = nil
         rebuildContent()
+        refreshPanelHeight(animated: true)
     }
 
     /// Writes, then answers. In that order: an allow that reached Claude Code
@@ -589,7 +758,18 @@ final class NotchPanel: NSPanel {
         setExpression(next)
     }
 
-    func setExpression(_ next: BuddyExpression) {
+    func setExpression(_ wanted: BuddyExpression) {
+        // **A panel that is waiting on a person shows an available face.**
+        // Whatever the sessions are doing behind it, the thing on screen is a
+        // question addressed to the user: a face that keeps working, or one
+        // that shows the red of a failure that has nothing to do with what is
+        // being asked, reads as the app being busy with something else. `idle`
+        // also follows the pointer (see `updateGaze`), which is the right
+        // answer to « this is for you ».
+        //
+        // The aggregate is still remembered in `aggregateExpression`, so
+        // `applyExpression` puts the real face back the moment the ask leaves.
+        let next = isHoldingAnAsk ? .idle : wanted
         guard next != expression else { return }
         expression = next
         budget.update(isVisible: state.isVisible, isBusy: next != .sleeping && next != .idle)
@@ -604,14 +784,26 @@ final class NotchPanel: NSPanel {
     /// distractible.
     ///
     /// A **shake** gets through to all of them and starts a chase, working or
-    /// not: one gesture, one meaning. `sleeping` is left alone, and only that
-    /// one: it carries no clock by design, and a look with no clock to draw it
-    /// is a look that never moves.
+    /// not: one gesture, one meaning. **`sleeping` included**, since
+    /// 2026-08-22: it used to be excluded on the grounds that it carries no
+    /// clock, but the clock is `AnimationBudget`'s and it is already `.ambient`
+    /// whenever the pill is on screen — the sleeping *face* draws no motion of
+    /// its own, which is not the same thing. A buddy you cannot wake by
+    /// shaking at it is a toy that is broken, and waking it is the one gesture
+    /// anybody tries first.
+    ///
+    /// It still does not **follow** the pointer while asleep: an ordinary
+    /// movement leaves it alone, exactly as `working` is left alone. Only the
+    /// shake gets through.
+    ///
+    /// **Cost:** `PointerMonitor` is now armed whenever the pill is visible,
+    /// including with no session at all. It is silent while the pointer is
+    /// still — that is why it is a monitor and not a poll — so the resting
+    /// budget should not move. Should, not does: `make perf` scenario A has not
+    /// been run since.
     private func updateGaze() {
         let follows = expression == .idle || expression == .finished
-        // Everything but `sleeping`, which carries no clock by design: a laugh
-        // with no clock to draw it is a face that never moves.
-        let wanted = state.isVisible && expression != .sleeping
+        let wanted = state.isVisible
         gaze.isEnabled = wanted
         gaze.followsPointer = follows
         gaze.anchor = wanted ? buddyScreenRect : .zero

@@ -31,16 +31,10 @@ struct PanelContentView: View {
             : SessionGroup.ungrouped(sessions)
     }
 
+    // The header, the identity line and the padding are `DeployedPanel`'s,
+    // shared with every other thing the deployed panel can show.
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            PanelHeader(
-                buddy: buddy, expression: expression, buddyBox: buddyBox,
-                sessions: sessions, budget: budget, l10n: l10n,
-                onSettings: onSettings, onQuit: onQuit
-            )
-
-            identityLine
-
             // Keep this frame: without it the list grows and pushes the header
             // above and the usage below off the panel.
             sessionsSection
@@ -51,25 +45,6 @@ struct PanelContentView: View {
                 UsageSection(state: usage, l10n: l10n, locale: locale)
             }
         }
-        .padding(.horizontal, PanelMetrics.contentInset.width)
-        .padding(.top, PanelMetrics.contentInset.height)
-        .padding(.bottom, 12)
-    }
-
-    /// Who this is, and which build. See RFC-008, "Notes d'implémentation".
-    private var identityLine: some View {
-        HStack(spacing: 8) {
-            Text(AppName.display)
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(PanelInk.primary)
-            Text(AppVersion.short)
-                .font(.system(size: 12, weight: .medium, design: .monospaced))
-                .foregroundStyle(.blue.opacity(0.8))
-            Spacer()
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .background(RoundedRectangle(cornerRadius: 8).fill(PanelInk.surface))
     }
 
     private var sessionsSection: some View {

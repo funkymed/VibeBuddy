@@ -108,9 +108,14 @@ run-app: app
 # binds its own, so the first listens on a dead inode while still showing its
 # pill. Silent, and thoroughly confusing.
 ## Stop every running instance
+# TERM first, so the app takes its windows off the screen and answers whatever
+# is waiting on the socket. KILL only for what did not go: since the app now
+# handles TERM itself, a wedged main loop no longer dies from it.
 stop:
 	$(call title,"Arrêt des instances…")
 	pkill -f '$(APP)$$' 2>/dev/null || true
+	sleep 0.4
+	pkill -9 -f '$(APP)$$' 2>/dev/null || true
 	rm -f "$$HOME/.vibebuddy/buddy.sock"
 	echo "  instances restantes : $$(pgrep -fc '$(APP)$$' 2>/dev/null || echo 0)"
 .PHONY: stop
@@ -121,6 +126,16 @@ info: build-release
 .PHONY: info
 
 ## Show a fake permission panel — kind=shell|diff|write|read|url|question|other
+## Une file de questions : le compteur, l'enchaînement, le redimensionnement
+simulate-questions: build-release
+	$(RELEASE_BIN) --simulate-questions $(or $(n),3)
+.PHONY: simulate-questions
+
+## L'alerte de fin de tâche dans la pastille, 30 s
+simulate-finished: build-release
+	$(RELEASE_BIN) --simulate-finished
+.PHONY: simulate-finished
+
 simulate: build-release
 	$(call title,"Permission simulée : $(or $(kind),shell)")
 	$(RELEASE_BIN) --simulate-permission $(or $(kind),shell)
@@ -235,12 +250,15 @@ Hook:
 # Pass settings=<path> to aim at a copy instead of the real file. Needed
 # because NSHomeDirectory() ignores $HOME: without it there is no way to
 # rehearse this anywhere but the user's own settings.
-## Register vibe-hook in settings.json — shows the diff and asks
+# Pass yes=1 to write without asking. Needed from anything that is not a
+# terminal: the prompt cannot be answered there, so it refuses and writes
+# nothing rather than waiting on an input that never comes.
+## Register vibe-hook in settings.json — shows the diff and asks (yes=1 to skip)
 install-hook: build-release
-	$(RELEASE_BIN) --install-hook $(if $(settings),--settings $(settings),)
+	$(RELEASE_BIN) --install-hook $(if $(settings),--settings $(settings),) $(if $(yes),--yes,)
 .PHONY: install-hook
 
 ## Remove our entries — a diff against the backup must show exactly ours
 uninstall-hook: build-release
-	$(RELEASE_BIN) --uninstall-hook $(if $(settings),--settings $(settings),)
+	$(RELEASE_BIN) --uninstall-hook $(if $(settings),--settings $(settings),) $(if $(yes),--yes,)
 .PHONY: uninstall-hook

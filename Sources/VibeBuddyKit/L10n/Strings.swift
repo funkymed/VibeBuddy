@@ -95,6 +95,13 @@ public struct Strings: Sendable {
     /// Under an `AskUserQuestion`'s options: clicking one answers Claude, it
     /// does not grant anything. The only panel where those two differ.
     public let permissionAnswerHint: String
+    /// What « Allow » does on a question, said as what it does.
+    ///
+    /// Claude Code **discards** an `allow` from a hook for a tool that declares
+    /// `requiresUserInteraction` — read in the binary 2.1.239 — and falls back
+    /// to its own picker. So the button hands the question to the terminal; it
+    /// does not run anything, and calling it « Autoriser » promises otherwise.
+    public let permissionAnswerInTerminal: String
     /// A diff whose left side is empty: the file does not exist yet.
     public let permissionNewFile: String
     /// A write of nothing at all — said out loud, because an empty box reads as
@@ -170,6 +177,7 @@ public struct Strings: Sendable {
         permissionAlwaysAllow: "Toujours autoriser",
         permissionAlwaysAllowHint: "Ajoute une règle dans ~/.claude/settings.json",
         permissionAnswerHint: "Votre choix est renvoyé à Claude comme réponse.",
+        permissionAnswerInTerminal: "Répondre dans le terminal",
         permissionNewFile: "nouveau fichier",
         permissionNoContent: "Aucun contenu",
         permissionDomain: "DOMAINE"
@@ -242,6 +250,7 @@ public struct Strings: Sendable {
         permissionAlwaysAllow: "Always allow",
         permissionAlwaysAllowHint: "Adds a rule to ~/.claude/settings.json",
         permissionAnswerHint: "Your choice is sent back to Claude as the answer.",
+        permissionAnswerInTerminal: "Answer in the terminal",
         permissionNewFile: "new file",
         permissionNoContent: "No content",
         permissionDomain: "DOMAIN"

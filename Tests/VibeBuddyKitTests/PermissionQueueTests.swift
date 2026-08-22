@@ -325,13 +325,54 @@ struct PermissionSampleTests {
         let matches: Bool
         switch (kind, model.summary) {
         case ("shell", .shell), ("diff", .diff), ("write", .write), ("read", .read),
-             ("url", .url), ("question", .question), ("other", .other):
+             ("url", .url), ("question", .question), ("plan", .question),
+             ("other", .other):
             matches = true
         default:
             matches = false
         }
         #expect(matches, "\(kind) a rendu \(model.summary)")
         #expect(!model.toolName.isEmpty)
+    }
+
+    /// What separates the two `.question` samples, and the only thing that
+    /// makes `plan` worth its own kind: `AskQuestionView` draws options when
+    /// there are any and the plan alone when there are none, at a taller
+    /// ceiling. A plan that arrived with options would rehearse the wrong one.
+    @Test("the plan sample is a question with no options")
+    func planHasNoOptions() {
+        let model = PermissionSamples.model("plan")
+        #expect(model.toolName == "ExitPlanMode")
+        guard case let .question(prompt, options) = model.summary else {
+            Issue.record("attendu .question, reçu \(model.summary)"); return
+        }
+        #expect(options.isEmpty)
+        // Tall enough to pass the 260 pt ceiling, which is the point of it.
+        #expect(prompt.count > 400)
+    }
+
+    /// The one thing a queue of samples must get right. The queue finds an
+    /// entry by id, so two samples sharing one would answer each other's
+    /// request — and the rehearsal would prove the opposite of what it claims.
+    @Test("a queue of questions has distinct ids and uneven lengths",
+          arguments: [1, 3, 6])
+    func questionQueueIsUsable(_ count: Int) {
+        let models = PermissionSamples.questions(count)
+        #expect(models.count == count)
+        #expect(Set(models.map(\.id)).count == count)
+        for model in models {
+            #expect(model.toolName == "AskUserQuestion")
+            guard case let .question(prompt, options) = model.summary else {
+                Issue.record("attendu .question"); return
+            }
+            #expect(!prompt.isEmpty)
+            #expect(!options.isEmpty)
+        }
+        // Three questions of the same height would prove the panel keeps its
+        // size, not that it follows what it shows.
+        if count >= 3 {
+            #expect(Set(models.map(\.summary.promptLength)).count > 1)
+        }
     }
 
     @Test("an unknown kind falls back rather than failing")
@@ -498,5 +539,14 @@ struct PermissionOwnershipTests {
         let found = Self.activity(
             for: request, sessions: [("s-2", "/w", Self.late), ("s-3", "/w", Self.late)])
         #expect(found == nil)
+    }
+}
+
+private extension PermissionRequestModel.Summary {
+    /// Length of whatever text this summary leads with, for the tests that
+    /// care that two samples do not draw to the same height.
+    var promptLength: Int {
+        if case let .question(prompt, _) = self { return prompt.count }
+        return 0
     }
 }

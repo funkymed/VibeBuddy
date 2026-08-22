@@ -5,8 +5,11 @@ import VibeBuddyKit
 ///
 /// There is no "answer" in the hook protocol — allow or deny, nothing else. The
 /// chosen option travels back through `onAnswer`, which the panel's owner sends
-/// as a `deny` whose message is `denyMessage(for:)`; the model reads it as a
-/// tool result and carries on. See RFC-007 §1 and §3.
+/// as a `deny` whose message is `QuestionAnswer.denyMessage(for:)`; the model
+/// reads it as a tool result and carries on. See RFC-007 §1 and §3.
+///
+/// The hijack's wording lives in the Kit, not here: this view offers the
+/// options, it is not what sends them back.
 ///
 /// A question with no options is `ExitPlanMode`, whose prompt is the plan
 /// itself: it shows the plan and nothing more, because the panel's own
@@ -23,8 +26,23 @@ struct AskQuestionView: View {
     /// A plan gets the room a plan needs; a question shares its space with the
     /// buttons underneath it. Past either, the block scrolls — the text was
     /// already cut at parse time, so neither is ever unbounded.
+    ///
+    /// **A ceiling, and only a ceiling.** `ScrollView` takes whatever height it
+    /// is allowed, so `frame(maxHeight:)` alone was a floor too: a one-line
+    /// question reserved the full 140 pt and left about 120 pt of black between
+    /// itself and the first option — seen on screen 2026-08-22, and worse on a
+    /// plan at 260. The text is measured and the block takes the smaller of the
+    /// two.
     private static let planHeight: CGFloat = 260
     private static let questionHeight: CGFloat = 140
+
+    /// The prompt's own height, once laid out at the panel's width.
+    ///
+    /// Starts at the ceiling rather than at zero: the first frame is drawn
+    /// before any measurement comes back, and growing into place is a movement
+    /// the panel is not allowed to make. Too much room for one frame is
+    /// invisible; too little clips the text.
+    @State private var measuredPrompt: CGFloat?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -49,9 +67,28 @@ struct AskQuestionView: View {
                 .textSelection(.enabled)
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)
+                // Measured where the text is laid out, not where it is shown:
+                // the width comes from the panel and does not depend on the
+                // height we hand back, so this settles in one pass instead of
+                // chasing itself.
+                .background(
+                    GeometryReader { proxy in
+                        Color.clear.preference(
+                            key: PromptHeightKey.self, value: proxy.size.height)
+                    })
         }
-        .frame(maxHeight: options.isEmpty ? Self.planHeight : Self.questionHeight)
+        .frame(height: min(measuredPrompt ?? ceiling, ceiling))
         .scrollBounceBehavior(.basedOnSize)
+        .onPreferenceChange(PromptHeightKey.self) { height in
+            // `nil` until the first real measurement: a zero arriving before
+            // layout would collapse the block and then push it open again.
+            if height > 0 { measuredPrompt = height }
+        }
+    }
+
+    /// How much room this prompt may take at most.
+    private var ceiling: CGFloat {
+        options.isEmpty ? Self.planHeight : Self.questionHeight
     }
 
     // MARK: - The answers
@@ -75,25 +112,14 @@ struct AskQuestionView: View {
             .foregroundStyle(PanelInk.tertiary)
             .fixedSize(horizontal: false, vertical: true)
     }
+}
 
-    // MARK: - The hijack
-
-    /// The message a chosen option is sent back as — a **deny** whose reason is
-    /// phrased as the answer.
-    ///
-    /// This is a hijack, and it is deliberate. The hook can only allow or deny
-    /// a tool; there is no channel to hand it an answer with (RFC-007 §1, and
-    /// §4 records that allowing plus an out-of-band reply was looked for and
-    /// does not exist). Denying `AskUserQuestion` with the chosen option as the
-    /// reason works because the model reads a deny reason as the tool's result
-    /// and keeps going. Anyone who "fixes" this into an `allow` breaks every
-    /// question the user answers from the notch.
-    ///
-    /// English on purpose: the model reads this string, the user never sees it,
-    /// so it stays out of `Strings` and does not follow the UI language.
-    static func denyMessage(for option: String) -> String {
-        "The user chose: \"\(option)\". "
-            + "This is the answer to your question, not a refusal — continue with it."
+/// The prompt's laid-out height, passed from inside the scroller to the frame
+/// around it.
+private struct PromptHeightKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
     }
 }
 

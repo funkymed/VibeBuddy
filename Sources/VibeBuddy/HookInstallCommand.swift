@@ -70,7 +70,23 @@ enum HookInstallCommand {
         }
     }
 
+    /// Asks, and **refuses to ask when nobody can answer**.
+    ///
+    /// `readLine()` returns `nil` on end of input, which reads as a no — but an
+    /// open pipe with nothing coming is neither input nor end of it, and the
+    /// call simply never returns. That is what `make install-hook` does from
+    /// anything that is not a terminal: it inherits a stdin that stays open,
+    /// prints the diff, and hangs until it is killed. Measured on 2026-08-22,
+    /// ten minutes before the timeout said so.
+    ///
+    /// A consent prompt nobody can see is not consent. Say what to pass, and
+    /// answer no.
     private static func confirm() -> Bool {
+        guard isatty(FileHandle.standardInput.fileDescriptor) == 1 else {
+            print("\nEntrée non interactive : rien n'est écrit sans réponse.")
+            print("Rejouer avec --yes (ou make install-hook yes=1) pour écrire sans demander.")
+            return false
+        }
         print("\nÉcrire ? [o/N] ", terminator: "")
         guard let line = readLine() else { return false }
         return ["o", "oui", "y", "yes"].contains(line.lowercased())

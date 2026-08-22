@@ -99,6 +99,15 @@ public final class PermissionQueue {
     /// matched would never have asked. Reimplementing that language here is how
     /// the two drift apart, so a scoped entry is deliberately ignored.
     public func isAlreadyAllowed(_ model: PermissionRequestModel) -> Bool {
+        // **A question is never short-circuited.** Read in Claude Code 2.1.239:
+        // a tool declaring `requiresUserInteraction` asks every time — an allow
+        // rule cannot silence it — and any `allow` a hook returns for one is
+        // discarded. So a rule naming `AskUserQuestion`, whether the user wrote
+        // it by hand or an older build of this app did, would make us answer
+        // `allow` to every question without ever drawing it: the panel would go
+        // quiet for good while Claude Code kept asking in the terminal. There
+        // is nothing to grant here, so there is nothing to remember.
+        if case .question = model.summary { return false }
         let granted = alwaysAllowed()
         guard !granted.isEmpty else { return false }
         return granted.contains { rule in

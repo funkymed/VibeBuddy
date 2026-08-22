@@ -29,10 +29,14 @@ if args.contains("--hover") {
     MainActor.assumeIsolated { HoverDiagnostics.run() }
 }
 
-// `--simulate-permission <genre>` is read by `AppCoordinator`; listed here so
-// the flag is findable from the entry point like every other one.
-if args.contains("--simulate-permission"), args.contains("--help") {
-    print("genres : \(PermissionSamples.kinds.joined(separator: " · "))")
+// `--simulate-permission <genre>`, `--simulate-questions [n]` and
+// `--simulate-finished` are read by `AppCoordinator`; listed here so the flags
+// are findable from the entry point like every other one.
+if args.contains("--help"), args.contains("--simulate-permission")
+    || args.contains("--simulate-questions") || args.contains("--simulate-finished") {
+    print("--simulate-permission <genre>  genres : \(PermissionSamples.kinds.joined(separator: " · "))")
+    print("--simulate-questions [n]       n questions en file, 3 par défaut")
+    print("--simulate-finished            l'alerte de fin de tâche, 30 s")
     exit(0)
 }
 

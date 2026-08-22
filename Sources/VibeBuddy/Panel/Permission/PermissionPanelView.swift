@@ -14,11 +14,6 @@ import VibeBuddyKit
 /// 2026-08-21, answers Q2.
 struct PermissionPanelView: View {
     let model: PermissionRequestModel
-    /// The buddy's seat. `NotchShellView` draws one buddy across both states,
-    /// as an overlay pinned to the panel's top-leading corner — the same corner
-    /// this header starts in. Without the seat reserved, the face is drawn on
-    /// top of the tool's name. `PanelHeader` reserves it the same way.
-    var buddyBox: CGSize = .zero
     /// How many requests are queued behind this one.
     var waiting: Int = 0
     let l10n: Strings
@@ -31,33 +26,30 @@ struct PermissionPanelView: View {
     /// the three tools that never ask a question need not pass it.
     var onAnswer: (String) -> Void = { _ in }
 
+    // The header of the deployed panel — buddy, counter, settings, quit — is
+    // `DeployedPanel`'s and is drawn above this. What follows is what makes
+    // *this* state different from the sessions one.
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            header
+            headerText
 
+            // **Wide, not tall.** It used to claim `maxHeight: .infinity`,
+            // which is right when the window's height is imposed and wrong
+            // when it is being asked: the panel now sizes itself to this view
+            // (`NotchPanel.measuredPanelHeight`), and a summary that always
+            // answers « as tall as you like » makes every request the same
+            // height again. The spacer below does the same job when the height
+            // *is* imposed — it pushes the bar down and nothing else.
             summary
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                .frame(maxWidth: .infinity, alignment: .topLeading)
+
+            Spacer(minLength: 0)
 
             decisionBar
         }
-        .padding(.horizontal, PanelMetrics.contentInset.width)
-        .padding(.top, PanelMetrics.contentInset.height)
-        .padding(.bottom, 12)
     }
 
-    // MARK: - Header
-
-    private var header: some View {
-        // The seat runs beside the **whole** header, not one of its rows: the
-        // buddy is 30 pt tall and the header is two lines, so reserving on the
-        // second line alone still put the face over the first.
-        HStack(alignment: .top, spacing: 12) {
-            if buddyBox.width > 0 {
-                Color.clear.frame(width: buddyBox.width, height: buddyBox.height)
-            }
-            headerText
-        }
-    }
+    // MARK: - What is being asked
 
     private var headerText: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -154,14 +146,36 @@ struct PermissionPanelView: View {
 
             Spacer(minLength: 12)
 
-            decision(l10n.permissionAlwaysAllow, tint: PanelInk.secondary,
-                     action: onAlwaysAllow)
-                // Says out loud that this one writes to the user's own settings
-                // file — the consent half of R1.
-                .help(l10n.permissionAlwaysAllowHint)
+            // **Never on a question.** Read in Claude Code 2.1.239: a tool that
+            // declares `requiresUserInteraction` — `AskUserQuestion` does,
+            // unconditionally — has any `allow` from a hook discarded
+            // (`if(!updatedInput && requiresUserInteraction()) return null`),
+            // and the binary carries a `suppress_always_allow_rule` flag for
+            // the same reason. A rule written here would therefore do nothing
+            // in Claude Code and everything here: our own always-allow short
+            // circuit would answer every later question without showing it, so
+            // the panel would stop offering questions **for good**, silently,
+            // because of a line in the user's own settings file.
+            if !isQuestion {
+                decision(l10n.permissionAlwaysAllow, tint: PanelInk.secondary,
+                         action: onAlwaysAllow)
+                    // Says out loud that this one writes to the user's own
+                    // settings file — the consent half of R1.
+                    .help(l10n.permissionAlwaysAllowHint)
+            }
 
-            decision(l10n.permissionAllow, tint: PermissionInk.added, action: onAllow)
+            // Same reading: on a question this does not run anything, it hands
+            // the question back to Claude Code's own picker. The label says so.
+            decision(isQuestion ? l10n.permissionAnswerInTerminal : l10n.permissionAllow,
+                     tint: PermissionInk.added, action: onAllow)
         }
+    }
+
+    /// Whether the request is the agent waiting on a person rather than asking
+    /// for something to be run.
+    private var isQuestion: Bool {
+        if case .question = model.summary { return true }
+        return false
     }
 
     private func decision(_ title: String, tint: Color,

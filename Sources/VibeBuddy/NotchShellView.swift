@@ -79,26 +79,45 @@ struct NotchShellView: View {
     /// Absent while collapsed, so nothing of it is built until it is on screen.
     @ViewBuilder
     private var panelContent: some View {
-        if state == .panel, showPanelContent, let consent {
+        if state == .panel, showPanelContent {
+            // One wrapper, one header, three possible bodies. The header is
+            // outside the conditional on purpose: it is the same header in
+            // every deployed state, so it must not take part in the transition
+            // between them — a gear that fades out and back in when a
+            // permission arrives says the window changed, and it did not.
+            DeployedPanel(header: deployedHeader) { deployedBody }
+        }
+    }
+
+    private var deployedHeader: PanelHeader {
+        PanelHeader(
+            buddy: buddy, expression: expression,
+            // The pill's own measurement, so the buddy is the same size
+            // whether the panel is open or not.
+            buddyBox: layout?.buddyBox ?? .zero,
+            sessions: sessions, budget: budget, l10n: l10n,
+            onSettings: onSettings, onQuit: onQuit)
+    }
+
+    @ViewBuilder
+    private var deployedBody: some View {
+        if let consent {
             PermissionConsentView(
                 rule: consent.rule, diff: consent.diff,
                 backupDirectory: consent.backupDirectory, l10n: l10n,
                 onCancel: onConsentCancel, onConfirm: onConsentConfirm)
                 .transition(.opacity.animation(.easeOut(duration: 0.12)))
-        } else if state == .panel, showPanelContent, let permission {
+        } else if let permission {
             PermissionPanelView(
-                model: permission, buddyBox: layout?.buddyBox ?? .zero,
-                waiting: permissionWaiting, l10n: l10n,
+                model: permission, waiting: permissionWaiting, l10n: l10n,
                 onDeny: onPermissionDeny, onAllow: onPermissionAllow,
                 onAlwaysAllow: onPermissionAlwaysAllow, onAnswer: onPermissionAnswer)
                 .transition(
                     .opacity.combined(with: .offset(y: -6))
                         .animation(.easeOut(duration: 0.14)))
-        } else if state == .panel, showPanelContent {
+        } else {
             PanelContentView(
                 sessions: sessions, buddy: buddy,
-                // The pill's own measurement, so the buddy is the same size
-                // whether the panel is open or not.
                 buddyBox: layout?.buddyBox ?? .zero,
                 expression: expression,
                 budget: budget, usage: usage, l10n: l10n, locale: locale,
@@ -177,7 +196,7 @@ struct NotchShellView: View {
                                y: PanelMetrics.contentInset.height)
 
         let from = layout.totalWidth
-        let to = NotchPanel.panelSize.width
+        let to = NotchPanel.panelMaxSize.width
         guard to > from else { return collapsed }
         let t = min(max((metrics.drawnWidth - from) / (to - from), 0), 1)
         // Eased, not linear: the width is on an ease-out, and a linear slide

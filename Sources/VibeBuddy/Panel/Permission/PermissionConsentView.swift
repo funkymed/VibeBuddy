@@ -66,8 +66,5 @@ struct PermissionConsentView: View {
             }
             .font(.system(size: 13))
         }
-        .padding(.horizontal, PanelMetrics.contentInset.width)
-        .padding(.top, PanelMetrics.contentInset.height)
-        .padding(.bottom, 12)
     }
 }

@@ -2,10 +2,10 @@
 
 | | |
 |---|---|
-| **Status** | **in-progress (95 %)** — **circuit complet prouvé en réel le 2026-08-21** ; reste 5 des 6 cas et le perfcheck |
+| **Status** | **in-progress (95 %)** — circuit prouvé en réel le 2026-08-21 ; le détournement `AskUserQuestion` est **réparé et lu dans le binaire** le 2026-08-22 ; restent les 4 cas à jouer à la main et le perfcheck |
 | **Author** | Cyril Pereira |
 | **Created** | 2026-08-19 |
-| **Updated** | 2026-08-21 |
+| **Updated** | 2026-08-22 |
 | **Phase** | 4 — Intégration |
 | **Depends on** | RFC-002, RFC-003, RFC-006 |
 | **Related** | R1, R6, D6 |
@@ -303,9 +303,88 @@ message). Deux cas sur six, dans les deux sens, avec les quatre hooks de
 l'utilisateur en place.
 
 **Ce qui reste à éprouver** : `Edit` autorisé et refusé, `AskUserQuestion`
-autorisé et refusé — ce dernier est le plus fragile, puisqu'il repose sur le
-détournement `deny` + `message` que rien n'a encore exercé. Puis « toujours
-autoriser » honoré à la session suivante, et `perfcheck A` pendant une attente.
+autorisé et refusé. Puis « toujours autoriser » honoré à la session suivante, et
+`perfcheck A` pendant une attente. Le nécessaire est prêt dans
+`docs/spikes/hook/rfc007/` — réglages où `vibe-hook` est le seul hook
+`PermissionRequest`, projet jetable, et les quatre cas écrits ligne à ligne.
+
+### Le 2026-08-22 — deux défauts trouvés en lisant, avant de rejouer
+
+Aucun des 449 tests ne les voyait, et aucun n'aurait été trouvé par la manche à
+la main : le premier se serait lu comme un modèle capricieux, le second n'aurait
+rien montré du tout.
+
+**1. Le détournement n'était pas câblé.** `AskQuestionView.denyMessage(for:)`
+documentait la phrase à renvoyer et **personne ne l'appelait** :
+`NotchPanel.swift:423` envoyait `.deny(message: $0)`, c'est-à-dire le libellé nu
+de l'option. Le modèle recevait « Deux curseurs séparés » comme *motif de refus*
+— exactement le défaut n°5 de la veille sous un autre costume, et il avait toute
+raison d'essayer autre chose. Swift n'avertit pas sur une méthode statique que
+personne n'appelle ; c'est le grep qui l'a dite morte.
+
+La phrase a déménagé dans le Kit (`QuestionAnswer`), là où les deux côtés
+l'atteignent et où un test la couvre. La vue offre les options, elle n'est pas
+ce qui les renvoie.
+
+**2. « Toujours autoriser » sur une question était un piège à retardement.** Lu
+dans le binaire 2.1.239, pas supposé :
+
+| Fait | Où |
+|---|---|
+| `AskUserQuestion` déclare `requiresUserInteraction(){return!0}` | l'objet de l'outil, juste après `[malformed AskUserQuestion input]` |
+| Un outil qui la déclare rend **toujours** `behavior:"ask"` — aucune règle `allow` ne le tait | `if(e.requiresUserInteraction?.())return {behavior:"ask", …, reason:"requiresUserInteraction"}` |
+| Un `allow` venu d'un hook pour un tel outil est **jeté** | `if(!g.updatedInput&&e.requiresUserInteraction?.())return null` |
+| Un `deny` est honoré normalement | `buildDeny(g.message\|\|"Permission denied by hook", {type:"hook"})` |
+| Claude Code porte lui-même un `suppress_always_allow_rule` | passé à côté de `requires_user_interaction` |
+
+Conséquence : une règle `AskUserQuestion` dans `permissions.allow` n'aurait rien
+fait chez Claude Code et tout chez nous — notre propre court-circuit aurait
+répondu `allow` à **toutes** les questions suivantes sans jamais les dessiner.
+Le panneau se serait tu pour de bon, à cause d'une ligne écrite dans les
+réglages de l'utilisateur par un bouton de cette app. Deux parades : le bouton
+n'apparaît plus sur une question, et `isAlreadyAllowed` ne court-circuite jamais
+une question, quelle que soit la main qui a écrit la règle.
+
+Troisième conséquence, sur le libellé : « Autoriser » sur une question ne lance
+rien, il rend la question au sélecteur de Claude Code. Le bouton s'appelle donc
+« Répondre dans le terminal ». Un bouton qui promet ce qu'il ne fait pas est la
+même faute que d'afficher un chiffre faux.
+
+**3. Le panneau était à hauteur fixe.** 460 pt quelle que soit la demande : un
+`Bash` d'une ligne tenait la même fenêtre qu'un diff de quarante, et le bloc de
+question réservait ses 140 pt même pour une question d'une ligne — environ
+120 pt de noir entre la question et la première option, vus à l'écran. Deux
+correctifs : le bloc de prompt se mesure et prend le plus petit de sa hauteur et
+de son plafond ; `NotchPanel.panelSize` devient une propriété, mesurée une fois
+par demande sur un `NSHostingView` hors écran, bornée entre 200 et 460. Mesuré
+à la hauteur réelle de la fenêtre, via `CGWindowListCopyWindowInfo` — pas un
+comptage de pixels — header, identité et séparateur partagés compris : read 249,
+url 288, shell 292, write et other 298, question 397, diff 410, et **plan 460**,
+au plafond, son bloc de texte scrollant sans pousser la barre de décision hors
+du panneau. `PermissionSamples` a gagné un genre `plan` pour que ce cas se
+regarde à la demande.
+
+Le redimensionnement passe par `resizeToContent`, pas par `applyState` — celui-ci
+masque le contenu et le replanifie, ce qui ferait clignoter le panneau à chaque
+demande suivante. Il lui emprunte la seule chose qui ne se néglige pas :
+`hover.pillRect` reçoit la destination, jamais le cadre courant.
+
+**4. Le panneau de permission perdait le header du panneau déployé.** Ouvrir une
+permission remplaçait le header commun — buddy, compteur, réglages, quitter — par
+un header à lui : le buddy restait, les trois contrôles disparaissaient. Déployer
+l'encoche et se voir demander une permission sont la même fenêtre dans le même
+état ; perdre les contrôles en chemin la fait lire comme une autre.
+
+Le header est remonté dans `DeployedPanel`, un enveloppeur que les **trois**
+contenus déployés partagent — sessions, permission, consentement — et qui porte
+aussi le padding. Il est hors du conditionnel : un engrenage qui s'efface et
+revient à l'arrivée d'une permission dit que la fenêtre a changé, et elle n'a pas
+changé. La mesure hors écran mesure ce même enveloppeur, header compris — mesurer
+le corps seul et ajouter une hauteur de header devinée est la façon dont le
+nombre s'éloigne de ce qui est à l'écran.
+
+**Six tests neufs** (`QuestionAnswerTests`), suite complète à **455 tests, 77
+suites, verte**.
 
 **La leçon de la soirée, en une phrase :** les trois péremptions venaient de la
 référence, où elles protégeaient contre des *alertes* redondantes. Une permission
