@@ -38,9 +38,21 @@ struct VibeButton: View {
     var isRow = false
     /// The one the eye should land on first. At most one per screen.
     var isProminent = false
+    /// Told when the pointer enters or leaves, so a list can move the accent
+    /// from one of its rows to another.
+    var onHover: (Bool) -> Void = { _ in }
     var action: () -> Void
 
     @State private var hovering = false
+
+    /// Whether this button wears the accent. Decided by the caller, never here.
+    ///
+    /// It briefly computed its own « or hovered », which put **two** rows in
+    /// blue at once: the first one, which is prominent by default, and the one
+    /// under the pointer. Two « this is the one » is none. Only the list knows
+    /// which of its rows is current, so the list decides — see
+    /// `AskQuestionView.optionList`.
+    private var wearsAccent: Bool { isProminent }
 
     var body: some View {
         Button(action: action) {
@@ -56,7 +68,10 @@ struct VibeButton: View {
         }
         .buttonStyle(.plain)
         .contentShape(shape)
-        .pointingHandCursor { hovering = $0 }
+        .pointingHandCursor {
+            hovering = $0
+            onHover($0)
+        }
     }
 
     @ViewBuilder
@@ -68,7 +83,7 @@ struct VibeButton: View {
                 // this », a blue word answers it.
                 Text(title)
                     .font(VibeTheme.Typography.body)
-                    .foregroundStyle(isProminent ? VibeTheme.Accent.primary : PanelInk.primary)
+                    .foregroundStyle(wearsAccent ? VibeTheme.Accent.primary : PanelInk.primary)
                     .multilineTextAlignment(.leading)
                     .fixedSize(horizontal: false, vertical: true)
                 Spacer(minLength: VibeTheme.Spacing.s)
@@ -76,7 +91,7 @@ struct VibeButton: View {
                 // outlined on the rest — the difference is the whole hierarchy.
                 Image(systemName: isProminent ? "arrow.right" : "chevron.right")
                     .font(.system(size: isProminent ? 12 : 11, weight: .semibold))
-                    .foregroundStyle(isProminent ? VibeTheme.Accent.cyan : PanelInk.tertiary)
+                    .foregroundStyle(wearsAccent ? VibeTheme.Accent.cyan : PanelInk.tertiary)
             }
         } else {
             Text(title)
@@ -112,7 +127,7 @@ struct VibeButton: View {
     /// about 3 %, a neutral row white at 2,5 %. None of them is a grey plate —
     /// which is what a single neutral fill at 10 % had turned all three into.
     private var fill: Color {
-        if isProminent || role == .accent {
+        if wearsAccent || role == .accent {
             return hovering ? VibeTheme.Accent.washHover : VibeTheme.Accent.wash
         }
         if role == .deny {
@@ -122,7 +137,7 @@ struct VibeButton: View {
     }
 
     private var stroke: Color {
-        if isProminent || role == .accent {
+        if wearsAccent || role == .accent {
             return hovering ? VibeTheme.Accent.borderHover : VibeTheme.Accent.border
         }
         if role == .deny {

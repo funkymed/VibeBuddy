@@ -23,6 +23,9 @@ struct AskQuestionView: View {
     /// the hook sent is the only thing both sides agree on.
     var onAnswer: (String) -> Void
 
+    /// The row under the pointer, if any.
+    @State private var hovered: Int?
+
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             promptBlock
@@ -63,15 +66,31 @@ struct AskQuestionView: View {
             ForEach(Array(options.enumerated()), id: \.offset) { index, option in
                 // The option's own text is what goes back, so the two sides
                 // never have to agree on an ordering that either could change.
-                //
-                // The first is prominent: a list of equals is a list you have to
-                // read twice. It is the model's own first suggestion, which is
-                // the closest thing to a default anyone here can honestly claim.
                 VibeButton(title: option, role: .neutral, isRow: true,
-                           isProminent: index == 0) { onAnswer(option) }
+                           isProminent: index == accented,
+                           onHover: { inside in
+                               // Leaving only clears the accent if it is still
+                               // ours: moving between two adjacent rows delivers
+                               // the new row's enter before the old row's exit,
+                               // and a blind reset would drop the one that just
+                               // arrived.
+                               if inside { hovered = index }
+                               else if hovered == index { hovered = nil }
+                           }) { onAnswer(option) }
             }
         }
     }
+
+    /// Which row is currently « the one »: whatever the pointer is on, and
+    /// **none** when the pointer is elsewhere.
+    ///
+    /// The first row used to carry the accent by default, on the reasoning that
+    /// a list of equals is a list you read twice. It reads worse: a highlighted
+    /// row is a *selection*, and a selection nobody made is a claim the panel
+    /// has no right to make — the question came from the model, and none of its
+    /// options is a default. Untouched, the three are equals, which is the
+    /// truth. The accent belongs to the pointer alone.
+    private var accented: Int? { hovered }
 
     /// Says where a click goes, because the button says nothing about it: the
     /// user is choosing an answer, not granting a permission, and this is the
