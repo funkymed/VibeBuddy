@@ -38,7 +38,11 @@ struct ShellSummaryView: View {
                 .foregroundStyle(PanelInk.primary)
                 // Selectable so a command too long to read can be pasted
                 // somewhere it can be.
-                .textSelection(.enabled)
+                // Deliberately **not** `.textSelection(.enabled)`: it installs an I-beam
+                // that wins over everything the panel puts on the pointer, so the hand
+                // flickered on every button and row. A panel whose cursor cannot be trusted
+                // is worse than one you cannot copy out of — and the text here is already
+                // cut at parse time, so it was never the place to read a plan from anyway.
                 .multilineTextAlignment(.leading)
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)

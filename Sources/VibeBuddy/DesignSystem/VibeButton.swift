@@ -46,12 +46,10 @@ struct VibeButton: View {
         Button(action: action) {
             content
                 .padding(.horizontal, isRow ? VibeTheme.Spacing.m : VibeTheme.Spacing.l)
-                // **The same height as everything else in the panel.** A row
-                // and a decision are both buttons; giving them 12 and 10 made
-                // the decision bar look like a smaller class of control sitting
-                // under the real ones. One number, and the bar lines up with
-                // the list above it.
-                .padding(.vertical, VibeTheme.Spacing.m)
+                // Height, not padding: both numbers come off the reference,
+                // and a padding would re-derive them from whatever the font
+                // happens to measure.
+                .frame(height: isRow ? VibeTheme.Control.row : VibeTheme.Control.decision)
                 .frame(maxWidth: isRow ? .infinity : nil, alignment: .leading)
                 .background(shape.fill(fill))
                 .overlay(shape.strokeBorder(stroke, lineWidth: VibeTheme.Border.width))
@@ -107,12 +105,18 @@ struct VibeButton: View {
         }
     }
 
-    /// Only the accent fills. A refusal is a plain surface with a red word on
-    /// it — colouring its background too would make the thing you should think
-    /// about twice the brightest thing on screen.
+    /// **Each button sits in its own colour, faintly.**
+    ///
+    /// Measured off the reference, solving each interior against the panel
+    /// behind it: a refusal is red at about 7 %, an accented control blue at
+    /// about 3 %, a neutral row white at 2,5 %. None of them is a grey plate —
+    /// which is what a single neutral fill at 10 % had turned all three into.
     private var fill: Color {
         if isProminent || role == .accent {
             return hovering ? VibeTheme.Accent.washHover : VibeTheme.Accent.wash
+        }
+        if role == .deny {
+            return PermissionInk.removed.opacity(hovering ? 0.12 : 0.07)
         }
         return hovering ? VibeTheme.Surface.interactiveHover : VibeTheme.Surface.interactive
     }

@@ -44,12 +44,16 @@ enum VibeTheme {
         static let sunken = Color.white.opacity(0.03)
         /// Something you can click that is not asking to be clicked.
         ///
-        /// Nudged up from 0.07: against the accent's own fill, a 7 % white on
-        /// black read as no fill at all, and « Refuser » looked like a word
-        /// floating next to a button rather than a button.
-        static let interactive = Color.white.opacity(0.10)
-        /// The same, under the pointer.
-        static let interactiveHover = Color.white.opacity(0.15)
+        /// **Two and a half percent, measured.** A neutral answer row on the
+        /// reference is `(8,13,21)` over a `(2,7,14)` panel — six levels, which
+        /// solves to about 2,5 % of white. It went to 10 % on the reasoning that
+        /// « Refuser » looked unfilled; the real answer was that its fill should
+        /// be *its own colour* rather than a grey, which is what `VibeButton`
+        /// now does. A grey at 10 % is four times the reference and turns every
+        /// control into a visible plate.
+        static let interactive = Color.white.opacity(0.025)
+        /// The same, under the pointer. Doubling is what makes a hover read.
+        static let interactiveHover = Color.white.opacity(0.06)
 
         /// Laid over the black of the deployed panel, and nowhere else.
         ///
@@ -79,11 +83,12 @@ enum VibeTheme {
         /// Behind an accented control. Low enough that the label stays the
         /// thing being read.
         ///
-        /// Dropped from 0,10 with the border: a wash and a bright edge together
-        /// made the button glow, and a glow is what section 3 of the brief
-        /// spends a page asking to keep **subtle**.
-        static let wash = deep.opacity(0.12)
-        static let washHover = deep.opacity(0.20)
+        /// Dropped again, and this time from a measurement rather than from
+        /// judgement: the reference's own accented row is `(5,11,21)` over a
+        /// `(2,7,14)` panel, which solves to roughly 3 % of blue. At 12 % the
+        /// button was four times its model — the « effet néon » in one number.
+        static let wash = deep.opacity(0.03)
+        static let washHover = deep.opacity(0.08)
         /// The one border that is allowed to be a colour rather than a white.
         ///
         /// 0,55 was neon: on pure black a 55 % blue hairline is the brightest
@@ -132,6 +137,24 @@ enum VibeTheme {
         /// as extra light.
         static let divider = hairline.opacity(0.035)
         static let width: CGFloat = 1
+    }
+
+    /// Control heights, measured off the reference rather than derived from a
+    /// padding.
+    ///
+    /// The two are **not** the same, and that was the mistake: an answer row is
+    /// 43 px tall on the reference and a decision button 32, which at this
+    /// render's scale is 48 pt and 36. Section 13 asks for « exactement la même
+    /// hauteur » between *Refuser* and *Répondre* — between each other, not with
+    /// the list above them.
+    ///
+    /// Expressed as a height because that is what was measured. Reaching it
+    /// through vertical padding means re-deriving it every time the font moves.
+    enum Control {
+        /// An answer to pick out of a list.
+        static let row: CGFloat = 48
+        /// A decision at the bottom of the panel.
+        static let decision: CGFloat = 36
     }
 
     /// Four radii, and a pill. A fifth value is a decision nobody made.

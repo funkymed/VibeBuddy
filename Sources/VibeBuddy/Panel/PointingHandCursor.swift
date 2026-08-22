@@ -16,15 +16,52 @@ import SwiftUI
 final class CursorZones {
 
     static let shared = CursorZones()
-    private var zones: [ObjectIdentifier: NSRect] = [:]
 
-    func set(_ rect: NSRect?, for owner: AnyObject) {
-        let key = ObjectIdentifier(owner)
-        if let rect, !rect.isEmpty { zones[key] = rect } else { zones.removeValue(forKey: key) }
-    }
+    /// The views that want a hand, **not** the rectangles they occupied.
+    ///
+    /// It used to hold screen rects, published when a view was added, resized
+    /// or moved between superviews. That was true for a window that never
+    /// changed shape. This panel now resizes itself to whatever it is showing
+    /// — 292 pt for a shell command, 460 for a plan — and it animates there, so
+    /// every stored rect was stale from the first frame of the resize until
+    /// something happened to republish it. The pointer flickered between hand
+    /// and arrow because the zones were describing a window that no longer
+    /// existed.
+    ///
+    /// Asking the view where it is, at the moment the question is asked, cannot
+    /// go stale. It costs a coordinate conversion per mouse-moved event over a
+    /// handful of views, against a resize that could not be caught reliably.
+    private var owners: [ObjectIdentifier: WeakView] = [:]
 
+    private struct WeakView { weak var view: NSView? }
+
+    func register(_ view: NSView) { owners[ObjectIdentifier(view)] = WeakView(view: view) }
+
+    func unregister(_ view: NSView) { owners.removeValue(forKey: ObjectIdentifier(view)) }
+
+    /// Whether a screen point falls in a live zone.
     func contains(_ point: NSPoint) -> Bool {
-        zones.values.contains { $0.contains(point) }
+        var dead: [ObjectIdentifier] = []
+        var hit = false
+        for (key, box) in owners {
+            guard let view = box.view, let window = view.window, !view.bounds.isEmpty else {
+                dead.append(key)
+                continue
+            }
+            let inWindow = window.convertPoint(fromScreen: point)
+            if view.convert(inWindow, from: nil).isWithin(view.bounds) { hit = true }
+        }
+        for key in dead { owners.removeValue(forKey: key) }
+        return hit
+    }
+}
+
+private extension NSPoint {
+    /// `NSRect.contains` on a point that a conversion landed exactly on an edge
+    /// of is a coin toss; a zone that ends one point short of where the button
+    /// is drawn is a row that loses the hand at its own border.
+    func isWithin(_ rect: NSRect) -> Bool {
+        x >= rect.minX && x <= rect.maxX && y >= rect.minY && y <= rect.maxY
     }
 }
 
@@ -39,32 +76,25 @@ private final class HandCursorView: NSView {
         publish()
     }
 
-    override func setFrameSize(_ newSize: NSSize) {
-        super.setFrameSize(newSize)
-        publish()
-    }
-
-    override func viewDidMoveToSuperview() {
-        super.viewDidMoveToSuperview()
-        publish()
-    }
-
     // Transparent to clicks: this view carries no behaviour of its own.
     override func hitTest(_ point: NSPoint) -> NSView? { nil }
 
+    /// Registration only. Where this view *is* gets asked at the moment the
+    /// pointer moves, so nothing here has to fire on a resize.
     private func publish() {
-        guard isEnabled, let window, !bounds.isEmpty else {
-            CursorZones.shared.set(nil, for: self)
-            return
+        if isEnabled, window != nil {
+            CursorZones.shared.register(self)
+        } else {
+            CursorZones.shared.unregister(self)
         }
-        let inWindow = convert(bounds, to: nil)
-        CursorZones.shared.set(window.convertToScreen(inWindow), for: self)
     }
 
     override func removeFromSuperview() {
-        CursorZones.shared.set(nil, for: self)
+        CursorZones.shared.unregister(self)
         super.removeFromSuperview()
     }
+
+    deinit { MainActor.assumeIsolated { CursorZones.shared.unregister(self) } }
 }
 
 private struct HandCursorLayer: NSViewRepresentable {

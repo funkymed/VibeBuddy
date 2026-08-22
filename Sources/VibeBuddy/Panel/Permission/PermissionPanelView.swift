@@ -202,18 +202,4 @@ struct PermissionPanelView: View {
         if case .question = model.summary { return true }
         return false
     }
-
-    private func decision(_ title: String, tint: Color,
-                          action: @escaping () -> Void) -> some View {
-        Button(title, action: action)
-            .buttonStyle(.plain)
-            .font(.system(size: 13, weight: .semibold))
-            .foregroundStyle(tint)
-            .padding(.horizontal, 14)
-            .padding(.vertical, 7)
-            .background(Capsule().fill(PanelInk.surface))
-            .overlay(Capsule().stroke(PanelInk.stroke))
-            .contentShape(Capsule())
-            .pointingHandCursor()
-    }
 }

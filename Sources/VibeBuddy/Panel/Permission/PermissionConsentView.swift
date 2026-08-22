@@ -40,7 +40,11 @@ struct PermissionConsentView: View {
                 Text(diff)
                     .font(.system(size: 11, design: .monospaced))
                     .foregroundStyle(PanelInk.secondary)
-                    .textSelection(.enabled)
+                    // Deliberately **not** `.textSelection(.enabled)`: it installs an I-beam
+                    // that wins over everything the panel puts on the pointer, so the hand
+                    // flickered on every button and row. A panel whose cursor cannot be trusted
+                    // is worse than one you cannot copy out of — and the text here is already
+                    // cut at parse time, so it was never the place to read a plan from anyway.
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(10)
             }

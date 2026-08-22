@@ -187,9 +187,20 @@ final class NotchPanel: NSPanel {
     /// The pointer can still open the panel; only the closing is held.
     private var isHoldingAnAsk: Bool { permission != nil || consent != nil }
 
-    /// Do not allow key: `.nonactivatingPanel` stops activation but not key
-    /// theft from the terminal underneath. Cost: no keyboard shortcuts inside.
-    override var canBecomeKey: Bool { false }
+    /// **Key while the panel is open, never while it is a pill.**
+    ///
+    /// It was flatly `false`, to keep the terminal's keyboard focus. The cost
+    /// turned out to be the pointer: macOS lets only the frontmost application
+    /// put a cursor on screen, so `NSCursor.set()` from here was executed and
+    /// discarded — traced, with the zones resolving correctly and the hand
+    /// requested on every move. No amount of ordering or re-asserting fixes
+    /// that; the window has to be key.
+    ///
+    /// `.nonactivatingPanel` is what makes this affordable: such a panel becomes
+    /// key **without activating the application**, so the terminal underneath
+    /// keeps the keyboard. Restricted to the deployed state so the pill, which
+    /// is on screen all day, never takes it.
+    override var canBecomeKey: Bool { state == .panel }
     override var canBecomeMain: Bool { false }
 
     // MARK: - State
@@ -286,6 +297,13 @@ final class NotchPanel: NSPanel {
         opening = state == .panel
 
         if state.isVisible { orderFrontRegardless() }
+        // Key only while deployed, and only so the cursor can be ours. See
+        // `canBecomeKey`. The pill never asks.
+        if state == .panel {
+            makeKey()
+        } else if isKeyWindow {
+            resignKey()
+        }
 
         // Closing the panel ends the question, so the face goes back to
         // speaking for everything rather than for one session.

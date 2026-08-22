@@ -44,6 +44,21 @@ final class ClickThroughHostView<Content: View>: NSView {
     /// not follow a resize, and `layout()` is not called for a plain frame
     /// change. A strip built while the window was 460 tall kept arming hover
     /// after it shrank to 38 — see RFC-002, « Notes d'implémentation ».
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        // **Nobody else gets to set a cursor in this window.**
+        //
+        // AppKit rebuilds cursor rects on every mouse-moved event and applies
+        // whatever it finds — including the ones SwiftUI installs for its own
+        // controls and for selectable text. Ours was set correctly (traced:
+        // `zones=7 inZone=true`, hand requested) and then immediately replaced,
+        // which is why the hand never appeared for more than a frame.
+        //
+        // Turning the mechanism off for this window leaves exactly one writer:
+        // `applyCursor`.
+        window?.disableCursorRects()
+    }
+
     override func setFrameSize(_ newSize: NSSize) {
         super.setFrameSize(newSize)
         refreshTracking()
@@ -104,7 +119,7 @@ final class ClickThroughHostView<Content: View>: NSView {
 
     override func mouseEntered(with event: NSEvent) {
         onHoverChange?(true)
-        applyCursor()
+        scheduleCursor()
     }
 
     override func mouseExited(with event: NSEvent) {
@@ -114,22 +129,51 @@ final class ClickThroughHostView<Content: View>: NSView {
 
     override func mouseMoved(with event: NSEvent) {
         super.mouseMoved(with: event)
-        applyCursor()
+        scheduleCursor()
     }
 
-    /// The hand over a zone SwiftUI marked, the arrow anywhere else.
+    override func mouseDragged(with event: NSEvent) {
+        super.mouseDragged(with: event)
+        scheduleCursor()
+    }
+
+
+    /// **The one place a cursor is chosen, and it runs last.**
     ///
-    /// Set from the panel's own event path rather than from a cursor rect or a
-    /// `.cursorUpdate` area: neither reaches a window that never becomes key,
-    /// which this panel never does. Setting here runs after AppKit's own reset
-    /// for the same event, so there is nothing to fight.
-    private func applyCursor() {
-        let pointer = NSEvent.mouseLocation
-        if CursorZones.shared.contains(pointer) {
-            NSCursor.pointingHand.set()
-        } else {
-            NSCursor.arrow.set()
+    /// Three parties want this pointer: us, SwiftUI's own `Button` tracking
+    /// areas, and — the one that was actually doing the damage — the I-beam
+    /// that `.textSelection(.enabled)` installs over the question and the diff.
+    /// They all act while the event is being delivered, in an order nothing
+    /// here controls, which is exactly what « le pointeur change tout le temps »
+    /// looks like.
+    ///
+    /// Deferring by one turn of the run loop settles it: everyone else has had
+    /// their say by then, and the last writer wins. It is also why this cannot
+    /// be a cursor rect or a `.cursorUpdate` area — neither reaches a window
+    /// that never becomes key, and this panel never does.
+    private func scheduleCursor() {
+        DispatchQueue.main.async { [weak self] in
+            MainActor.assumeIsolated { self?.applyCursor() }
         }
+    }
+
+    private func applyCursor() {
+        guard window != nil else { return }
+        let wanted: NSCursor = CursorZones.shared.contains(NSEvent.mouseLocation)
+            ? .pointingHand : .arrow
+        // **Compare against what is on screen, not against what we last set.**
+        //
+        // Remembering our own last value looked like the obvious way to avoid
+        // re-setting the same cursor on every event — and it is what broke it:
+        // the frontmost application resets the cursor whenever the pointer
+        // moves over it, so ours is wiped without us hearing about it, and a
+        // « we already put the hand there » flag then guarantees we never put
+        // it back. The hand appeared for one frame and never again.
+        //
+        // `currentSystem` is what is actually displayed, so this re-asserts
+        // exactly when something else has taken it, and stays silent otherwise.
+        guard NSCursor.currentSystem !== wanted else { return }
+        wanted.set()
     }
 
     /// Rect currently absorbing clicks, in view coordinates. Clamped to
