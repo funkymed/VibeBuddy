@@ -44,6 +44,10 @@ struct NotchShellView: View {
     var groupByDirectory = true
     var jumpOnClick = true
     var showUsage = true
+    /// The height the window is being drawn at, so the background can put its
+    /// seam on the notch's edge rather than at a fixed fraction. Zero when the
+    /// panel is closed, which is also when the wash is empty.
+    var panelHeight: CGFloat = 0
 
     /// Slot geometry, measured from what the ears actually contain.
     private var layout: PillLayout? {
@@ -57,16 +61,20 @@ struct NotchShellView: View {
         ZStack {
             shape
                 .fill(.black)
-                // **Only once deployed.** Collapsed, the shape sits in the
-                // physical hole of the display, where black is not a colour but
-                // the absence of screen — anything laid over it turns the pill
-                // into a visible rectangle against the cutout's edge. Open, the
-                // panel hangs below the notch on ordinary pixels, and a trace
-                // of the accent ties it to the blue of its own buttons.
+                // **Black for exactly the height of the real notch, then the
+                // panel's own colour.**
                 //
-                // A flat fill, not a gradient: a gradient rebuilt per frame is
-                // what once cost this panel 127 Mo. This one is a constant.
-                .overlay(shape.fill(state == .panel ? VibeTheme.Surface.tint : .clear))
+                // The top band is not a design choice, it is the hardware: those
+                // points sit inside the physical cutout, where black is not a
+                // colour but the absence of screen. Tint them and the pill turns
+                // into a visible rectangle against the notch's edge. Below the
+                // cutout the panel hangs on ordinary pixels, and there the tint
+                // ties it to the blue of its own buttons.
+                //
+                // The two must not meet as a line — a hard edge across the panel
+                // would draw exactly the seam the notch is supposed to hide — so
+                // the second half of the band fades into it.
+                .overlay(shape.fill(backgroundWash))
                 // Measured off the reference: `(21,27,38)` over `(3,5,7)`, which is
                 // 7 % of red and 12,5 % of blue — an edge catching the panel's
                 // own colour, not a grey line drawn around it.
@@ -148,6 +156,43 @@ struct NotchShellView: View {
                 .opacity.combined(with: .offset(y: -6))
                     .animation(.easeOut(duration: 0.14)))
         }
+    }
+
+    /// The fill laid over the black: nothing for the notch's own height, the
+    /// panel's tint below it, and a fade between.
+    ///
+    /// **Collapsed, it is empty.** The pill *is* the cutout; there is no « below
+    /// the notch » to colour.
+    ///
+    /// The stops are fractions of the current height, which is why this is
+    /// computed from `panelHeight` rather than written as constants: the panel
+    /// is 292 pt tall for a shell command and 460 for a plan, and a gradient
+    /// pinned at « 12 % from the top » would put the seam in a different place
+    /// each time. Anchored to the hardware instead, it lands on the cutout's
+    /// edge whatever the panel is showing.
+    ///
+    /// One gradient, built from values that change only when the panel resizes
+    /// — not per frame. The 127 Mo this repository once paid came from three
+    /// gradients inside a body that depended on the animation phase; this one
+    /// SwiftUI compares and leaves alone.
+    private var backgroundWash: LinearGradient {
+        guard state == .panel, panelHeight > 0 else {
+            return LinearGradient(colors: [.clear, .clear], startPoint: .top, endPoint: .bottom)
+        }
+        let notch = min(max(geometry?.pillHeight ?? 0, 0), panelHeight)
+        let edge = notch / panelHeight
+        // Half the notch's own height to fade over: long enough that no line is
+        // visible, short enough that the colour has arrived well before the
+        // first row of content.
+        let settled = min(1, edge * 1.5)
+        return LinearGradient(
+            stops: [
+                .init(color: .clear, location: 0),
+                .init(color: .clear, location: edge),
+                .init(color: VibeTheme.Surface.tint, location: settled),
+                .init(color: VibeTheme.Surface.tint, location: 1),
+            ],
+            startPoint: .top, endPoint: .bottom)
     }
 
     /// The three slots: an ear, the cutout, an ear. One `HStack`, no per-slot

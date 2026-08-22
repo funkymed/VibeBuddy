@@ -470,7 +470,8 @@ final class NotchPanel: NSPanel {
                        onConsentCancel: { [weak self] in self?.cancelConsent() },
                        onConsentConfirm: { [weak self] in self?.confirmConsent() },
                        groupByDirectory: groupByDirectory,
-                       jumpOnClick: jumpOnClick, showUsage: showUsage)
+                       jumpOnClick: jumpOnClick, showUsage: showUsage,
+                       panelHeight: state == .panel ? panelSize.height : 0)
     }
 
     private func rebuildContent() {
