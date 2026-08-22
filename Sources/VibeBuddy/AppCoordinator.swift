@@ -103,7 +103,11 @@ final class AppCoordinator: NSObject, NSApplicationDelegate {
             onReset: { [weak self] in self?.resetEverything() }
         )
         settings.onVisibilityChange = { [weak self, weak panel] open in
-            panel?.suppressesHover = open
+            // Told, but no longer used to close anything: the notch stays
+            // usable while the settings are open. What the flag still buys is
+            // the keyboard — the panel does not take the key status from the
+            // window the user is typing in.
+            panel?.settingsAreOpen = open
             // A coalesced write must not be lost when the window closes.
             if !open {
                 self?.prefs.flush()

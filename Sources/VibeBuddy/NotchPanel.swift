@@ -96,12 +96,17 @@ final class NotchPanel: NSPanel {
     /// pointer really has left it says so again on its next tick.
     private var opening = false
 
-    var suppressesHover = false {
-        didSet {
-            guard suppressesHover != oldValue else { return }
-            if suppressesHover, state == .panel { state = .pill }
-        }
-    }
+    /// Whether the settings window is on screen.
+    ///
+    /// It used to be `suppressesHover`, and it collapsed the panel: the
+    /// settings were pinned one level above `.statusBar`, so a deployed panel
+    /// could only hide them. With the window back at `.normal`, there is
+    /// nothing to protect — and being unable to open the notch while its own
+    /// settings are on screen is exactly the moment you want to look at it.
+    ///
+    /// What it still does is keep the panel from taking the key status away
+    /// from the window the user is typing in. See `scheduleKeyIfDeployed`.
+    var settingsAreOpen = false
     private var usage: UsageState.Status = .unknown
     private var l10n: Strings = .french
     private var locale: Locale = .current
@@ -152,7 +157,7 @@ final class NotchPanel: NSPanel {
         // The poll below is the safety net: a pointer warped by a hotkey emits
         // no enter event at all.
         host.onHoverChange = { [weak self] hovering in
-            guard let self, !self.suppressesHover else { return }
+            guard let self else { return }
             self.logHover(source: "zone", hovering: hovering)
             if hovering, state == .pill { state = .panel }
             else if !hovering, state == .panel, !self.opening, !self.isHoldingAnAsk {
@@ -161,7 +166,7 @@ final class NotchPanel: NSPanel {
         }
 
         hover.onChange = { [weak self] hovering in
-            guard let self, !self.suppressesHover else { return }
+            guard let self else { return }
             self.logHover(source: "sonde", hovering: hovering)
             if hovering, state == .pill { state = .panel }
             else if !hovering, state == .panel, !self.opening, !self.isHoldingAnAsk {
@@ -255,6 +260,25 @@ final class NotchPanel: NSPanel {
         }
     }
 
+    /// Takes the key status on the next run-loop turn, if the panel still wants
+    /// it by then. See the note in `applyState`.
+    private func scheduleKeyIfDeployed() {
+        guard !keyRequestPending else { return }
+        keyRequestPending = true
+        DispatchQueue.main.async { [weak self] in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                self.keyRequestPending = false
+                guard self.state == .panel, !self.settingsAreOpen,
+                      self.isVisible, !self.isKeyWindow
+                else { return }
+                self.makeKey()
+            }
+        }
+    }
+
+    private var keyRequestPending = false
+
     /// Guards against `applyState` being re-entered while it runs.
     ///
     /// It sets `host.hitRegion`, which rebuilds the tracking area, which can
@@ -266,6 +290,7 @@ final class NotchPanel: NSPanel {
     /// then, so it converges.
     private var applying = false
     private var needsReapply = false
+    private var reapplyDepth = 0
 
     private func applyState(animated: Bool = true) {
         if applying { needsReapply = true; return }
@@ -274,8 +299,19 @@ final class NotchPanel: NSPanel {
             applying = false
             if needsReapply {
                 needsReapply = false
-                applyState(animated: animated)
+                // **Bounded.** The deferred replay converges because the state
+                // settles, but « converges » was an assumption, and an
+                // assumption that is wrong here does not misdraw — it hangs the
+                // main thread with a beachball, which is what happened. Ten is
+                // far more than any real transition needs; reaching it means
+                // something is oscillating, and stopping leaves the panel in a
+                // state `finishStateChange` will correct.
+                reapplyDepth += 1
+                if reapplyDepth < 10 {
+                    applyState(animated: animated)
+                }
             }
+            if !applying { reapplyDepth = 0 }
         }
 
         // Shadowed once so the whole body agrees with itself even if something
@@ -299,11 +335,31 @@ final class NotchPanel: NSPanel {
         if state.isVisible { orderFrontRegardless() }
         // Key only while deployed, and only so the cursor can be ours. See
         // `canBecomeKey`. The pill never asks.
-        if state == .panel {
-            makeKey()
-        } else if isKeyWindow {
-            resignKey()
-        }
+        //
+        // **Never `resignKey()`.** It is a notification AppKit sends, not a
+        // command it takes: « you should never invoke this method directly ».
+        // Calling it here crashed the app every time the settings window
+        // opened, and for a reason worth remembering — `settings.show()` makes
+        // that window key, which sets `suppressesHover`, which collapses this
+        // panel, which ran `resignKey()` **in the middle of AppKit's own key
+        // transition**. Two parties resigning the same window at once.
+        //
+        // Nothing is needed in its place: `canBecomeKey` is already false once
+        // the panel is not deployed, and the window that asked for the focus
+        // takes it. Measured before all this: the frontmost application stays
+        // the terminal throughout.
+        //
+        // Not while the settings own the screen either, or this panel would
+        // pull the focus back from the window the user just opened.
+        //
+        // **Deferred, and never from inside `applyState`.** Taking the key
+        // status makes AppKit send notifications, which reach the hover path,
+        // which changes `state`, whose `didSet` re-enters here — and the
+        // re-entry guard below faithfully replays the call, which takes the key
+        // again. That loop is what froze the app on the beachball when the
+        // settings window opened. Asking for it on the next turn of the run
+        // loop, against whatever the state is by then, cannot recurse.
+        scheduleKeyIfDeployed()
 
         // Closing the panel ends the question, so the face goes back to
         // speaking for everything rather than for one session.

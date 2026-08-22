@@ -72,12 +72,22 @@ final class SettingsWindow {
         bringToFront(window)
     }
 
-    /// Put the window in front and keep it there.
+    /// Put the window in front **once**, and let it behave like a window after
+    /// that.
     ///
-    /// Do not use `.floating` (3): it is below `.statusBar` (25) where the notch
-    /// panel lives, so the window opens underneath the pill that opened it.
+    /// It used to be pinned one level above `.statusBar`, so it stayed on top
+    /// of every application on the machine — a settings sheet that no other
+    /// window could ever cover, and that followed the user into whatever they
+    /// switched to. The reason given was that `.floating` (3) sits below the
+    /// notch panel (25) and the window would open under the pill that opened
+    /// it; the real answer to that is `.normal` plus an activation, which
+    /// raises it above ordinary windows without making it a permanent overlay.
+    ///
+    /// The notch panel does pass over it when deployed. That is correct: the
+    /// panel lives in the notch, the settings do not, and the panel must stay
+    /// reachable while the settings are open.
     private func bringToFront(_ window: NSWindow) {
-        window.level = NSWindow.Level(rawValue: NSWindow.Level.statusBar.rawValue + 1)
+        window.level = .normal
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
     }
