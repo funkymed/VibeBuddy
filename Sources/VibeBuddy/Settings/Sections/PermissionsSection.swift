@@ -35,8 +35,29 @@ struct PermissionsSection: View {
             for: NSApplication.didBecomeActiveNotification)) { _ in reload() }
     }
 
+    /// **Off the main thread, always.**
+    ///
+    /// `SystemPermissions.all` calls `AEDeterminePermissionToAutomateTarget`
+    /// once per terminal it knows about, plus `SMAppService.mainApp.status`.
+    /// Both talk to system daemons — TCC and the login-item service — and both
+    /// block until those answer.
+    ///
+    /// Run inline, that froze the whole app the moment the settings window
+    /// opened, and **only in a signed bundle**: unbundled,
+    /// `Bundle.main.bundleIdentifier` is nil and the automation probe returns
+    /// immediately without touching TCC, so the bug was invisible in every
+    /// local run and reproducible in every release. That asymmetry is the
+    /// signature of a permission check, and it is worth recognising early.
+    ///
+    /// The `Task.detached` also matters on the second path: this reloads on
+    /// every `didBecomeActive`, so the cost is paid again each time the user
+    /// comes back from System Settings.
     private func reload() {
-        items = SystemPermissions.all(l10n: l10n.strings)
+        let strings = l10n.strings
+        Task.detached(priority: .utility) {
+            let found = SystemPermissions.all(l10n: strings)
+            await MainActor.run { items = found }
+        }
     }
 
     @ViewBuilder
