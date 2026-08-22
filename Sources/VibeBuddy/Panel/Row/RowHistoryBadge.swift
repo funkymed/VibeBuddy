@@ -7,12 +7,9 @@ struct RowHistoryBadge: View {
     let l10n: Strings
 
     var body: some View {
-        Text(group.liveCount > 1 ? "×\(group.liveCount)/\(group.count)" : "×\(group.count)")
-            .font(.system(size: 10, weight: .medium, design: .monospaced))
-            .foregroundStyle(PanelInk.secondary)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(Capsule().fill(PanelInk.stroke))
+        VibeBadge(
+            text: group.liveCount > 1 ? "×\(group.liveCount)/\(group.count)" : "×\(group.count)",
+            monospaced: true)
             .help(l10n.sessionHistory(group.count))
     }
 }

@@ -33,7 +33,11 @@ extension View {
         self
             .frame(maxHeight: maxHeight)
             .scrollBounceBehavior(.basedOnSize)
-            .background(RoundedRectangle(cornerRadius: 8).fill(PanelInk.surface))
-            .overlay(RoundedRectangle(cornerRadius: 8).stroke(PanelInk.stroke))
+            .background(
+                RoundedRectangle(cornerRadius: VibeTheme.Radius.medium)
+                    .fill(VibeTheme.Surface.sunken))
+            .overlay(
+                RoundedRectangle(cornerRadius: VibeTheme.Radius.medium)
+                    .strokeBorder(VibeTheme.Border.subtle, lineWidth: VibeTheme.Border.width))
     }
 }

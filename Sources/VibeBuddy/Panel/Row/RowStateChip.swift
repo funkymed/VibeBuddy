@@ -10,13 +10,7 @@ struct RowStateChip: View {
     var body: some View {
         let label = SessionStateStyle.label(session, l10n)
         let colour = SessionStateStyle.colour(session)
-        Text(label)
-            .font(.system(size: 10, weight: .semibold))
-            .foregroundStyle(colour)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(Capsule().fill(colour.opacity(0.16)))
-            .fixedSize()
+        VibeBadge(text: label, tint: colour)
             .help(session.awaitingAnswer ? (session.question ?? l10n.alertWaiting) : label)
     }
 }

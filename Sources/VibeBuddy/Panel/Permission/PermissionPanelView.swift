@@ -16,6 +16,9 @@ struct PermissionPanelView: View {
     let model: PermissionRequestModel
     /// How many requests are queued behind this one.
     var waiting: Int = 0
+    /// True only for the offscreen host in `NotchPanel` that asks this view how
+    /// tall it wants to be. See the note on the body.
+    var measuring = false
     let l10n: Strings
     var onDeny: () -> Void
     var onAllow: () -> Void
@@ -33,17 +36,33 @@ struct PermissionPanelView: View {
         VStack(alignment: .leading, spacing: 12) {
             headerText
 
-            // **Wide, not tall.** It used to claim `maxHeight: .infinity`,
-            // which is right when the window's height is imposed and wrong
-            // when it is being asked: the panel now sizes itself to this view
-            // (`NotchPanel.measuredPanelHeight`), and a summary that always
-            // answers « as tall as you like » makes every request the same
-            // height again. The spacer below does the same job when the height
-            // *is* imposed — it pushes the bar down and nothing else.
-            summary
-                .frame(maxWidth: .infinity, alignment: .topLeading)
-
-            Spacer(minLength: 0)
+            // **Wide, not tall — and scrolling when it has to be.**
+            //
+            // Two states, and both are needed. Being *measured*, it must answer
+            // its natural height, so the window can be exactly as tall as what
+            // it shows; a scroller would answer « as tall as you like » and
+            // every request would come out the same size again.
+            //
+            // Being *drawn*, the window's height is already decided and may be
+            // at the 460 pt ceiling, so the summary must give way rather than
+            // overflow. It used not to: a long question pushed the panel past
+            // the ceiling and the contents spilled out **both ends** — the
+            // buddy cut off at the top, the decision bar cut off at the bottom,
+            // nothing scrollable anywhere. The header and the bar are the two
+            // things that must never move; what is between them is what gives.
+            if measuring {
+                summary
+                    .frame(maxWidth: .infinity, alignment: .topLeading)
+                Spacer(minLength: 0)
+            } else {
+                ScrollView(.vertical) {
+                    summary
+                        .frame(maxWidth: .infinity, alignment: .topLeading)
+                }
+                .scrollBounceBehavior(.basedOnSize)
+                .scrollIndicators(.visible)
+                .frame(maxHeight: .infinity)
+            }
 
             decisionBar
         }
@@ -54,17 +73,20 @@ struct PermissionPanelView: View {
     private var headerText: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 8) {
+                // In the accent, and it is the only section label that gets
+                // it: a permission on screen is the one thing the panel ever
+                // shows that is *waiting on the user*. Section 11 of the brief.
                 Text(l10n.permissionTitle)
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(PanelInk.secondary)
-                    .tracking(0.8)
+                    .font(VibeTheme.Typography.section)
+                    .foregroundStyle(VibeTheme.Accent.primary)
+                    .tracking(VibeTheme.Typography.sectionTracking)
                 Spacer(minLength: 8)
                 if waiting > 0 { waitingChip }
             }
 
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Text(model.toolName)
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(VibeTheme.Typography.title)
                     .foregroundStyle(PanelInk.primary)
                     .lineLimit(1)
                 if let project {
@@ -141,10 +163,10 @@ struct PermissionPanelView: View {
     /// refusing and removing mean the same thing to the eye, and the panel must
     /// not teach two reds.
     private var decisionBar: some View {
-        HStack(spacing: 8) {
-            decision(l10n.permissionDeny, tint: PermissionInk.removed, action: onDeny)
+        HStack(spacing: VibeTheme.Spacing.s) {
+            VibeButton(title: l10n.permissionDeny, role: .deny, action: onDeny)
 
-            Spacer(minLength: 12)
+            Spacer(minLength: VibeTheme.Spacing.m)
 
             // **Never on a question.** Read in Claude Code 2.1.239: a tool that
             // declares `requiresUserInteraction` — `AskUserQuestion` does,
@@ -157,17 +179,20 @@ struct PermissionPanelView: View {
             // the panel would stop offering questions **for good**, silently,
             // because of a line in the user's own settings file.
             if !isQuestion {
-                decision(l10n.permissionAlwaysAllow, tint: PanelInk.secondary,
-                         action: onAlwaysAllow)
+                VibeButton(title: l10n.permissionAlwaysAllow, role: .neutral,
+                           action: onAlwaysAllow)
                     // Says out loud that this one writes to the user's own
                     // settings file — the consent half of R1.
                     .help(l10n.permissionAlwaysAllowHint)
             }
 
-            // Same reading: on a question this does not run anything, it hands
-            // the question back to Claude Code's own picker. The label says so.
-            decision(isQuestion ? l10n.permissionAnswerInTerminal : l10n.permissionAllow,
-                     tint: PermissionInk.added, action: onAllow)
+            // The action that goes forward, whichever it is: on a question it
+            // hands the ask back to Claude Code's own picker, on anything else
+            // it lets the tool run. One accent for both — the label says which,
+            // the colour says only « this is the way on ».
+            VibeButton(
+                title: isQuestion ? l10n.permissionAnswerInTerminal : l10n.permissionAllow,
+                role: .accent, action: onAllow)
         }
     }
 

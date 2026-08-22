@@ -33,8 +33,15 @@ public enum PermissionSamples {
               "Garder couplé, corriger le débordement"]),
             ("On garde le plancher à 200 pt ?", ["Oui", "Non"]),
             ("""
-             La mesure hors écran construit un `NSHostingView` par demande.              À l'usage c'est une fois par permission, jamais par image — mais              c'est un coût que le panneau ne payait pas avant, et le dépôt a              déjà payé deux fois un pipeline de rendu qu'il n'avait pas demandé              (`ImageRenderer`, `Canvas`). On le garde, on le mesure, ou on              calcule la hauteur à la main comme `PillLayout` le fait ?
-             """,
+                La mesure hors écran construit un NSHostingView par demande.
+                À l'usage c'est une fois par permission, jamais par image.
+                Mais c'est un coût que le panneau ne payait pas avant, et le
+                dépôt a déjà payé deux fois un pipeline de rendu qu'il n'avait
+                pas demandé — ImageRenderer, puis Canvas.
+
+                On le garde, on le mesure d'abord, ou on calcule la hauteur à
+                la main comme PillLayout le fait ?
+                """,
              ["Garder la mesure", "Mesurer d'abord son coût",
               "Calculer à la main, comme PillLayout"]),
             ("Quel genre ajouter ensuite aux échantillons ?",

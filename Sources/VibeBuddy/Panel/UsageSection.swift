@@ -16,9 +16,9 @@ struct UsageSection: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 8) {
                 Text(l10n.usageTitle)
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(PanelInk.secondary)
-                    .tracking(0.8)
+                    .font(VibeTheme.Typography.section)
+                    .foregroundStyle(VibeTheme.Accent.primary)
+                    .tracking(VibeTheme.Typography.sectionTracking)
                 if case let .unavailable(reason) = state {
                     Text(reason)
                         .font(.system(size: 11))

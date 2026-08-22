@@ -54,17 +54,15 @@ struct PermissionConsentView: View {
                 .lineLimit(2)
                 .truncationMode(.middle)
 
-            HStack(spacing: 8) {
+            HStack(spacing: VibeTheme.Spacing.s) {
                 Spacer(minLength: 0)
-                Button(l10n.consentCancel, action: onCancel)
-                    .buttonStyle(.plain)
-                    .foregroundStyle(PanelInk.secondary)
-                Button(l10n.consentConfirm, action: onConfirm)
-                    .buttonStyle(.plain)
-                    .foregroundStyle(PermissionInk.added)
-                    .fontWeight(.semibold)
+                VibeButton(title: l10n.consentCancel, role: .neutral, action: onCancel)
+                // Writing to the user's own settings file is the act this whole
+                // screen exists to ask about, so it is the one thing on it the
+                // eye should land on.
+                VibeButton(title: l10n.consentConfirm, role: .accent,
+                           action: onConfirm)
             }
-            .font(.system(size: 13))
         }
     }
 }

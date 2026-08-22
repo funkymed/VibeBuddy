@@ -375,6 +375,34 @@ struct PermissionSampleTests {
         }
     }
 
+    /// Catches a whole family of mistakes at once, and one that shipped: a
+    /// multi-line literal whose continuations were flattened by the tool that
+    /// wrote the file left thirteen spaces in the middle of every sentence, and
+    /// the panel rendered them faithfully. Nothing in a sample should ever hold
+    /// a run of blanks — it is prose, not layout.
+    @Test("no sample text carries stray runs of spaces",
+          arguments: PermissionSamples.kinds)
+    func samplesHaveNoDoubleSpaces(_ kind: String) {
+        check(PermissionSamples.model(kind).summary, in: kind)
+        for model in PermissionSamples.questions(4) {
+            check(model.summary, in: "questions")
+        }
+    }
+
+    private func check(_ summary: PermissionRequestModel.Summary, in kind: String) {
+        var texts: [String] = []
+        switch summary {
+        case let .shell(command, description): texts = [command, description ?? ""]
+        case let .question(prompt, options): texts = [prompt] + options
+        case let .diff(path, _, _), let .write(path, _), let .read(path): texts = [path]
+        case let .url(url): texts = [url]
+        case let .other(fields): texts = fields.map(\.value)
+        }
+        for text in texts where text.contains("  ") {
+            Issue.record("\(kind) : « \(text.prefix(80)) » contient des espaces multiples")
+        }
+    }
+
     @Test("an unknown kind falls back rather than failing")
     func unknownKindFallsBack() {
         guard case .shell = PermissionSamples.model("n'importe quoi").summary else {

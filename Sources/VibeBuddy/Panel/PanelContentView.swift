@@ -41,7 +41,7 @@ struct PanelContentView: View {
                 .frame(maxHeight: .infinity, alignment: .top)
 
             if showUsage {
-                Divider().overlay(PanelInk.stroke)
+                VibeDivider()
                 UsageSection(state: usage, l10n: l10n, locale: locale)
             }
         }
@@ -81,11 +81,14 @@ struct PanelContentView: View {
     }
 
     private func sectionTitle(_ text: String, count: Int) -> some View {
-        HStack(spacing: 8) {
+        HStack(spacing: VibeTheme.Spacing.s) {
+            // Same treatment as `AUTORISATION`: a section label is the panel's
+            // way of saying what you are looking at, and there is exactly one
+            // colour for « this is VibeBuddy speaking ».
             Text(text)
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(PanelInk.secondary)
-                .tracking(0.8)
+                .font(VibeTheme.Typography.section)
+                .foregroundStyle(VibeTheme.Accent.primary)
+                .tracking(VibeTheme.Typography.sectionTracking)
             Text("\(count)")
                 .font(.system(size: 11, weight: .medium, design: .monospaced))
                 .foregroundStyle(PanelInk.tertiary)

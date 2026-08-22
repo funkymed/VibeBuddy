@@ -57,7 +57,21 @@ struct NotchShellView: View {
         ZStack {
             shape
                 .fill(.black)
-                .overlay(shape.strokeBorder(PanelInk.stroke, lineWidth: 1))
+                // **Only once deployed.** Collapsed, the shape sits in the
+                // physical hole of the display, where black is not a colour but
+                // the absence of screen — anything laid over it turns the pill
+                // into a visible rectangle against the cutout's edge. Open, the
+                // panel hangs below the notch on ordinary pixels, and a trace
+                // of the accent ties it to the blue of its own buttons.
+                //
+                // A flat fill, not a gradient: a gradient rebuilt per frame is
+                // what once cost this panel 127 Mo. This one is a constant.
+                .overlay(shape.fill(state == .panel ? VibeTheme.Surface.tint : .clear))
+                // Measured off the reference: `(21,27,38)` over `(3,5,7)`, which is
+                // 7 % of red and 12,5 % of blue — an edge catching the panel's
+                // own colour, not a grey line drawn around it.
+                .overlay(shape.strokeBorder(VibeTheme.Border.strong,
+                                            lineWidth: VibeTheme.Border.width))
             pillContent
             panelContent
         }

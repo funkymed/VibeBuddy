@@ -577,7 +577,7 @@ final class NotchPanel: NSPanel {
                 onCancel: {}, onConfirm: {}))
         } else if let permission {
             content = AnyView(PermissionPanelView(
-                model: permission, waiting: permissionWaiting,
+                model: permission, waiting: permissionWaiting, measuring: true,
                 l10n: l10n, onDeny: {}, onAllow: {}, onAlwaysAllow: {}, onAnswer: { _ in }))
         } else {
             // The sessions view is laid out against the full box; it does not

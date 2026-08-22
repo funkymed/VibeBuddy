@@ -20,6 +20,10 @@ struct SessionRow: View, Equatable {
 
     private var jumpPID: pid_t? { session.isLive ? session.pid : nil }
 
+    /// Under the pointer **and** clickable. A dead row highlights for nothing:
+    /// there is no tab to jump to.
+    private var isHot: Bool { hovering && jumpPID != nil }
+
     private var session: AgentSession { group.primary }
 
     // nonisolated: a View is MainActor-isolated, and an Equatable conformance
@@ -47,7 +51,12 @@ struct SessionRow: View, Equatable {
         HStack(spacing: 12) {
             statusDot
 
-            VStack(alignment: .leading, spacing: 4) {
+            // Eight, not four. The reference card is 113 px tall — about
+            // 125 pt — for the same three lines we were fitting into 70. Half
+            // of that difference is the padding below, half is here: three
+            // lines at four points apart read as one paragraph, which is
+            // exactly what they are not.
+            VStack(alignment: .leading, spacing: VibeTheme.Spacing.s) {
                 HStack(spacing: 8) {
                     Text(session.projectName)
                         .font(.system(size: 15, weight: .semibold))
@@ -58,15 +67,20 @@ struct SessionRow: View, Equatable {
                     if group.hasHistory { RowHistoryBadge(group: group, l10n: l10n) }
                 }
                 HStack(spacing: 8) {
+                    // One secondary grey, not two. Sampled off the reference,
+                    // « opus 5 », « depuis 6h46 » and the path all come out at
+                    // `(90,95,102)` — a single level, around 37 % white. Ours
+                    // put the first two at 60 % and the path at 35 %, so the
+                    // model and the duration competed with the project's name.
                     if !session.model.isEmpty {
                         Text(shortModel)
-                            .font(.system(size: 12))
-                            .foregroundStyle(PanelInk.secondary)
+                            .font(VibeTheme.Typography.secondary)
+                            .foregroundStyle(PanelInk.tertiary)
                     }
                     if !detail.isEmpty {
                         Text(detail)
-                            .font(.system(size: 12))
-                            .foregroundStyle(PanelInk.secondary)
+                            .font(VibeTheme.Typography.secondary)
+                            .foregroundStyle(PanelInk.tertiary)
                             .lineLimit(1)
                             .truncationMode(.tail)
                     }
@@ -87,11 +101,21 @@ struct SessionRow: View, Equatable {
                 .foregroundStyle(PanelInk.secondary)
             if !session.permissionMode.isEmpty { RowModeBadge(session: session) }
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .background(RoundedRectangle(cornerRadius: 9)
-            .fill(hovering && jumpPID != nil ? PanelInk.stroke : PanelInk.surface))
-        .contentShape(RoundedRectangle(cornerRadius: 9))
+        .padding(.horizontal, VibeTheme.Spacing.m)
+        .padding(.vertical, VibeTheme.Spacing.m)
+        // The same block every other surface of the panel is drawn as: one
+        // radius, one fill, one hairline. A card at radius 9 next to a button
+        // at 10 is the kind of difference nobody names and everybody feels.
+        // Hovered, a live row takes the buttons' own blue — fill and edge both.
+        // It *is* a button: clicking it jumps to that session's terminal tab.
+        // A white highlight said « something happens here » ; the accent says
+        // « the same kind of something as everywhere else in this panel ».
+        .background(RoundedRectangle(cornerRadius: VibeTheme.Radius.medium)
+            .fill(isHot ? VibeTheme.Accent.wash : VibeTheme.Surface.sunken))
+        .overlay(RoundedRectangle(cornerRadius: VibeTheme.Radius.medium)
+            .strokeBorder(isHot ? VibeTheme.Accent.border : VibeTheme.Border.subtle,
+                          lineWidth: VibeTheme.Border.width))
+        .contentShape(RoundedRectangle(cornerRadius: VibeTheme.Radius.medium))
     }
 
     private var statusDot: some View {
