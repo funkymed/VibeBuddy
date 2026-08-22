@@ -226,10 +226,17 @@ publish:
 	printf "${GREEN}  publié${NC} — copie Casks/vibebuddy.rb dans $(TAP)\n"
 .PHONY: publish
 
+# `perl -i`, not `sed -i ''`. The empty-suffix form is BSD sed's; GNU sed reads
+# it as a filename and fails with « can't read s/… ». A Mac with `gnu-sed` on
+# its PATH — a normal Homebrew setup — hits that, and the release stops on a
+# version that was never written. The `grep` after it is there because a silent
+# no-op would have tagged 0.2.0 onto a binary still calling itself 0.1.0.
 ## Set the version — make bump version=0.2.0
 bump:
 	test -n "$(version)" || { printf "${RED}  usage : make bump version=0.2.0${NC}\n"; exit 1; }
-	sed -i '' 's/static let number = "[^"]*"/static let number = "$(version)"/' Sources/VibeBuddy/AppVersion.swift
+	perl -i -pe 's/static let number = "[^"]*"/static let number = "$(version)"/' Sources/VibeBuddy/AppVersion.swift
+	grep -q 'static let number = "$(version)"' Sources/VibeBuddy/AppVersion.swift \
+		|| { printf "${RED}  la version n'a pas été écrite${NC}\n"; exit 1; }
 	printf "${GREEN}  version → $(version)${NC}\n"
 .PHONY: bump
 
