@@ -25,11 +25,13 @@ struct RowContextGauge: View {
         .help(l10n.contextTooltip(session.contextTokens, session.contextWindow))
     }
 
+    /// The same scale as the consumption meter in the footer — `QuotaScale`.
+    ///
+    /// It used to stay grey below 70 %, which made a session at 60 % look like
+    /// one at 3 %: the ring was drawn and said nothing. A context window is a
+    /// quota like any other, and how full it is deserves the same four steps as
+    /// the ones downstairs.
     private var gaugeColour: Color {
-        switch session.contextFraction {
-        case ..<0.7: return PanelInk.secondary
-        case ..<0.9: return .orange
-        default:     return .red
-        }
+        QuotaScale.colour(session.contextFraction)
     }
 }

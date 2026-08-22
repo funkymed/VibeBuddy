@@ -16,24 +16,11 @@ struct UsageBar: View {
         return max(1, Int((window.fraction * Double(dotCount)).rounded(.up)))
     }
 
-    /// Four steps, warming as the quota goes.
-    ///
-    /// Green up to a quarter, yellow to a half, orange to three quarters, red
-    /// past that — so the colour answers « how much is left » before the number
-    /// is read, and it answers it the same way a fuel gauge does.
-    ///
-    /// **Not `SessionStateStyle`, deliberately.** A quota is not something an
-    /// agent is doing: green here means « plenty left », green there means « at
-    /// work ». Two scales, two tables, and neither should be tempted to borrow
-    /// the other's.
+    /// The shared quota scale — see `QuotaScale`, which the per-session context
+    /// ring reads from too.
     private var tint: Color {
-        guard let window else { return PanelInk.disabled }
-        switch window.fraction {
-        case ..<0.25: return .green
-        case ..<0.50: return .yellow
-        case ..<0.75: return .orange
-        default:      return .red
-        }
+        guard let window else { return QuotaScale.unknown }
+        return QuotaScale.colour(window.fraction)
     }
 
     var body: some View {

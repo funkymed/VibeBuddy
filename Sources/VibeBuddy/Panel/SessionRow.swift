@@ -47,9 +47,34 @@ struct SessionRow: View, Equatable {
         }
     }
 
+    /// Column widths for the right-hand side, so two rows line up.
+    ///
+    /// They floated: the gauge, the age and the mode badge were laid out
+    /// end-to-end after a `Spacer`, each as wide as its own text, so a session
+    /// with no permission mode pulled its gauge 70 pt to the right of its
+    /// neighbour's. Reserved widths make the three read as columns, which is
+    /// what they are — the same three facts about every session.
+    private enum Column {
+        /// Ring plus percentage. Three digits and a « % » is the widest case.
+        static let gauge: CGFloat = 74
+        /// « 4h24 », « 1j », « 12m ».
+        static let age: CGFloat = 34
+        /// « default » is the longest mode Claude Code writes.
+        static let mode: CGFloat = 66
+    }
+
     private var content: some View {
-        HStack(spacing: 12) {
+        // The three lines of text are top aligned; everything on either side of
+        // them — the state dot, the gauge, the age, the mode — is centred
+        // against the row's full height. Those are facts about the session, and
+        // pinning them to the first line makes them read as facts about its
+        // name.
+        HStack(alignment: .top, spacing: 12) {
+            // Centred like the columns on the other side: the dot is the
+            // session's state, a fact about the whole row rather than about
+            // the line it happens to sit next to.
             statusDot
+                .frame(maxHeight: .infinity, alignment: .center)
 
             // Eight, not four. The reference card is 113 px tall — about
             // 125 pt — for the same three lines we were fitting into 70. Half
@@ -93,13 +118,29 @@ struct SessionRow: View, Equatable {
                     .truncationMode(.head)
             }
 
-            Spacer(minLength: 8)
+            Spacer(minLength: VibeTheme.Spacing.s)
 
-            RowContextGauge(session: session, l10n: l10n)
-            Text(relativeActivity)
-                .font(.system(size: 12, design: .monospaced))
-                .foregroundStyle(PanelInk.secondary)
-            if !session.permissionMode.isEmpty { RowModeBadge(session: session) }
+            // **Centred against the whole row, while the left side stays top
+            // aligned.** These three are facts about the session as a whole,
+            // not about any one of its three lines — pinned to the top they
+            // read as belonging to the project's name. `maxHeight: .infinity`
+            // is what lets them take the row's full height inside an `HStack`
+            // whose alignment is `.top`, and centre within it.
+            HStack(spacing: 12) {
+                RowContextGauge(session: session, l10n: l10n)
+                    .frame(width: Column.gauge, alignment: .trailing)
+                Text(relativeActivity)
+                    .font(VibeTheme.Typography.mono(12))
+                    .foregroundStyle(PanelInk.tertiary)
+                    .frame(width: Column.age, alignment: .trailing)
+                // The slot is reserved even when the mode is missing — that is
+                // the whole point of a column.
+                Group {
+                    if !session.permissionMode.isEmpty { RowModeBadge(session: session) }
+                }
+                .frame(width: Column.mode, alignment: .trailing)
+            }
+            .frame(maxHeight: .infinity, alignment: .center)
         }
         .padding(.horizontal, VibeTheme.Spacing.m)
         .padding(.vertical, VibeTheme.Spacing.m)
