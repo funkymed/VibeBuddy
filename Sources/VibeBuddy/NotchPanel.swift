@@ -906,6 +906,10 @@ final class NotchPanel: NSPanel {
         let wanted = state.isVisible
         gaze.isEnabled = wanted
         gaze.followsPointer = follows
+        // A face that follows nothing needs far fewer samples; see
+        // `PointerMonitor.sleepingInterval`. This is the pill-on-screen-all-day
+        // case, which is the one the resting budget is written for.
+        pointer.isDormant = !follows && state != .panel
         gaze.anchor = wanted ? buddyScreenRect : .zero
         // The bands are read off the display the face is on, so a second
         // monitor of another size divides in the same places.
