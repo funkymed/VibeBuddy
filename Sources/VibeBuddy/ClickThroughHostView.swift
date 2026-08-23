@@ -119,21 +119,32 @@ final class ClickThroughHostView<Content: View>: NSView {
 
     override func mouseEntered(with event: NSEvent) {
         onHoverChange?(true)
+        updateHover(with: event)
         scheduleCursor()
     }
 
     override func mouseExited(with event: NSEvent) {
         onHoverChange?(false)
+        // Leaving the panel leaves every zone in it.
+        CursorZones.shared.clearAll()
         NSCursor.arrow.set()
     }
 
     override func mouseMoved(with event: NSEvent) {
         super.mouseMoved(with: event)
+        // **Hover now, cursor next turn.** The deferral exists to win the
+        // cursor back from whoever set it during this event — it buys nothing
+        // for hover, and costs it a run-loop turn on every movement. Sweeping
+        // between two controls, that turn is the difference between a highlight
+        // that follows the pointer and one that lags a frame behind it, which
+        // is what « parfois ça ne marche pas » looked like.
+        updateHover(with: event)
         scheduleCursor()
     }
 
     override func mouseDragged(with event: NSEvent) {
         super.mouseDragged(with: event)
+        updateHover(with: event)
         scheduleCursor()
     }
 
@@ -151,6 +162,14 @@ final class ClickThroughHostView<Content: View>: NSView {
     /// their say by then, and the last writer wins. It is also why this cannot
     /// be a cursor rect or a `.cursorUpdate` area — neither reaches a window
     /// that never becomes key, and this panel never does.
+    /// Hover, from the position the event carries. See
+    /// `CursorZones.update(forWindowPoint:in:)` for why it is not
+    /// `NSEvent.mouseLocation`.
+    private func updateHover(with event: NSEvent) {
+        guard let window else { return }
+        CursorZones.shared.update(forWindowPoint: event.locationInWindow, in: window)
+    }
+
     private func scheduleCursor() {
         DispatchQueue.main.async { [weak self] in
             MainActor.assumeIsolated { self?.applyCursor() }
@@ -159,6 +178,8 @@ final class ClickThroughHostView<Content: View>: NSView {
 
     private func applyCursor() {
         guard window != nil else { return }
+        // Updates every zone's hover state on the way, which is where the
+        // controls learn that the pointer arrived or left.
         let wanted: NSCursor = CursorZones.shared.contains(NSEvent.mouseLocation)
             ? .pointingHand : .arrow
         // **Compare against what is on screen, not against what we last set.**

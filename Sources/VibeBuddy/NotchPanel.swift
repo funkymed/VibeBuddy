@@ -142,6 +142,17 @@ final class NotchPanel: NSPanel {
             defer: false
         )
 
+        // **Dark, whatever the system is set to.**
+        //
+        // The panel is drawn on the black of the notch, but AppKit dresses its
+        // own controls from the window's appearance — and in light mode a
+        // scroller is dark grey on a light track, which on this background is
+        // black on black. The indicator was there and invisible; `.visible`
+        // scroll indicators were being asked for and rendered into nothing.
+        //
+        // Forcing `darkAqua` is the whole fix, and it is the honest one: this
+        // window *is* a dark surface, permanently, in every system theme.
+        appearance = NSAppearance(named: .darkAqua)
         isOpaque = false
         backgroundColor = .clear
         hasShadow = false
@@ -331,6 +342,20 @@ final class NotchPanel: NSPanel {
         // pointer *down into* the opening panel left that rect and collapsed it.
         hover.pillRect = hoverRect(for: state)
         opening = state == .panel
+
+        // **Unfused mouse movement while the panel is open.**
+        //
+        // AppKit merges mouse-moved events by default: swept quickly, a whole
+        // run of positions arrives as a single event carrying the last one, and
+        // every control the pointer crossed on the way is never told. That is
+        // the « je glisse d'un bouton à l'autre sans m'arrêter et ça ne passe
+        // pas en hover » — the events for the buttons in between did not exist.
+        //
+        // Turned off only while the panel is deployed, which is the only state
+        // with anything to hover, and the only one where the extra events are
+        // worth their cost. Restored on the way back to the pill so the resting
+        // budget is untouched.
+        NSEvent.isMouseCoalescingEnabled = (state != .panel)
 
         if state.isVisible { orderFrontRegardless() }
         // Key only while deployed, and only so the cursor can be ours. See

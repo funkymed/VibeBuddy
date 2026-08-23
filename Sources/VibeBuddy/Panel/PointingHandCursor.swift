@@ -33,26 +33,76 @@ final class CursorZones {
     /// handful of views, against a resize that could not be caught reliably.
     private var owners: [ObjectIdentifier: WeakView] = [:]
 
-    private struct WeakView { weak var view: NSView? }
+    private struct WeakView { weak var view: HandCursorView? }
 
-    func register(_ view: NSView) { owners[ObjectIdentifier(view)] = WeakView(view: view) }
+    func register(_ view: HandCursorView) {
+        owners[ObjectIdentifier(view)] = WeakView(view: view)
+    }
 
-    func unregister(_ view: NSView) { owners.removeValue(forKey: ObjectIdentifier(view)) }
+    func unregister(_ view: HandCursorView) {
+        owners.removeValue(forKey: ObjectIdentifier(view))
+        // **No « false » on the way out.**
+        //
+        // It looked prudent — a zone that vanishes under the pointer should say
+        // so — and it was the opposite. Lighting a control changes SwiftUI
+        // state, SwiftUI may rebuild the overlay that carries this view, and a
+        // rebuild unregisters the old one: the hover was cancelled by its own
+        // consequence, one frame after it arrived. Highlight, flicker, nothing.
+        //
+        // A zone that really is gone stops being consulted, and the control it
+        // belonged to is gone with it.
+    }
 
-    /// Whether a screen point falls in a live zone.
-    func contains(_ point: NSPoint) -> Bool {
+    /// Tells every zone whether it holds the pointer, and answers whether any
+    /// of them does.
+    ///
+    /// **This is also where hover comes from.** SwiftUI's `.onHover` was doing
+    /// that job and did it unevenly: it rides tracking areas of its own, in a
+    /// window that is only key while deployed, and sweeping quickly across a
+    /// list dropped enters and exits — « parfois ça ne marche pas ». The panel
+    /// already receives every mouse-moved event reliably, because that is what
+    /// places the cursor. One source of movement, one answer: a control is
+    /// hovered exactly when the pointer is in its zone.
+    /// - Parameter windowPoint: the position **carried by the event being
+    ///   handled**, in its window's coordinates — `event.locationInWindow`.
+    ///
+    ///   Not `NSEvent.mouseLocation`. That reads where the pointer is *now*,
+    ///   and AppKit coalesces mouse-moved events: by the time one is handled
+    ///   the pointer has moved on, often into the six-point gap between two
+    ///   controls. Slid slowly the two agree and everything works; slid quickly
+    ///   the test lands in the gap and nothing lights — exactly « il faut le
+    ///   faire lentement ».
+    @discardableResult
+    func update(forWindowPoint windowPoint: NSPoint, in window: NSWindow) -> Bool {
         var dead: [ObjectIdentifier] = []
         var hit = false
         for (key, box) in owners {
-            guard let view = box.view, let window = view.window, !view.bounds.isEmpty else {
-                dead.append(key)
+            guard let view = box.view, view.window === window, !view.bounds.isEmpty else {
+                if box.view == nil { dead.append(key) }
                 continue
             }
-            let inWindow = window.convertPoint(fromScreen: point)
-            if view.convert(inWindow, from: nil).isWithin(view.bounds) { hit = true }
+            let inside = view.convert(windowPoint, from: nil).isWithin(view.bounds)
+            view.setHovered(inside)
+            if inside { hit = true }
         }
         for key in dead { owners.removeValue(forKey: key) }
         return hit
+    }
+
+    /// Whether a **screen** point falls in a zone. Used only to choose the
+    /// cursor, where « where the pointer is now » is the right question.
+    func contains(_ point: NSPoint) -> Bool {
+        owners.values.contains { box in
+            guard let view = box.view, let window = view.window, !view.bounds.isEmpty
+            else { return false }
+            let inWindow = window.convertPoint(fromScreen: point)
+            return view.convert(inWindow, from: nil).isWithin(view.bounds)
+        }
+    }
+
+    /// Called when the pointer leaves the panel entirely.
+    func clearAll() {
+        for box in owners.values { box.view?.setHovered(false) }
     }
 }
 
@@ -67,9 +117,19 @@ private extension NSPoint {
 
 /// Publishes its own frame as a hand zone, and nothing else.
 @MainActor
-private final class HandCursorView: NSView {
+final class HandCursorView: NSView {
 
     var isEnabled = true { didSet { publish() } }
+    /// Reported outward when the pointer enters or leaves this zone. Fed by
+    /// `CursorZones.update(for:)`, which runs on the panel's own mouse events.
+    var onHover: (Bool) -> Void = { _ in }
+    private var hovered = false
+
+    func setHovered(_ inside: Bool) {
+        guard inside != hovered else { return }
+        hovered = inside
+        onHover(inside)
+    }
 
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
@@ -99,15 +159,18 @@ private final class HandCursorView: NSView {
 
 private struct HandCursorLayer: NSViewRepresentable {
     let isEnabled: Bool
+    let onHover: (Bool) -> Void
 
-    func makeNSView(context: Context) -> NSView {
+    func makeNSView(context: Context) -> HandCursorView {
         let view = HandCursorView()
         view.isEnabled = isEnabled
+        view.onHover = onHover
         return view
     }
 
-    func updateNSView(_ view: NSView, context: Context) {
-        (view as? HandCursorView)?.isEnabled = isEnabled
+    func updateNSView(_ view: HandCursorView, context: Context) {
+        view.isEnabled = isEnabled
+        view.onHover = onHover
     }
 }
 
@@ -122,8 +185,12 @@ struct PointingHandCursor: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .overlay { HandCursorLayer(isEnabled: isEnabled) }
-            .onHover(perform: onHoverChange)
+            // Hover and cursor come from the same layer, so they can never
+            // disagree — and both ride the panel's own events rather than
+            // SwiftUI's tracking areas. See `CursorZones.update(for:)`.
+            .overlay {
+                HandCursorLayer(isEnabled: isEnabled, onHover: onHoverChange)
+            }
     }
 }
 

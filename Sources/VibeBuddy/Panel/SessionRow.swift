@@ -40,6 +40,11 @@ struct SessionRow: View, Equatable {
                 onJump?(pid)
             } label: { content }
                 .buttonStyle(.plain)
+                // A solid shape for the hover test, not the union of whatever
+                // is opaque inside: without it the highlight blinks as the
+                // pointer crosses the gaps between the three lines of text.
+                // Same fix as `VibeButton`.
+                .contentShape(RoundedRectangle(cornerRadius: VibeTheme.Radius.medium))
                 .pointingHandCursor { hovering = $0 }
                 .help(l10n.jumpHint)
         } else {
@@ -151,11 +156,21 @@ struct SessionRow: View, Equatable {
         // It *is* a button: clicking it jumps to that session's terminal tab.
         // A white highlight said « something happens here » ; the accent says
         // « the same kind of something as everywhere else in this panel ».
+        // Lit under the pointer, like the answers in a question: this row is a
+        // button — clicking it jumps to that session's terminal tab — and it
+        // should say so with the same light. `isHot` is true for one row at a
+        // time, so the list never carries two halos. See `neonHalo`.
+        .neonHalo(RoundedRectangle(cornerRadius: VibeTheme.Radius.medium), isOn: isHot)
         .background(RoundedRectangle(cornerRadius: VibeTheme.Radius.medium)
             .fill(isHot ? VibeTheme.Accent.wash : VibeTheme.Surface.sunken))
         .overlay(RoundedRectangle(cornerRadius: VibeTheme.Radius.medium)
             .strokeBorder(isHot ? VibeTheme.Accent.border : VibeTheme.Border.subtle,
                           lineWidth: VibeTheme.Border.width))
+        // The same pooled edge the buttons wear, so a lit row and a lit answer
+        // are recognisably the same gesture.
+        .overlay(RoundedRectangle(cornerRadius: VibeTheme.Radius.medium)
+            .inset(by: 1.5)
+            .strokeBorder(isHot ? VibeTheme.Glow.inner : .clear, lineWidth: 1))
         .contentShape(RoundedRectangle(cornerRadius: VibeTheme.Radius.medium))
     }
 

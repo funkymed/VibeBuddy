@@ -52,8 +52,13 @@ enum VibeTheme {
         /// now does. A grey at 10 % is four times the reference and turns every
         /// control into a visible plate.
         static let interactive = Color.white.opacity(0.025)
-        /// The same, under the pointer. Doubling is what makes a hover read.
-        static let interactiveHover = Color.white.opacity(0.06)
+        /// The same, under the pointer.
+        ///
+        /// Four times the resting value, not twice. At 0,06 the change was
+        /// there on a colour picker and absent to the eye — a control that
+        /// answers a pointer with two levels of grey reads as not answering at
+        /// all, which is exactly the « pas assez réactif » it was reported as.
+        static let interactiveHover = Color.white.opacity(0.10)
 
         /// Laid over the black of the deployed panel, and nowhere else.
         ///
@@ -137,6 +142,37 @@ enum VibeTheme {
         /// as extra light.
         static let divider = hairline.opacity(0.035)
         static let width: CGFloat = 1
+    }
+
+    /// Light. **One shadow, on one element at a time.**
+    ///
+    /// Section 3 of the brief asks for glow, and this repository has three
+    /// measurements that say how it must be built: three stacked shadows on the
+    /// buddy's face cost 38 Mo and 5,4 wakeups/s where **one** costs 23 Mo and
+    /// 0,2 ; three gradients inside a phase-dependent body cost 127 Mo. So the
+    /// rule is not « subtle » — it is *one blurred layer, and only on the thing
+    /// the eye is meant to land on*.
+    ///
+    /// The inner half of the glow is deliberately **not** blurred: a second
+    /// hairline set one point inside the border reads as light pooling along
+    /// the edge, and costs nothing. Only the outer halo is a real `shadow`.
+    enum Glow {
+        /// Around the accented control: the answer under the pointer, the
+        /// action that goes forward. Never more than one on screen.
+        ///
+        /// **0,55 and 14 pt, measured rather than judged.** At 0,30 over 9 pt
+        /// the halo came out one level above the panel — `(4,8,15)` against
+        /// `(4,8,14)` — which is to say invisible. A blurred colour spread over
+        /// a radius loses its opacity to the spread; on a near-black panel the
+        /// number has to be far higher than the « 10 % » a design brief writes
+        /// for a light background.
+        static let outer = Accent.primary.opacity(0.55)
+        static let radius: CGFloat = 6
+        /// The pooled edge, drawn as a stroke rather than a blur.
+        static let inner = Accent.primary.opacity(0.16)
+        /// A refusal lights in its own colour, and only under the pointer:
+        /// « Refuser » must never be the brightest thing on a resting panel.
+        static let deny = PermissionInk.removed.opacity(0.45)
     }
 
     /// Control heights, measured off the reference rather than derived from a

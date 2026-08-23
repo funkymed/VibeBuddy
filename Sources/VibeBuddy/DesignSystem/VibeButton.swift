@@ -45,14 +45,22 @@ struct VibeButton: View {
 
     @State private var hovering = false
 
-    /// Whether this button wears the accent. Decided by the caller, never here.
+    /// Whether this button wears the accent.
     ///
-    /// It briefly computed its own « or hovered », which put **two** rows in
-    /// blue at once: the first one, which is prominent by default, and the one
-    /// under the pointer. Two « this is the one » is none. Only the list knows
-    /// which of its rows is current, so the list decides — see
-    /// `AskQuestionView.optionList`.
-    private var wearsAccent: Bool { isProminent }
+    /// **One source, and it is this button's own pointer state.** It went
+    /// through the list for a while, because a row was accented by default and
+    /// two of them could light at once. That default is gone — nothing is
+    /// selected until the pointer says so — and with it the reason to split the
+    /// decision in two.
+    ///
+    /// Splitting it was what broke fast movement: the fill was drawn from the
+    /// local `hovering`, the accent from the list's index, and SwiftUI delivers
+    /// enter and exit in whichever order it likes. Sweeping across a list left
+    /// one button filled and another accented. A mouse is only ever in one
+    /// place; asking the button itself cannot contradict that.
+    private var wearsAccent: Bool {
+        isProminent || (isRow && hovering && role == .neutral)
+    }
 
     var body: some View {
         Button(action: action) {
@@ -63,10 +71,34 @@ struct VibeButton: View {
                 // happens to measure.
                 .frame(height: isRow ? VibeTheme.Control.row : VibeTheme.Control.decision)
                 .frame(maxWidth: isRow ? .infinity : nil, alignment: .leading)
+                // One shared implementation for the halo; see `neonHalo`.
+                .neonHalo(shape, isOn: wearsAccent || role == .accent || (role == .deny && hovering),
+                          colour: role == .deny ? VibeTheme.Glow.deny : VibeTheme.Glow.outer)
                 .background(shape.fill(fill))
                 .overlay(shape.strokeBorder(stroke, lineWidth: VibeTheme.Border.width))
+                // Light pooling just inside the edge, as a stroke rather than a
+                // blur: a second blurred layer is what cost this repository
+                // 15 Mo and five wakeups a second the last time.
+                .overlay(
+                    shape
+                        .inset(by: 1.5)
+                        .strokeBorder(wearsAccent || role == .accent
+                                      ? VibeTheme.Glow.inner : .clear,
+                                      lineWidth: 1))
         }
+        .contentShape(shape)
         .buttonStyle(.plain)
+        // **Both**, and the order matters.
+        //
+        // `contentShape` after `buttonStyle` gives the *button* one hit area.
+        // But `pointingHandCursor` installs its own `onHover` on top, and that
+        // one tests against whatever is opaque underneath — the label's text
+        // and its background, with the gaps between them left out. Hovering the
+        // words worked; hovering a hair above them did not, and moving along a
+        // line of text made the highlight blink.
+        //
+        // `contentShape` again, *before* the hover modifier, hands it a single
+        // solid rectangle to test against.
         .contentShape(shape)
         .pointingHandCursor {
             hovering = $0
@@ -89,8 +121,11 @@ struct VibeButton: View {
                 Spacer(minLength: VibeTheme.Spacing.s)
                 // Says the row goes somewhere. Filled on the prominent one,
                 // outlined on the rest — the difference is the whole hierarchy.
-                Image(systemName: isProminent ? "arrow.right" : "chevron.right")
-                    .font(.system(size: isProminent ? 12 : 11, weight: .semibold))
+                // Follows the accent, not `isProminent`: the arrow is what
+                // says « this is the one that would go », and that is now
+                // decided by the pointer.
+                Image(systemName: wearsAccent ? "arrow.right" : "chevron.right")
+                    .font(.system(size: wearsAccent ? 12 : 11, weight: .semibold))
                     .foregroundStyle(wearsAccent ? VibeTheme.Accent.cyan : PanelInk.tertiary)
             }
         } else {
