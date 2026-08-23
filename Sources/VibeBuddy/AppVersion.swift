@@ -5,7 +5,7 @@ import Foundation
 enum AppVersion {
 
     /// The one place to edit the version.
-    static let number = "0.4.1"
+    static let number = "0.4.2"
 
     static var current: String {
         (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String) ?? number
