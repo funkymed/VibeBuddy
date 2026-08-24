@@ -127,6 +127,18 @@ public enum HookSocket {
 
     // MARK: - Lines
 
+    /// Bounds how long a `recv` on this descriptor may block.
+    ///
+    /// The accepted side of a connection inherits nothing from the listening
+    /// socket, so a server that does not set this waits for ever on a peer that
+    /// goes quiet.
+    public static func setReadTimeout(_ fd: Int32, seconds: TimeInterval) {
+        var window = timeval(tv_sec: Int(seconds),
+                             tv_usec: Int32((seconds - Double(Int(seconds))) * 1e6))
+        setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &window,
+                   socklen_t(MemoryLayout<timeval>.size))
+    }
+
     public static func write(_ data: Data, to fd: Int32) -> Bool {
         var sent = 0
         return data.withUnsafeBytes { raw -> Bool in

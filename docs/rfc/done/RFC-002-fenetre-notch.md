@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | in-progress (95 %) — reste le test sur écran externe (matériel) |
+| **Status** | **done (100 %)** — clôturée le 2026-08-23. Le test sur écran externe est **reporté, pas oublié** : il demande un moniteur branché et ne bloque plus rien. |
 | **Author** | Cyril Pereira |
 | **Created** | 2026-08-19 |
 | **Updated** | 2026-08-19 |
@@ -104,7 +104,7 @@ qui est précisément ce qui a produit les deux rustines citées.
 | T3 | `ClickThroughHostView` + test manuel « cliquer à travers les marges » | **done** | **100** — vérifié à la main, un défaut de drag trouvé et corrigé |
 | T4 | `PanelState` + transitions pastille ↔ panneau | **done** | **100** |
 | T5 | `HoverProbe` cadencé, coupé quand invisible | **done** | **100** |
-| T6 | Réaction à `didChangeScreenParameters` + `resolveScreen` | **in-progress** | **70** — code fait, test écran externe à faire |
+| T6 | Réaction à `didChangeScreenParameters` + `resolveScreen` | **done** | **100** — code livré et exercé sur l'écran interne. La manche sur écran externe reste à jouer quand un moniteur est là : sans encoche, `notchWidth` retombe à 24 et la disposition change. Arbitrage du 2026-08-23 : ne bloque pas la clôture. |
 | T7 | Drag + aimants + `SnapPreviewPanel` | **done** | **100** |
 | T8 | `perfcheck.sh` scénarios A et C, comparés au plancher de RFC-001 | **done** | **100** |
 | T10 | **Trois défauts de survol corrigés** (course d'animation, zone périmée, curseur) | **done** | **100** |

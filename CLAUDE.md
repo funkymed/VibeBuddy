@@ -95,7 +95,7 @@ Conséquence pratique : l'app ne porte pas de notice MIT, parce qu'elle n'a rien
 | — | [Spike](docs/spikes/keychain-oauth-usage.md) keychain + oauth-usage — débloquait RFC-004 | **done** | **100 %** | v1 | ✔ |
 | — | [Spike](docs/spikes/hook-contract.md) contrat de hook — **prouvé en réel le 2026-08-21** | **done** | **100 %** | v1 | ✔ |
 | [001](docs/rfc/done/RFC-001-socle-applicatif.md) | Socle applicatif, cycle de vie, budget de performance | **done** | **100 %** | v1 | ✔ |
-| [002](docs/rfc/RFC-002-fenetre-notch.md) | Fenêtre notch : NSPanel, click-through, multi-écran | **in-progress** | **95 %** | v1 | 4-6 j |
+| [002](docs/rfc/done/RFC-002-fenetre-notch.md) | Fenêtre notch : NSPanel, click-through, multi-écran | **done** | **100 %** | v1 | ✔ |
 | [003](docs/rfc/done/RFC-003-collecte-sessions.md) | Collecte de sessions : source de vérité unique | **done** | **100 %** | v1 | ✔ |
 | [004](docs/rfc/done/RFC-004-usage-live.md) | Utilisation live : Keychain + endpoint OAuth | **done** | **100 %** | v1 | ✔ |
 | [005](docs/rfc/done/RFC-005-rendu-buddy.md) | Buddy : visage, format `.buddy`, rendu | **done** | **100 %** | v1 | ✔ |
@@ -109,6 +109,7 @@ Conséquence pratique : l'app ne porte pas de notice MIT, parce qu'elle n'a rien
 | [013](docs/rfc/done/RFC-013-buddy-interactif.md) | **Buddy interactif** — regard, chasse, rire, icône | **done** | **100 %** | v1 | ✔ |
 | [014](docs/rfc/RFC-014-celebration-fin-de-tache.md) | **Célébration de fin de tâche** — mini-panneau, pouce, confettis | todo | 0 % | v1.1 | 1-2 j |
 | [015](docs/rfc/RFC-015-son-du-buddy.md) | **Le son du buddy** — paquet de sons rechargeable à chaud | todo | 0 % | v1.1 | 1-2 j |
+| [016](docs/rfc/RFC-016-ponts-agents-terminaux.md) | **Ponts agents et terminaux** — `AgentBridge`, `TerminalBridge`, opencode, tmux | todo | 0 % | v1.2 | 4-6 j |
 
 **Reste pour le v1 : 1,5-4,5 j-h** (001, 003, 005 et **012** faites ; 002, 004 et
 **006** à 95 %, 010 et **013** à 90 % ; spike keychain fait) · plan complet restant : 15,5-24 j-h. Dev solo en parallèle d'autres projets →
@@ -122,7 +123,6 @@ Ordre = ordre de réalisation, pas ordre de numérotation.
 ```
 ── EN COURS ──
 #   RFC      Titre                                          Avancement            %    Reste   Jalon
-1   RFC-002  Fenêtre notch (NSPanel, click-through)          ███████████████████░  95 %   0,5 j  v1
 2   —        Spike keychain + oauth-usage                    ████████████████████ 100 %   ✔      v1
 3   —        Spike contrat de hook ← **prouvé en réel**      ████████████████████ 100 %   ✔      v1
 4   RFC-006  Pont hook + socket Unix                         ███████████████████░  95 %   0,5 j  v1
@@ -132,8 +132,10 @@ Ordre = ordre de réalisation, pas ordre de numérotation.
 8   RFC-014  Célébration de fin de tâche                     ░░░░░░░░░░░░░░░░░░░░   0 %   1-2 j  v1.1
 9   RFC-015  Le son du buddy (paquet rechargeable)           ░░░░░░░░░░░░░░░░░░░░   0 %   1-2 j  v1.1
 10  RFC-009  Index d'activité (heatmap + historique)         ░░░░░░░░░░░░░░░░░░░░   0 %   3-4 j  v1.2
+11  RFC-016  Ponts agents et terminaux (opencode, tmux)      ░░░░░░░░░░░░░░░░░░░░   0 %   4-6 j  v1.2
 
 ── DONE ──
+—   RFC-002  Fenêtre notch (NSPanel, click-through)          ████████████████████ 100 %   —      v1
 —   RFC-010  Réglages segmentés + aperçu de buddy            ████████████████████ 100 %   —      v1
 —   RFC-013  Buddy interactif (regard, chasse, rire)         ████████████████████ 100 %   —      v1
 —   RFC-004  Utilisation live (Keychain + OAuth)             ████████████████████ 100 %   —      v1
@@ -209,6 +211,8 @@ Chaque risque est traité dans la RFC en regard ; ce tableau est l'index.
 | R8 | Détection de session fragile (appariement PID par ordre de tri) | 003, 008 |
 | R9 | Le format des jsonl n'est pas un contrat | 003, 004, 009 |
 | R10 | Dérive calendaire — **chaque RFC se termine sur un binaire lançable** | transverse |
+| R11 | **Multi-agent reporté** — v1 Claude-only par arbitrage du 2026-08-19. Cité en prose depuis, absent de cet index jusqu'au 2026-08-24 : un risque qu'on dit suivre et qui n'est pas listé n'est pas suivi | 016 |
+| R12 | **Retour à l'onglet limité à deux terminaux**, et cassé sous tmux — c'est-à-dire le cas courant | 008, 016 |
 
 ## Conventions
 

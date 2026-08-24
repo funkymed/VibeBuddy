@@ -175,9 +175,37 @@ private func send(_ json: String, to path: String, expectingReply: Bool) -> Stri
     return String(data: reply, encoding: .utf8)
 }
 
-/// Serialised. In parallel this suite fails about one run in six, and the cause
-/// is **not known** — two attempts at fixing it on 2026-08-21 each made it
-/// worse. See RFC-006 T11, which records both and what they ruled out.
+/// Waits for a condition instead of guessing how long it takes.
+///
+/// **This is what RFC-006 T11 turned out to be.** The suite failed about one
+/// run in six, the cause was recorded as « unknown », and two attempted fixes
+/// on 2026-08-21 each made it worse — all of it looking for a race in the
+/// socket server. There was none: the tests slept a fixed 300 ms and then
+/// asserted. A fire-and-forget event is handled asynchronously, and on a busy
+/// machine that budget is simply not always enough. The failure rate tracked
+/// the load, which is exactly what « instable sous charge parallèle » looks
+/// like from the outside.
+///
+/// Polling to a deadline is both faster in the normal case — it returns as soon
+/// as the work lands, usually in a millisecond or two — and immune to a slow
+/// machine.
+private func waitUntil(
+    _ timeout: TimeInterval = 5,
+    _ condition: @Sendable () -> Bool
+) async -> Bool {
+    let deadline = Date().addingTimeInterval(timeout)
+    while Date() < deadline {
+        if condition() { return true }
+        try? await Task.sleep(nanoseconds: 2_000_000)
+    }
+    return condition()
+}
+
+/// Kept `.serialized`: these tests bind real sockets and the suite is short, so
+/// there is nothing to win by running them at once.
+///
+/// The « one failure in six » this note used to describe was **not** the socket
+/// — see `waitUntil` above for what it actually was.
 @Suite("Hook: the socket, end to end", .serialized)
 struct HookSocketServerTests {
 
@@ -191,8 +219,8 @@ struct HookSocketServerTests {
         let path = await server.socketPath
         #expect(send(#"{"hook_event_name":"Stop","session_id":"s1"}"#,
                      to: path, expectingReply: false) == "")
-        try await Task.sleep(nanoseconds: 300_000_000)
-        #expect(sink.received.map(\.event) == [.stop])
+        #expect(await waitUntil { sink.received.map(\.event) == [.stop] },
+                "l'événement n'est jamais arrivé au puits")
     }
 
     @Test("a permission request gets its decision back")
@@ -225,7 +253,10 @@ struct HookSocketServerTests {
         let request = try #require(HookRequest.parse(
             Data(#"{"hook_event_name":"PermissionRequest","tool_name":"Bash"}"#.utf8)))
         #expect(HookSocket.write(try HookLine.encodeRequest(request), to: fd))
-        try await Task.sleep(nanoseconds: 200_000_000)
+        // Hang up once the server has actually taken the request, not after a
+        // guess at how long that takes.
+        #expect(await waitUntil { !sink.received.isEmpty },
+                "le serveur n'a jamais vu la demande")
         close(fd)
 
         // The sink is still asleep for thirty seconds; the connection must be

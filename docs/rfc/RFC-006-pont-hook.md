@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | **in-progress (95 %)** — transport, installateur et contrat **prouvé en réel** ; reste **T11 seule**, un défaut d'affamement de fils trouvé le 2026-08-21 et non corrigé |
+| **Status** | **in-progress (96 %)** — transport, installateur et contrat **prouvé en réel** ; reste **T11 seule**, un défaut d'affamement de fils trouvé le 2026-08-21 et non corrigé |
 | **Author** | Cyril Pereira |
 | **Created** | 2026-08-19 |
 | **Updated** | 2026-08-21 (soir) |
@@ -150,7 +150,7 @@ horodatée est ce qui rend l'erreur réparable.
 | T8 | `HookInstaller` idempotent + nettoyage des entrées obsolètes | **done** | **100** |
 | T9 | `vibebuddy --uninstall-hook` | **done** | **100** |
 | T10 | Mesure du temps de démarrage du hook (valide D4) | **done** | **100** — **3,2 ms** de médiane, cible 8 |
-| T11 | **Instabilité du socket sous charge parallèle** — 1 échec sur 6, cause **inconnue**, deux correctifs tentés et annulés | todo | 0 |
+| T11 | **Perte d'un événement tir-et-oublie** — 1 sur 6 → **1 sur 14** ; une cause trouvée et corrigée, une seconde isolée mais pas résolue | **in-progress** | **60** |
 
 ### Ce que T8 et T9 ont demandé de plus que prévu
 
@@ -253,6 +253,52 @@ quel ordre — plutôt que par proposer une architecture.
 permission est en attente **ne bloque pas Claude Code plus de 120 s**.
 `--uninstall-hook` retire exactement nos entrées, vérifié par `diff` contre la
 sauvegarde. Le hook démarre en moins de 8 ms.
+
+### T11, le 2026-08-23 — ce qui est trouvé, ce qui reste
+
+**Une cause sur deux est réglée, et ce n'était pas le socket.** Les tests
+dormaient 300 ms fixes avant d'affirmer. Un événement en tir-et-oublie est
+traité de façon asynchrone : sur une machine chargée ce budget ne suffit pas
+toujours, et le taux d'échec suivait la charge — ce qui, vu de l'extérieur,
+ressemble exactement à « instable sous charge parallèle ». Remplacé par une
+attente **sur la condition** avec échéance (`waitUntil`). Effet secondaire
+mesuré : la suite passe de 1,14 s à **0,63 s**, parce que les 500 ms d'attente
+fixe étaient payés à chaque exécution même quand tout allait bien.
+
+**Ce qui reste, et c'est une donnée neuve.** Avec l'attente conditionnelle, il
+subsiste **1 échec sur 14** où l'événement n'arrive *jamais* — cinq secondes ne
+suffisent pas davantage que trois cents millisecondes. La trace du serveur
+(`VIBEBUDDY_HOOK_TRACE=1`) montre le mode de panne exact :
+
+```
+hooksrv: accept → fd 5
+(plus rien : aucun « read fd 5 »)
+```
+
+Le serveur accepte la connexion, puis `readLine` ne rend jamais la main. Le
+client, lui, a réussi son `connect` **et** son `write` — `send` rend `""`, sans
+quoi la première assertion tomberait. Des octets sont donc écrits sur une
+connexion établie, et jamais lus.
+
+**Heisenbug confirmé** : avec la trace active, 22 exécutions consécutives sans
+un seul échec ; sans elle, 1 sur 14. L'écriture sur `stderr` déplace assez le
+minutage pour faire disparaître le cas.
+
+**Éliminé aujourd'hui** : l'écriture partielle côté client (`write` boucle
+jusqu'au bout et rend `false` sinon) ; la famine du pool coopératif (`read`
+tourne sur `DispatchQueue.global`, pas sur le pool Swift) ; la collision de
+chemins (`temporarySocket` tire un UUID) ; l'ordre lecture/raccrochage (le
+raccrochage n'est consulté que pour les événements bloquants).
+
+**Livré en attendant** : `HookSocket.setReadTimeout` sur chaque descripteur
+accepté, dix secondes. Ça ne rend pas l'événement, mais un descripteur et un fil
+GCD immobilisés pour la vie du processus sont une fuite, et une app dont la
+première règle est de ne jamais bloquer ne peut pas se le permettre.
+
+**La prochaine piste**, dans l'ordre : instrumenter côté **client** dans le même
+run (quel `fd`, combien d'octets `send` a réellement écrits, à quel instant)
+pour savoir si les octets partent vers le descripteur que le serveur a accepté.
+La trace serveur seule ne peut pas répondre.
 
 ## 6. Open Questions
 

@@ -59,23 +59,60 @@ public actor HookSocketServer {
 
     // MARK: - One connection
 
+    /// Set `VIBEBUDDY_HOOK_TRACE` to see which call returned what, in order.
+    /// RFC-006 T11 asks for exactly this rather than another guess at the
+    /// architecture.
+    private static let trace = ProcessInfo.processInfo.environment["VIBEBUDDY_HOOK_TRACE"] != nil
+
+    private static func note(_ message: @autoclosure () -> String) {
+        guard trace else { return }
+        FileHandle.standardError.write(Data("hooksrv: \(message())\n".utf8))
+    }
+
+    /// Same, but says which socket is speaking. Two servers in one test run
+    /// are indistinguishable otherwise.
+    private func note(_ message: @autoclosure () -> String) {
+        Self.note("[\((path as NSString).lastPathComponent)] \(message())")
+    }
+
     private func acceptOne() async {
-        guard listening >= 0 else { return }
+        guard listening >= 0 else {
+            note("acceptOne : plus d'écoute")
+            return
+        }
         let fd = accept(listening, nil, nil)
-        guard fd >= 0 else { return }
+        guard fd >= 0 else {
+            note("accept → \(fd), errno \(errno)")
+            return
+        }
+        note("accept → fd \(fd)")
         // Not inherited from the listening socket: each connection needs it.
         HookSocket.silencePipe(fd)
+        // **And neither is a read deadline.** `readLine` blocks byte by byte
+        // with no bound of its own, so a connection that never delivers a
+        // complete line holds a descriptor and a GCD thread for the life of the
+        // process. Observed while chasing RFC-006 T11: a trace showed `accept`
+        // followed by nothing at all, for ever.
+        //
+        // Whatever makes that happen, waiting for ever cannot be the answer in
+        // an app whose first rule is never to block. Ten seconds is far beyond
+        // any real hook — `vibe-hook` writes its line and exits — and turns an
+        // indefinite hang into a closed socket.
+        HookSocket.setReadTimeout(fd, seconds: 10)
         open.insert(fd)
         let pid = HookSocket.peerPID(fd)
 
         // Off the actor: `readLine` blocks, and the actor must stay free to
         // accept the next hook — Claude Code spawns them in bursts.
         let line = await Self.read(fd)
+        note("read fd \(fd) → \(line.map { "\($0.count) octets" } ?? "nil")")
         guard let line, let request = HookLine.decodeRequest(line) else {
+            note("fd \(fd) : ligne illisible, abandon")
             finish(fd); return
         }
 
         guard request.event.isBlocking else {
+            note("fd \(fd) : \(request.event.rawValue) en tir-et-oublie")
             // Fire-and-forget. Close first: the hook has already exited, and
             // holding the descriptor open buys nothing.
             finish(fd)
