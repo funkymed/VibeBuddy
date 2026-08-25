@@ -5,7 +5,6 @@ import VibeBuddyKit
 /// `--info` — what the app resolved about this machine, and what it costs now.
 @MainActor
 enum Diagnostics {
-
     private static func describe(_ status: SMAppService.Status) -> String {
         switch status {
         case .notRegistered: return "notRegistered — jamais inscrite, et l'API la voit"
@@ -17,19 +16,6 @@ enum Diagnostics {
     }
 
     /// Runs an async job and waits for it, from a synchronous entry point.
-    ///
-    /// `--info` is a command-line tool: it prints and exits, so blocking is the
-    /// honest shape. What is **not** honest is writing the result into a
-    /// captured `var` — the value crosses a concurrency boundary, and
-    /// `nonisolated(unsafe)` only silenced the compiler that noticed. A newer
-    /// toolchain refused it outright, and it was right to: the local was read
-    /// after the semaphore without anything ordering the two.
-    ///
-    /// A box handed to the task, and read only once the task has signalled, is
-    /// the same wait with the race removed.
-    ///
-    /// Detached on purpose: a plain `Task` starts on the current actor, and
-    /// this thread is about to block — it would never get to run.
     private static func blocking<Value: Sendable>(
         timeout: TimeInterval = 5, _ job: @escaping @Sendable () async -> Value
     ) -> Value? {
@@ -43,7 +29,7 @@ enum Diagnostics {
         return box.value
     }
 
-    /// One value, one lock. Small enough to be obviously right.
+    /// One value, one lock.
     private final class Box<Value: Sendable>: @unchecked Sendable {
         private let lock = NSLock()
         private var stored: Value?
@@ -57,17 +43,10 @@ enum Diagnostics {
         _ = NSApplication.shared  // needed for NSScreen
 
         // Preferences go through the store, never `UserDefaults.standard`.
-        // An unbundled binary keys its domain on the executable name and a
-        // bundle keys it on its identifier, so a direct read can land on a
-        // domain that never saw the value; `PreferencesStore.legacyDomains`
-        // is the ordered chain that reconciles them. See docs/hook.md.
         let appearance = AppearancePrefs(store: PreferencesStore())
 
-        // Read-only, and that is the point: `SMAppService.status` answers
-        // without registering anything. A bare binary has no bundle identifier
-        // and gets `.notFound`; the signed bundle gets `.notRegistered`. That
-        // difference alone is what RFC-010 T4 could never check, since the
-        // login item cannot be exercised from `.build/release`.
+        // Read-only, and that is the point: `SMAppService.status` answers without
+        // registering anything.
         print("── ouverture à la session ──")
         print("  identifiant du bundle : \(Bundle.main.bundleIdentifier ?? "aucun — binaire nu")")
         print("  état SMAppService     : \(describe(SMAppService.mainApp.status))")
@@ -194,13 +173,12 @@ enum Diagnostics {
         }
         let ms = Date().timeIntervalSince(started) * 1000
         print(String(format: "  %d transcripts au total · %.1f ms pour 10 queues", files.count, ms))
-        // Parade R9 : ce que le parseur n'a pas su lire est compté, pas ignoré.
         print("  types non reconnus : \(unrecognised.isEmpty ? "aucun" : String(describing: unrecognised))")
 
         print("\n── sessions vivantes (processus + transcript) ──")
         let t0 = Date()
-        // A timeout reads as « aucune session », which is what the empty case
-        // already prints. `--info` reports; it does not diagnose itself.
+        // A timeout reads as « aucune session », which is what the empty case already
+        // prints.
         let live = blocking { await SessionStore().refresh() } ?? []
         let refreshMs = Date().timeIntervalSince(t0) * 1000
 
@@ -229,8 +207,6 @@ enum Diagnostics {
         if let front = NSWorkspace.shared.frontmostApplication {
             print("  premier plan : \(front.localizedName ?? "?") · \(front.bundleIdentifier ?? "?")")
         }
-        // La chaîne parent telle que libproc la voit — c'est elle qui décide si
-        // le terminal hôte est identifiable, et son échec est muet sans ça.
         if let pid = live.first(where: { $0.pid != nil })?.pid {
             print("  chaîne parent depuis \(pid) :")
             var cur = pid
@@ -267,22 +243,22 @@ enum Diagnostics {
                      : "r\(rate(Double(plate.radius)))"))
             for name in BuddyExpression.allCases {
                 guard let e = manifest.expression(name) else { continue }
-                // Printed per expression, overridden or not: an override that
-                // failed to parse looks like an inherited value otherwise.
+                // Printed per expression, overridden or not: an override that failed to
+                // parse looks like an inherited value otherwise.
                 print(String(format: "      %-9@ %@  %-8@ %@",
                              name.rawValue as NSString,
                              (e.colour ?? manifest.colour) as NSString,
                              e.motion.rawValue as NSString,
                              BuddyExportWriter.poseLine(e.eye) as NSString))
-                // The cells themselves, because a face is authored by eye and
-                // this is the only faithful preview outside the running app.
+                // The cells themselves, because a face is authored by eye and this is
+                // the only faithful preview outside the running app.
                 if manifest.id == active {
                     for row in faceRows(spec: e.eye, plate: plate) { print("        \(row)") }
                 }
             }
         }
-        // Follows `VIBEBUDDY_FACE` so any expression's sequence can be read
-        // without launching the app and waiting for the right state.
+        // Follows `VIBEBUDDY_FACE` so any expression's sequence can be read without
+        // launching the app and waiting for the right state.
         var idleLoader = BuddyLoader()
         let traced = AppCoordinator.forcedFace ?? .idle
         let loaded = idleLoader.load(id: active).manifest
@@ -337,8 +313,8 @@ enum Diagnostics {
         case .noCredentials: print("  pas de jeton lisible")
         case let .rateLimited(after):
             // The header is a floor, not a schedule: measured on 2026-08-20 the
-            // endpoint refuses with `retry-after: 0`, so what the app will
-            // actually wait is its own backoff.
+            // endpoint refuses with `retry-after: 0`, so what the app will actually
+            // wait is its own backoff.
             print(String(format: "  limité (retry-after %.0f s) → attente réelle %.0f s min",
                          after, UsageState.backoffFloor))
             if let cached = UsageCache().load() {
@@ -366,11 +342,6 @@ enum Diagnostics {
     }
 
     /// One eyes expression, drawn as the cells it actually lights up.
-    ///
-    /// A `.buddy` face is authored by eye and there is no other faithful
-    /// preview outside the running app: every attempt to judge a pose from its
-    /// numbers alone got it wrong. Sampled on a beat that looks straight ahead,
-    /// so the preview is the pose rather than a glance.
     static func faceRows(spec: EyeSpec, plate: BuddyManifest.FacePlate) -> [String] {
         let pitch = BuddyView.pixelSize
         let size = CGSize(width: plate.width, height: plate.height)
@@ -380,8 +351,8 @@ enum Diagnostics {
             break
         }
         let animation = EyeAnimation.at(phase: phase, spec: spec)
-        // Grain and tear included: a `failed` face whose screen is not tearing
-        // is not the face the app shows.
+        // Grain and tear included: a `failed` face whose screen is not tearing is not
+        // the face the app shows.
         let rendered = EyeRaster.frame(
             in: size, pose: spec.pose, animation: animation, pitch: pitch,
             grain: spec.grain, glitch: spec.glitch,

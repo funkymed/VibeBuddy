@@ -1,10 +1,9 @@
 import Foundation
 
-/// Keeps one state per session and turns snapshots into alerts: N sessions,
-/// N independent state machines, N attributed alerts.
+/// Keeps one state per session and turns snapshots into alerts: N sessions, N
+/// independent state machines, N attributed alerts.
 @MainActor
 public final class AlertTracker {
-
     private var states: [String: SessionActivity] = [:]
     private var policy = AlertPolicy()
     private let bus: AlertBus
@@ -12,7 +11,7 @@ public final class AlertTracker {
     /// Injected so the tracker stays testable without AppKit.
     public var isHostingTerminalFrontmost: (AgentSession) -> Bool = { _ in false }
 
-    /// Alerts the policy chose to suppress, and why. Surfaced in diagnostics.
+    /// Alerts the policy chose to suppress, and why.
     private(set) public var suppressed: [(alert: SessionAlert, reason: String)] = []
 
     public init(bus: AlertBus) {
@@ -40,11 +39,7 @@ public final class AlertTracker {
 
         for session in sessions {
             seen.insert(session.id)
-            // First sight of a session: record where it stands, announce
-            // nothing. At launch every transcript is new, so the old rule
-            // (unknown means idle) fired "terminé" for turns that ended long
-            // before the app existed — and the pill sat in its alert state,
-            // refusing to expand, while it said so.
+            // First sight of a session: record where it stands, announce nothing.
             guard let current = states[session.id] else {
                 states[session.id] = SessionStateMachine.advance(
                     from: .idle, observing: observation(of: session)).state
@@ -72,8 +67,8 @@ public final class AlertTracker {
             }
         }
 
-        // Sessions that vanished lose their state, so a transcript reappearing
-        // later starts clean rather than re-alerting from a stale one.
+        // Sessions that vanished lose their state, so a transcript reappearing later
+        // starts clean rather than re-alerting from a stale one.
         states = states.filter { seen.contains($0.key) }
         return published
     }

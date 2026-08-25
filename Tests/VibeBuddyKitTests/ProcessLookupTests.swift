@@ -4,10 +4,8 @@ import Darwin
 
 @Suite("Path normalisation")
 struct NormaliseTests {
-
-    // Without this the cwd libproc reports and the cwd a transcript records
-    // compare unequal for the same directory, and every session in a temp
-    // directory looks dead.
+    // Without this the cwd libproc reports and the cwd a transcript records compare
+    // unequal for the same directory, and every session in a temp directory looks dead.
     @Test("the /private prefix is stripped")
     func stripsPrivate() {
         #expect(ProcessLookup.normalise("/private/tmp/x") == "/tmp/x")
@@ -34,7 +32,6 @@ struct NormaliseTests {
 
 @Suite("libproc wrappers")
 struct ProcessLookupTests {
-
     @Test("this process can see itself")
     func seesSelf() {
         let me = getpid()
@@ -51,10 +48,9 @@ struct ProcessLookupTests {
         #expect(!pids.contains(where: { $0 <= 0 }))
     }
 
-    // The reason `parent(of:)` uses sysctl rather than proc_pidinfo: the latter
-    // is privilege-gated and returns nothing for setuid processes such as
-    // `login`, which sits in the chain of every login-shell terminal. Walking
-    // to the top proves the chain is not silently truncated.
+    // The reason `parent(of:)` uses sysctl rather than proc_pidinfo: the latter is
+    // privilege-gated and returns nothing for setuid processes such as `login`, which
+    // sits in the chain of every login-shell terminal.
     @Test("the parent chain reaches launchd rather than dying early")
     func chainReachesLaunchd() {
         var current = getpid()
@@ -78,7 +74,6 @@ struct ProcessLookupTests {
 
 @Suite("Terminal detection")
 struct TerminalFocusTests {
-
     @Test("Warp reports as 'stable', which is not a typo")
     func warpIsStable() {
         #expect(TerminalFocusProbe.terminalNames.contains("stable"))

@@ -2,22 +2,20 @@ import AppKit
 import SwiftUI
 import VibeBuddyKit
 
-/// Measures the D5 floor against RFC-001's 40 MB ceiling: an empty AppKit shell
-/// is typically 45–60 MB before a single feature exists.
+/// Measures the D5 floor against 's 40 MB ceiling: an empty AppKit shell is typically
+/// 45–60 MB before a single feature exists.
 @MainActor
 enum BenchHarness {
-
     enum Mode: String {
-        /// `NSApplication` only, no window. The floor.
+        /// `NSApplication` only, no window.
         case shell
-        /// A bare `NSPanel` + empty `NSHostingView`. The D5 measurement.
+        /// A bare `NSPanel` + empty `NSHostingView`.
         case panel
         /// The real `NotchPanel` showing its pill, hover probe running.
         case pill
-        /// The real `NotchPanel`, created but hidden. Must cost nothing at all.
+        /// The real `NotchPanel`, created but hidden.
         case hidden
-        /// Scenario C. Same shape as `.pill` since hover went event-driven; kept
-        /// as a separate label so the CSVs keep their scenario names.
+        /// Scenario C.
         case interaction
         /// The session pipeline alone: FSEvents plus the lazy liveness poll.
         case sessions
@@ -44,10 +42,9 @@ enum BenchHarness {
             if mode != .hidden { n.show() }
             notch = n
         case .app:
-            // Delegate only: `NSApp.run()` posts the launch notification itself,
-            // and calling it here as well built the whole graph twice — two
-            // panels, two session coordinators, two sets of FSEvents watchers.
-            // Every `--bench app` figure before 2026-08-20 measured that double.
+            // Delegate only: `NSApp.run()` posts the launch notification itself, and
+            // calling it here as well built the whole graph twice — two panels, two
+            // session coordinators, two sets of FSEvents watchers.
             let coordinator = AppCoordinator()
             NSApp.delegate = coordinator
             coordinator.onBuddyReload = { id in
@@ -58,8 +55,8 @@ enum BenchHarness {
             // No `AppCoordinator` here: alerts are printed, never rendered.
             let wake = WakeCoordinator()
             let coordinator = SessionCoordinator(wake: wake)
-            // Latency is measured against the transcript's own mtime, not a wall
-            // clock the harness controls.
+            // Latency is measured against the transcript's own mtime, not a wall clock
+            // the harness controls.
             nonisolated(unsafe) var seen = Set<String>()
             coordinator.onChange = { list in
                 let now = Date()
@@ -105,8 +102,7 @@ enum BenchHarness {
         ))
         print(PerfProbe.csvHeader)
 
-        // Every 5 s, matching perfcheck.sh. The sampler is itself a wakeup, so
-        // it is subtracted in the summary below.
+        // Every 5 s, matching perfcheck.sh.
         let interval: TimeInterval = 5
         var samples: [PerfSample] = []
 
@@ -139,17 +135,14 @@ enum BenchHarness {
         done.resume()
 
         app.run()
-        // `app.run()` is not supposed to return here: the run ends on the
-        // `done` timer above. If it does, something terminated the
-        // application, and a run that stops early has been seen three times on
-        // this project without ever being explained. Say so out loud rather
-        // than exiting quietly with a short, valid-looking CSV.
+        // `app.run()` is not supposed to return here: the run ends on the `done` timer
+        // above.
         FileHandle.standardError.write(Data(
             "bench: ARRÊT PRÉMATURÉ — app.run() a rendu la main avant le minuteur\n".utf8))
         exit(0)
     }
 
-    /// Configured as RFC-002 configures it: a bare `NSWindow` understates the floor.
+    /// Configured as configures it: a bare `NSWindow` understates the floor.
     private static func makeEmptyPanel() -> NSPanel {
         let panel = NSPanel(
             contentRect: NSRect(x: 0, y: 0, width: 200, height: 32),

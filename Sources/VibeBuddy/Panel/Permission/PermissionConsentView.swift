@@ -1,18 +1,7 @@
 import SwiftUI
 import VibeBuddyKit
 
-/// What « Toujours autoriser » shows before it writes anything. RFC-007, T8.
-///
-/// The user's `~/.claude/settings.json` is eleven kilobytes of hand-edited
-/// settings, and this is the app asking to edit it. The parade to risk R1 is
-/// four things, and three of them are already inside `ClaudeSettingsWriter`:
-/// a timestamped backup, an atomic replace, the order preserved. The fourth is
-/// this screen — **consent, on the exact diff**, not on a sentence describing
-/// it. A summary the user has to trust is how a wrong write gets approved.
-///
-/// It is a state of the permission panel rather than a sheet: an `NSPanel` that
-/// is not key cannot host a modal sensibly, and a second window over the notch
-/// is a second thing to dismiss.
+/// What « Toujours autoriser » shows before it writes anything.
 struct PermissionConsentView: View {
     let rule: String
     /// The unified diff of the file as it is against the file as it would be.
@@ -40,11 +29,9 @@ struct PermissionConsentView: View {
                 Text(diff)
                     .font(.system(size: 11, design: .monospaced))
                     .foregroundStyle(PanelInk.secondary)
-                    // Deliberately **not** `.textSelection(.enabled)`: it installs an I-beam
-                    // that wins over everything the panel puts on the pointer, so the hand
-                    // flickered on every button and row. A panel whose cursor cannot be trusted
-                    // is worse than one you cannot copy out of — and the text here is already
-                    // cut at parse time, so it was never the place to read a plan from anyway.
+                    // Deliberately not `.textSelection(.enabled)`: it installs an
+                    // I-beam that wins over everything the panel puts on the pointer,
+                    // so the hand flickered on every button and row.
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(10)
             }
@@ -61,9 +48,9 @@ struct PermissionConsentView: View {
             HStack(spacing: VibeTheme.Spacing.s) {
                 Spacer(minLength: 0)
                 VibeButton(title: l10n.consentCancel, role: .neutral, action: onCancel)
-                // Writing to the user's own settings file is the act this whole
-                // screen exists to ask about, so it is the one thing on it the
-                // eye should land on.
+                // Writing to the user's own settings file is the act this whole screen
+                // exists to ask about, so it is the one thing on it the eye should land
+                // on.
                 VibeButton(title: l10n.consentConfirm, role: .accent,
                            action: onConfirm)
             }

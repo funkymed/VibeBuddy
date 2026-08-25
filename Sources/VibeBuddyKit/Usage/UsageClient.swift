@@ -1,15 +1,8 @@
 import Foundation
 
-/// Reads the OAuth token and asks Anthropic for the real numbers.
-///
-/// Do not use `SecItemCopyMatching`: the `Claude Code-credentials` ACL lists
-/// `/usr/bin/security`, the binary Claude Code used to write the token, so that
-/// path reads silently while our own binary prompts for the login password.
-/// Verified 2026-08-19: no prompt, endpoint answers 200 in 0.32 s.
-///
-/// Never refresh the token: Claude Code owns it; a racing refresher signs out.
+/// Reads the OAuth token and asks Anthropic for the real numbers. Verified 2026-08-19:
+/// no prompt, endpoint answers 200 in 0.32 s.
 public actor UsageClient {
-
     public static let endpoint = URL(string: "https://api.anthropic.com/api/oauth/usage")!
     /// Dated on purpose, and unstable by nature — see R5.
     public static let betaHeader = "oauth-2025-04-20"
@@ -62,7 +55,7 @@ public actor UsageClient {
     }
 }
 
-/// Where the OAuth token comes from. A seam (risk R4); tests never touch it.
+/// Where the OAuth token comes from.
 public protocol CredentialSource: Sendable {
     func read() -> (token: String, expiresAt: Date)?
 }

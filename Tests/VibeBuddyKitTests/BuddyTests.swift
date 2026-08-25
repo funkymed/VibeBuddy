@@ -6,7 +6,6 @@ import SwiftUI
 
 @Suite("Motion vocabulary")
 struct MotionTests {
-
     @Test("none is perfectly still, at any phase")
     func noneIsStill() {
         for phase in [0.0, 1.0, 7.3, 1000.0] {
@@ -17,8 +16,8 @@ struct MotionTests {
         }
     }
 
-    // The notch height is a hard ceiling: a buddy that overflows it is clipped,
-    // not expressive. Every motion has to stay inside a few percent.
+    // The notch height is a hard ceiling: a buddy that overflows it is clipped, not
+    // expressive.
     @Test("every motion stays within its bounds", arguments: MotionKind.allCases)
     func boundedAmplitude(_ motion: MotionKind) {
         for step in 0..<400 {
@@ -44,10 +43,8 @@ struct MotionTests {
 
 }
 
-
 @Suite("Buddy file format")
 struct BuddyFileTests {
-
     static let source = """
     # a comment, not a colour
     face: 80x30 oval
@@ -146,7 +143,6 @@ struct BuddyFileTests {
 
 @Suite("Built-in buddy")
 struct BuiltInBuddyTests {
-
     @Test("it parses and validates")
     func builtInIsValid() throws {
         let m = BuiltInBuddy.manifest
@@ -173,8 +169,8 @@ struct BuiltInBuddyTests {
             let e = try #require(m.expressions[name.rawValue], "\(name)")
             let eye = e.eye.pose.eye
             #expect(eye.width > 0 && eye.height > 0, "\(name)")
-            // Both eyes plus the gap, at the widest the animation ever makes
-            // them, have to fit across the screen.
+            // Both eyes plus the gap, at the widest the animation ever makes them, have
+            // to fit across the screen.
             #expect(e.eye.pose.gap + eye.width * 2 * EyeSpec.nearer <= m.face.width, "\(name)")
             #expect(eye.height * EyeSpec.nearer <= m.face.height, "\(name)")
         }
@@ -200,7 +196,6 @@ struct BuiltInBuddyTests {
 
 @Suite("Expression mapping")
 struct BuddyExpressionTests {
-
     @Test("hidden always sleeps, whatever is happening")
     func hiddenSleeps() {
         #expect(BuddyExpression.from(activity: .working, hasLiveSession: true, isVisible: false) == .sleeping)

@@ -1,14 +1,11 @@
 import Foundation
 import Observation
 
-/// Holds the latest usage reading, and decides when to ask again.
-///
-/// Adaptive cadence: 180 s panel shut, 30 s panel open, 10 s with nothing yet.
-/// This is the app's only unconditional periodic wake — RFC-001, D3.
+/// Holds the latest usage reading, and decides when to ask again. Adaptive cadence: 180
+/// s panel shut, 30 s panel open, 10 s with nothing yet.
 @MainActor
 @Observable
 public final class UsageState {
-
     public enum Status: Sendable, Equatable {
         case unknown
         case ready(ClaudeUsage)
@@ -22,9 +19,6 @@ public final class UsageState {
     private let client: UsageClient
 
     /// First delay after a refusal, and the ceiling the doubling stops at.
-    ///
-    /// Measured 2026-08-20: the endpoint answers `429` with `retry-after: 0`.
-    /// Treat the header as a floor, never as permission — obeying a zero loops.
     public static let backoffFloor: TimeInterval = 60
     public static let backoffCeiling: TimeInterval = 900
 

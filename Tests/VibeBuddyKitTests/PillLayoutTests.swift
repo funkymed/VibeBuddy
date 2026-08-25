@@ -16,7 +16,6 @@ private let plain = NotchGeometry(
 @Suite("Pill layout")
 @MainActor
 struct PillLayoutTests {
-
     @Test("the pill always overhangs the cutout on both sides")
     func overhangsNotch() {
         let layout = PillLayout.resolve(geometry: notched, buddy: BuiltInBuddy.manifest, sessionCount: 2)
@@ -31,9 +30,9 @@ struct PillLayoutTests {
         #expect(layout.height == 38)
     }
 
-    // The rule that is easy to forget because it is invisible in the common
-    // case: the pill and the notch are both centred, so equal ears align by
-    // accident and unequal ones do not.
+    // The rule that is easy to forget because it is invisible in the common case: the
+    // pill and the notch are both centred, so equal ears align by accident and unequal
+    // ones do not.
     @Test("equal ears need no shift")
     func symmetricNeedsNoOffset() {
         let layout = PillLayout(leftWidth: 60, rightWidth: 60, notchWidth: 220, height: 38)
@@ -50,9 +49,9 @@ struct PillLayoutTests {
         #expect(abs(leftEdgeOfGap - (-layout.notchWidth / 2)) < 0.001)
     }
 
-    // Hard-coded slot widths work until a buddy has a longer face or a manifest
-    // changes its font size, at which point the content overflows a slot sized
-    // for something else.
+    // Hard-coded slot widths work until a buddy has a longer face or a manifest changes
+    // its font size, at which point the content overflows a slot sized for something
+    // else.
     @Test("a longer face widens its own ear")
     func longerFaceWidensSlot() {
         let short = PillLayout.measure("=^^=", size: 13, weight: .bold)
@@ -80,8 +79,8 @@ struct PillLayoutTests {
         #expect(layout.rightWidth == PillLayout.emptySlotWidth)
     }
 
-    // An alert and the counter say the same kind of thing; stacking them would
-    // make the pill grow twice for one event.
+    // An alert and the counter say the same kind of thing; stacking them would make the
+    // pill grow twice for one event.
     @Test("an alert takes the right ear over from the counter")
     func alertReplacesCounter() {
         let counter = PillLayout.resolve(geometry: notched, buddy: nil, sessionCount: 3)
@@ -90,9 +89,9 @@ struct PillLayoutTests {
         #expect(alert.rightWidth > counter.rightWidth)
     }
 
-    // Asymmetric ears were geometrically fine — the pill was shifted so its hole
-    // still landed on the cutout — and looked wrong: the notch is symmetric, so
-    // a shape hanging further out on one side reads as misaligned.
+    // Asymmetric ears were geometrically fine — the pill was shifted so its hole still
+    // landed on the cutout — and looked wrong: the notch is symmetric, so a shape
+    // hanging further out on one side reads as misaligned.
     @Test("both ears are the same width, whatever they hold")
     func earsAreSymmetric() {
         let layout = PillLayout.resolve(
@@ -121,11 +120,7 @@ struct PillLayoutTests {
         #expect(layout.height == NotchFrameSolver.floatingPillHeight)
     }
 
-    // The pill scale is a margin, not a zoom. It used to multiply the manifest
-    // itself, which re-rasterised the face onto a different number of cells:
-    // the eyes changed shape, not size.
-    // 100 %, judged by eye on 2026-08-21. Filling the bar's height was tried
-    // and rejected, so this test is what keeps it from creeping back.
+    // The pill scale is a margin, not a zoom. 100 %, judged by eye on 2026-08-21.
     @Test("in the bar the buddy is drawn at the size its manifest declares")
     func buddyIsDrawnAtFullSize() {
         let face = BuiltInBuddy.manifest.face
@@ -134,9 +129,8 @@ struct PillLayoutTests {
         #expect(layout.buddyBox == CGSize(width: face.width, height: face.height))
     }
 
-    // The ear is meant to be no wider than the buddy needs, so this pins the
-    // margin to the arc's geometry rather than to a taste. One point less and
-    // the corner cuts the face.
+    // The ear is meant to be no wider than the buddy needs, so this pins the margin to
+    // the arc's geometry rather than to a taste.
     @Test("the ear is exactly as wide as the buddy plus the corner's clearance")
     func earIsMinimal() {
         let layout = PillLayout.resolve(
@@ -144,8 +138,8 @@ struct PillLayoutTests {
         let clearance = PillLayout.cornerClearance(
             pillHeight: layout.height, buddyHeight: layout.buddyBox.height)
         #expect(layout.leftWidth == layout.buddyBox.width + clearance * 2)
-        // And that clearance is what the 12 pt arc actually asks for at that
-        // height, not a rounded-up constant.
+        // And that clearance is what the 12 pt arc actually asks for at that height,
+        // not a rounded-up constant.
         #expect(abs(clearance - 3.0557) < 0.001)
     }
 
@@ -175,16 +169,13 @@ struct PillLayoutTests {
     }
 }
 
-/// A `.buddy` is hand-edited text, so a manifest can ask for anything. The pill
-/// has a ceiling and the buddy gives way.
+/// A `.buddy` is hand-edited text, so a manifest can ask for anything.
 @Suite("Oversized buddies")
 @MainActor
 struct OversizedBuddyTests {
-
     private func giant() -> BuddyManifest {
-        // Parsed, not validated: `BuddyManifest.validate` refuses a screen this
-        // wide, but only `BuddyLoader` validates. A hand-edited file reaches
-        // the layout regardless, and the layout is what has to survive it.
+        // Parsed, not validated: `BuddyManifest.validate` refuses a screen this wide,
+        // but only `BuddyLoader` validates.
         BuddyFile.parse("""
         face: 200x60 r10
 
@@ -222,15 +213,13 @@ struct OversizedBuddyTests {
     }
 }
 
-/// A round eye four cells across is not a circle. See
-/// `EyeRaster.drawableRadius`.
+/// A round eye four cells across is not a circle.
 @Suite("Corners the grid can draw")
 struct DrawableRadiusTests {
-
     @Test("a radius the grid cannot express is rounded down to whole cells")
     func roundsToWholeCells() {
-        // 6 pt of radius on a 3 pt grid is two cells, but one cell of straight
-        // edge has to survive on each side.
+        // 6 pt of radius on a 3 pt grid is two cells, but one cell of straight edge has
+        // to survive on each side.
         #expect(EyeRaster.drawableRadius(6, halfWidth: 6.5, halfHeight: 6, pitch: 3) == 3)
     }
 
@@ -251,8 +240,8 @@ struct DrawableRadiusTests {
         #expect(EyeRaster.drawableRadius(0, halfWidth: 10, halfHeight: 10, pitch: 2) == 0)
     }
 
-    // The measured case: `eve`'s idle eye at the shipped grain came out a
-    // lozenge, which is neither of the two things an eye may be.
+    // The measured case: `eve`'s idle eye at the shipped grain came out a lozenge,
+    // which is neither of the two things an eye may be.
     @Test("the shipped idle eye is not a diamond")
     func shippedEyeIsNotADiamond() {
         let manifest = BuiltInBuddy.manifest
@@ -262,15 +251,14 @@ struct DrawableRadiusTests {
             in: CGSize(width: manifest.face.width, height: manifest.face.height),
             pose: spec.pose, animation: EyeAnimation(), pitch: BuddyView.pixelSize)
 
-        // A diamond has exactly one cell on its widest row's outermost columns
-        // and tapers every row. A rounded square does not: its middle rows all
-        // reach the same width. Measure the left eye only.
+        // A diamond has exactly one cell on its widest row's outermost columns and
+        // tapers every row.
         let left = frame.lit.filter { $0.midX < manifest.face.width / 2 }
         let rows = Dictionary(grouping: left) { Int($0.midY / BuddyView.pixelSize) }
         let widths = rows.values.map { $0.count }.sorted()
         #expect(widths.count >= 3)
-        // At least two rows share the widest count — a taper would give each
-        // row its own.
+        // At least two rows share the widest count — a taper would give each row its
+        // own.
         if let widest = widths.last {
             #expect(widths.filter { $0 == widest }.count >= 2)
         }

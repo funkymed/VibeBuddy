@@ -2,15 +2,8 @@ import Darwin
 import Foundation
 
 /// The `AF_UNIX` plumbing both sides share.
-///
-/// Foundation-only and deliberately low-level: the hook binary is spawned by
-/// Claude Code on every tool call, so anything it links is paid on every tool
-/// call. `Network.framework` would be nicer and costs a framework load.
-/// See RFC-006, decision D4.
 public enum HookSocket {
-
-    /// Longest a `sun_path` can be. Not negotiable, and the reason the socket
-    /// lives at `~/.vibebuddy/buddy.sock` rather than somewhere descriptive.
+    /// Longest a `sun_path` can be.
     public static let pathLimit = 103
 
     public enum Failure: Error, Equatable {
@@ -47,20 +40,13 @@ public enum HookSocket {
         }
     }
 
-    /// Writing to a socket whose peer has gone raises `SIGPIPE`, and the
-    /// default disposition **kills the process**. Claude Code kills the hook
-    /// whenever the user answers in the terminal, so this is not an edge case:
-    /// it is the normal way a permission ends. Without it the app dies with
-    /// signal 13 the first time someone types "y" instead of clicking.
+    /// Writing to a socket whose peer has gone raises `SIGPIPE`, and the default
+    /// disposition kills the process.
     public static func silencePipe(_ fd: Int32) {
         var on: Int32 = 1
         setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &on, socklen_t(MemoryLayout<Int32>.size))
     }
 
-    // MARK: - Client side
-
-    /// Connects, or throws. The caller's only correct response to a throw is to
-    /// exit 0: a hook that cannot reach the app must never block Claude Code.
     public static func connect(to path: String, timeout: TimeInterval) throws -> Int32 {
         let fd = socket(AF_UNIX, SOCK_STREAM, 0)
         guard fd >= 0 else { throw Failure.cannotCreate(errno) }
@@ -82,14 +68,7 @@ public enum HookSocket {
         return fd
     }
 
-    // MARK: - Server side
-
     /// Binds a fresh listening socket, private to this user.
-    ///
-    /// The stale socket is unlinked first: a file left by a killed app makes
-    /// `bind` fail with `EADDRINUSE` for ever otherwise. `chmod 0600` because
-    /// anything on the machine could otherwise answer permission prompts on the
-    /// user's behalf.
     public static func listen(at path: String, backlog: Int32 = 16) throws -> Int32 {
         let directory = (path as NSString).deletingLastPathComponent
         try? FileManager.default.createDirectory(
@@ -115,8 +94,7 @@ public enum HookSocket {
         return fd
     }
 
-    /// The PID on the other end. The only way back to the `claude` process that
-    /// spawned the hook — the payload does not carry it.
+    /// The PID on the other end.
     public static func peerPID(_ fd: Int32) -> pid_t? {
         var pid: pid_t = 0
         var size = socklen_t(MemoryLayout<pid_t>.size)
@@ -125,13 +103,7 @@ public enum HookSocket {
         return pid
     }
 
-    // MARK: - Lines
-
     /// Bounds how long a `recv` on this descriptor may block.
-    ///
-    /// The accepted side of a connection inherits nothing from the listening
-    /// socket, so a server that does not set this waits for ever on a peer that
-    /// goes quiet.
     public static func setReadTimeout(_ fd: Int32, seconds: TimeInterval) {
         var window = timeval(tv_sec: Int(seconds),
                              tv_usec: Int32((seconds - Double(Int(seconds))) * 1e6))
@@ -152,9 +124,7 @@ public enum HookSocket {
         }
     }
 
-    /// Reads until the first newline. `nil` on timeout or on the peer hanging
-    /// up — the two cases the caller must handle, and the reason a return of
-    /// zero bytes is never treated as an empty line.
+    /// Reads until the first newline.
     public static func readLine(from fd: Int32, limit: Int = 1 << 20) -> Data? {
         var line = Data()
         var byte: UInt8 = 0
@@ -172,15 +142,6 @@ public enum HookSocket {
     }
 
     /// Whether the peer has gone away, without consuming anything.
-    ///
-    /// `MSG_PEEK` returning zero is the **only** way to learn that the user
-    /// answered in the terminal: Claude Code kills the hook process, and nothing
-    /// else tells the app that the prompt it is showing is now dead.
-    /// Only a clean zero counts. An error is **not** a hang-up here: getting
-    /// this wrong in that direction throws away a decision the user already
-    /// made, while missing a real hang-up costs nothing worse than the client's
-    /// own timeout. Seen for real — under parallel test load an errno path
-    /// declared a hang-up on a healthy socket and the reply was never sent.
     public static func peerHungUp(_ fd: Int32) -> Bool {
         var byte: UInt8 = 0
         return recv(fd, &byte, 1, MSG_PEEK | MSG_DONTWAIT) == 0

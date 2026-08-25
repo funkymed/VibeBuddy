@@ -3,18 +3,8 @@ import Foundation
 @testable import VibeBuddyKit
 
 /// End-to-end, against a real temporary directory.
-///
-/// These exist because of a crash no unit test could have caught: the callback
-/// read `eventPaths` as a `CFArray` when the stream had not been created with
-/// `kFSEventStreamCreateFlagUseCFTypes`, so it was really a C `char **`. That is
-/// not a type error the compiler can see — it is a wild pointer sent an
-/// Objective-C message, and it only fails once a real event arrives.
-///
-/// So the assertion that matters here is not "the paths are right". It is
-/// "the callback runs at all against a live stream".
 @Suite("ProjectsWatcher", .serialized)
 struct ProjectsWatcherTests {
-
     private func makeTempDirectory() throws -> URL {
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent("vibebuddy-fsevents-\(UUID().uuidString)")
@@ -43,8 +33,8 @@ struct ProjectsWatcherTests {
         try await Task.sleep(for: .seconds(2))
 
         #expect(box.callCount > 0, "the callback never ran — the stream is not delivering")
-        // The paths are a hint, not a contract, so this only checks they are
-        // readable strings rather than garbage.
+        // The paths are a hint, not a contract, so this only checks they are readable
+        // strings rather than garbage.
         for path in box.paths {
             #expect(!path.isEmpty)
             #expect(path.hasPrefix("/"))

@@ -4,7 +4,6 @@ import CoreGraphics
 
 @Suite("NotchGeometry arithmetic")
 struct NotchGeometryTests {
-
     // MacBook Pro 14" figures: the two auxiliary menu-bar areas flank the notch.
     @Test("notch width is the gap between the auxiliary areas")
     func notchWidthFromAuxiliaryAreas() {
@@ -17,8 +16,7 @@ struct NotchGeometryTests {
         #expect(size == CGSize(width: 250, height: 37))
     }
 
-    // A display with a rounded-corner inset but no notch reports a top inset
-    // too. Only the auxiliary-area gap distinguishes them.
+    // A display with a rounded-corner inset but no notch reports a top inset too.
     @Test("no gap means no notch")
     func noGapIsNoNotch() {
         let size = NotchGeometry.notchSize(

@@ -3,17 +3,11 @@ import Testing
 @testable import VibeBuddyKit
 
 /// The window is a fact about the configuration, not about the transcript.
-///
-/// Measured on the machine this was written on: `~/.claude/settings.json` holds
-/// `"model": "opus[1m]"`, and every assistant entry of the matching transcript
-/// says plain `claude-opus-5`. Reading the tokens tells you nothing about what
-/// they are a fraction *of*.
 @Suite("Context window")
 struct ContextWindowTests {
-
-    /// A throwaway home and project, so the test never reads the developer's
-    /// own settings — which is exactly how this bug survived: on a machine
-    /// configured for 1M, a hard-coded 200k looks right until you divide.
+    /// A throwaway home and project, so the test never reads the developer's own
+    /// settings — which is exactly how this bug survived: on a machine configured for
+    /// 1M, a hard-coded 200k looks right until you divide.
     private func sandbox() throws -> (home: String, project: String) {
         let root = URL(fileURLWithPath: NSTemporaryDirectory())
             .appendingPathComponent("ctxwin-\(UUID().uuidString)")
@@ -75,8 +69,8 @@ struct ContextWindowTests {
         #expect(resolver.window(forProject: project) == 1_000_000)
     }
 
-    // Unreadable settings must never take the app down, and must never invent a
-    // window either: the default is the honest answer.
+    // Unreadable settings must never take the app down, and must never invent a window
+    // either: the default is the honest answer.
     @Test("malformed settings fall back to the default")
     func malformed() throws {
         let (home, project) = try sandbox()

@@ -1,17 +1,7 @@
 import Foundation
 
 /// Just enough diff to show what a write would do.
-///
-/// A hundred lines of LCS beats asking the user to trust a summary of a change
-/// to their own file. Not a general-purpose tool: it prints whole lines, has no
-/// options, and exists for one screen of output.
-///
-/// In the Kit rather than in the CLI that first needed it, because the consent
-/// screen of RFC-007 T8 shows the same diff for the same reason — and the one
-/// thing worse than asking someone to trust a summary is showing them two
-/// summaries that disagree.
 public enum TextDiff {
-
     public static func unified(_ old: String, _ new: String, context: Int = 3) -> String {
         let a = old.components(separatedBy: "\n")
         let b = new.components(separatedBy: "\n")

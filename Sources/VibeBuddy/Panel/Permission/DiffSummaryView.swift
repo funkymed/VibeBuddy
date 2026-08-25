@@ -2,11 +2,6 @@ import SwiftUI
 import VibeBuddyKit
 
 /// A file changing: the old side in red, the new in green.
-///
-/// Also draws a whole-file write, which reaches here as a diff with an empty
-/// `before` — one code path, because a creation is a change with nothing on the
-/// left.
-// RFC-007 T5 — red/green rendering, visual taken from
 // `NotchContentView.swift:1885-1930`, code extracted into this view.
 struct DiffSummaryView: View {
     let path: String
@@ -14,9 +9,7 @@ struct DiffSummaryView: View {
     let after: String
     let l10n: Strings
 
-    /// Tall enough to read a hunk, short enough to keep the decision bar on
-    /// screen. The two sides were already cut to `diffLimit` at parse time, so
-    /// the block below is bounded whatever the file weighs.
+    /// Tall enough to read a hunk, short enough to keep the decision bar on screen.
     private static let maxHeight: CGFloat = 220
 
     var body: some View {
@@ -26,8 +19,6 @@ struct DiffSummaryView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
-
-    // MARK: - Head
 
     private var head: some View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
@@ -43,10 +34,6 @@ struct DiffSummaryView: View {
     }
 
     /// `nouveau fichier` when there is no left side, otherwise `−3 +12`.
-    ///
-    /// The counts stay as signs and digits rather than words: they mean the same
-    /// in both languages, and they are the one part of this view a user reads
-    /// before deciding.
     @ViewBuilder
     private var tally: some View {
         if removed.isEmpty && !added.isEmpty {
@@ -70,15 +57,12 @@ struct DiffSummaryView: View {
         }
     }
 
-    /// A `Write` of an empty file, or an edit whose two sides both came back
-    /// blank. Saying so beats an empty box the user reads as a rendering bug.
+    /// A `Write` of an empty file, or an edit whose two sides both came back blank.
     private var emptyNote: some View {
         Text(l10n.permissionNoContent)
             .font(.system(size: 12))
             .foregroundStyle(PanelInk.tertiary)
     }
-
-    // MARK: - Body
 
     private var diffBlock: some View {
         ScrollView(.vertical) {
@@ -100,13 +84,8 @@ struct DiffSummaryView: View {
                 .frame(width: 8, alignment: .leading)
             Text(line.text)
                 .foregroundStyle(ink(line.kind))
-                // Selectable so a line too long to read here can be pasted
-                // somewhere it can be.
-                // Deliberately **not** `.textSelection(.enabled)`: it installs an I-beam
-                // that wins over everything the panel puts on the pointer, so the hand
-                // flickered on every button and row. A panel whose cursor cannot be trusted
-                // is worse than one you cannot copy out of — and the text here is already
-                // cut at parse time, so it was never the place to read a plan from anyway.
+                // Selectable so a line too long to read here can be pasted somewhere it
+                // can be.
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
         .font(.system(size: 11, design: .monospaced))
@@ -126,8 +105,6 @@ struct DiffSummaryView: View {
         case .note:    return PanelInk.tertiary
         }
     }
-
-    // MARK: - Lines
 
     private struct Line: Identifiable {
         enum Kind: Equatable {
@@ -157,19 +134,14 @@ struct DiffSummaryView: View {
         return out
     }
 
-    /// The truncation marker the model appended is not part of the file, so it
-    /// is not part of the change: neutral ink, no sign in the gutter. Drawing it
-    /// green would claim Claude is about to write the marker into the file.
-    ///
-    /// The mark comes from `PermissionRequestModel` rather than being spelled out
-    /// again here — two copies of the same literal in two modules is one edit
-    /// away from a marker painted as an added line.
+    /// The truncation marker the model appended is not part of the file, so it is not
+    /// part of the change: neutral ink, no sign in the gutter.
     private func kind(of text: String, fallback: Line.Kind) -> Line.Kind {
         text.hasPrefix(PermissionRequestModel.truncationMark) ? .note : fallback
     }
 
-    /// Drops a single trailing empty line: a file that ends with a newline
-    /// otherwise shows one blank tinted row that stands for nothing.
+    /// Drops a single trailing empty line: a file that ends with a newline otherwise
+    /// shows one blank tinted row that stands for nothing.
     private static func split(_ text: String) -> [String] {
         guard !text.isEmpty else { return [] }
         var parts = text.components(separatedBy: "\n")

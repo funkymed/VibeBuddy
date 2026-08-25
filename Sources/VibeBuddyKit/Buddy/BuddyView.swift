@@ -1,21 +1,17 @@
 import SwiftUI
 
 /// The buddy on screen: one face and one clock.
-/// See RFC-005, "Notes d'implémentation".
 public struct BuddyView: View {
-
     private let manifest: BuddyManifest
     private let expression: BuddyExpression
     @Bindable private var budget: AnimationBudget
     /// Box the face must stay inside; the face is scaled to it, never clipped.
     private let fit: CGSize?
-    /// What the pointer is up to. Read on the tick this view already runs, so
-    /// following the mouse adds no clock of its own — decision D3.
     private let gaze: PointerGaze?
 
     @State private var startedAt = Date()
-    /// The pose being left behind, so a change of expression deforms the face
-    /// instead of cutting to it. Nil once the morph has settled.
+    /// The pose being left behind, so a change of expression deforms the face instead of
+    /// cutting to it.
     @State private var morphFrom: EyePose?
     @State private var morphAt = Date()
 
@@ -39,28 +35,13 @@ public struct BuddyView: View {
 
     private var plate: BuddyManifest.FacePlate { manifest.face }
 
-    /// How long the face takes to reach a new pose. Deliberately brief: the
-    /// eyes move in snaps, and a slow morph between two of them would be the
-    /// one soft thing left on screen.
+    /// How long the face takes to reach a new pose.
     private static let morphDuration: Double = 0.12
 
-    /// Full rate while the face can move, nothing at all when it cannot.
-    ///
-    /// This was capped at `ambient` on the grounds that a face which only
-    /// changes every second or two would redraw the same picture three frames
-    /// out of four. That stopped being true when the eyes gained a travel:
-    /// during a saccade the picture changes on every frame, and at 8 Hz a
-    /// quarter-second crossing gets two of them — which reads as a cut, not as
-    /// a move.
-    ///
-    /// Following `budget.tier` was not enough either: it calls `idle` not busy,
-    /// and `idle` is precisely the expression whose eyes wander most.
-    ///
-    /// So the rate is decided from the face itself. One that never blinks, never
-    /// looks anywhere and carries no motion — `sleeping` — has nothing to
-    /// redraw and gets **no clock at all**, which is what keeps scenario A at
-    /// zero wakeups. Everything else gets the full rate, and SwiftUI skips the
-    /// redraw between saccades because the shape comes out equal.
+    /// Full rate while the face can move, nothing at all when it cannot. That stopped
+    /// being true when the eyes gained a travel: during a saccade the picture changes on
+    /// every frame, and at 8 Hz a quarter-second crossing gets two of them — which reads
+    /// as a cut, not as a move.
     private var tier: AnimationBudget.Tier {
         guard budget.tier != .still else { return .still }
         guard let spec = settings?.eye else { return .still }
@@ -74,14 +55,6 @@ public struct BuddyView: View {
     }
 
     /// The box is the size the face is drawn at, up or down.
-    ///
-    /// It used to be a ceiling — `min(1, …)` — back when the pill was measured
-    /// from the manifest and the box could only ever be too small. The size is
-    /// now decided in one place (`PillLayout.buddyBox`, or the panel header)
-    /// and handed here, so a box larger than the plate means *draw it larger*.
-    /// The enlargement is geometric: the same raster, scaled. Re-scaling the
-    /// manifest instead would land the cells on a different grid and change the
-    /// shape of the eyes.
     private var fitted: CGFloat {
         guard let fit, fit.width > 0, fit.height > 0,
               plate.width > 0, plate.height > 0
@@ -96,8 +69,7 @@ public struct BuddyView: View {
             let motion = (settings?.motion ?? .none).transform(at: phase)
 
             face(phase: phase, now: timeline.date)
-                // Fit first, then motion. The other order would make a bouncing
-                // face grow past the box it was just fitted into.
+                // Fit first, then motion.
                 .scaleEffect(scale, anchor: .leading)
                 .frame(width: plate.width * scale, height: plate.height * scale)
                 .scaleEffect(motion.scale)
@@ -114,18 +86,15 @@ public struct BuddyView: View {
     @ViewBuilder
     private func face(phase: Double, now: Date) -> some View {
         if let spec = settings?.eye {
-            // Read once per frame, here: `mood` advances a small state machine,
-            // and calling it twice in one frame would count one double-take as
-            // two.
+            // Read once per frame, here: `mood` advances a small state machine, and
+            // calling it twice in one frame would count one double-take as two.
             let mood = gaze?.mood(at: now) ?? .resting
-            // A mood may borrow another expression's eyes. Only the chase does.
+            // A mood may borrow another expression's eyes.
             let worn = mood.borrowedExpression
                 .flatMap { manifest.expression($0)?.eye } ?? spec
             EyesFaceView(
                 spec: morphed(worn, now: now), plate: plate,
-                // A mood may insist on its own colour. Only the chase does,
-                // and it arrives and leaves with the chase itself — see
-                // `tintStrength`.
+                // A mood may insist on its own colour.
                 colour: mood.tint.flatMap { Color(hex: $0) }
                     .map { Color.mix(colour, $0, mood.tintStrength) } ?? colour,
                 pixelSize: Self.pixelSize, phase: phase,
@@ -146,13 +115,7 @@ public struct BuddyView: View {
         return morphing
     }
 
-    /// Device pixels per rendered pixel. Coarsens the raster, never the drawn
-    /// size.
-    ///
-    /// Fixed at 3, and no longer a preference: judged by eye on 2026-08-21 as
-    /// the grain the faces are drawn for. A slider here only offered ways of
-    /// making the buddy read worse — the two other values it could take are the
-    /// same face with its cells too fine to register as pixels.
+    /// Device pixels per rendered pixel.
     public static let pixelSize: CGFloat = 3
 
     private var interval: Double {
@@ -161,7 +124,7 @@ public struct BuddyView: View {
 }
 
 public extension Color {
-    /// `#RRGGBB` or `#RRGGBBAA`. Anything else is rejected rather than guessed.
+    /// `#RRGGBB` or `#RRGGBBAA`.
     init?(hex: String) {
         var text = hex.trimmingCharacters(in: .whitespaces)
         if text.hasPrefix("#") { text.removeFirst() }
@@ -187,10 +150,6 @@ public extension Color {
 
 public extension Color {
     /// `t` of the way from `a` to `b`, in sRGB.
-    ///
-    /// Through `NSColor` rather than by hand: a `Color` does not hand out its
-    /// components, and the two hexes this mixes are the only inputs — parsing
-    /// them a second time here would be a second place to get them wrong.
     static func mix(_ a: Color, _ b: Color, _ t: Double) -> Color {
         let k = min(max(t, 0), 1)
         guard k > 0 else { return a }

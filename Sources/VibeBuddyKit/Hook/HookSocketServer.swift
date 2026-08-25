@@ -3,21 +3,12 @@ import Foundation
 import VibeHookProtocol
 
 /// What the app does with an event the hook forwarded.
-///
-/// RFC-007 implements this. Returning `nil` for a blocking event means "no
-/// opinion": the hook then writes nothing and Claude Code shows its own prompt.
 public protocol HookEventSink: Sendable {
     func handle(_ request: HookRequest, from pid: pid_t?) async -> HookDecision?
 }
 
 /// Listens on the Unix socket the `vibe-hook` binary connects to.
-///
-/// Event-driven throughout — a `DispatchSource` on the listening descriptor,
-/// another on each connection. No timer anywhere: the process sleeps until the
-/// kernel has something to say, which is what keeps scenario A at zero wakeups
-/// (D3). See RFC-006.
 public actor HookSocketServer {
-
     private let path: String
     private let sink: HookEventSink
     private var listening: Int32 = -1
@@ -57,11 +48,7 @@ public actor HookSocketServer {
         unlink(path)
     }
 
-    // MARK: - One connection
-
     /// Set `VIBEBUDDY_HOOK_TRACE` to see which call returned what, in order.
-    /// RFC-006 T11 asks for exactly this rather than another guess at the
-    /// architecture.
     private static let trace = ProcessInfo.processInfo.environment["VIBEBUDDY_HOOK_TRACE"] != nil
 
     private static func note(_ message: @autoclosure () -> String) {
@@ -69,8 +56,7 @@ public actor HookSocketServer {
         FileHandle.standardError.write(Data("hooksrv: \(message())\n".utf8))
     }
 
-    /// Same, but says which socket is speaking. Two servers in one test run
-    /// are indistinguishable otherwise.
+    /// Same, but says which socket is speaking.
     private func note(_ message: @autoclosure () -> String) {
         Self.note("[\((path as NSString).lastPathComponent)] \(message())")
     }
@@ -88,22 +74,15 @@ public actor HookSocketServer {
         note("accept → fd \(fd)")
         // Not inherited from the listening socket: each connection needs it.
         HookSocket.silencePipe(fd)
-        // **And neither is a read deadline.** `readLine` blocks byte by byte
-        // with no bound of its own, so a connection that never delivers a
-        // complete line holds a descriptor and a GCD thread for the life of the
-        // process. Observed while chasing RFC-006 T11: a trace showed `accept`
-        // followed by nothing at all, for ever.
-        //
-        // Whatever makes that happen, waiting for ever cannot be the answer in
-        // an app whose first rule is never to block. Ten seconds is far beyond
-        // any real hook — `vibe-hook` writes its line and exits — and turns an
-        // indefinite hang into a closed socket.
+        // And neither is a read deadline. `readLine` blocks byte by byte with no
+        // bound of its own, so a connection that never delivers a complete line holds a
+        // descriptor and a GCD thread for the life of the process.
         HookSocket.setReadTimeout(fd, seconds: 10)
         open.insert(fd)
         let pid = HookSocket.peerPID(fd)
 
-        // Off the actor: `readLine` blocks, and the actor must stay free to
-        // accept the next hook — Claude Code spawns them in bursts.
+        // Off the actor: `readLine` blocks, and the actor must stay free to accept the
+        // next hook — Claude Code spawns them in bursts.
         let line = await Self.read(fd)
         note("read fd \(fd) → \(line.map { "\($0.count) octets" } ?? "nil")")
         guard let line, let request = HookLine.decodeRequest(line) else {
@@ -113,21 +92,32 @@ public actor HookSocketServer {
 
         guard request.event.isBlocking else {
             note("fd \(fd) : \(request.event.rawValue) en tir-et-oublie")
-            // Fire-and-forget. Close first: the hook has already exited, and
-            // holding the descriptor open buys nothing.
+            // Fire-and-forget.
             finish(fd)
             _ = await sink.handle(request, from: pid)
             return
         }
 
-        let decision = await withTaskGroup(of: HookDecision?.self) { group in
-            group.addTask { await self.sink.handle(request, from: pid) }
-            // The user may answer in the terminal instead. Claude Code then
-            // kills the hook, and this is the only thing that says so.
-            group.addTask { await Self.waitForHangUp(fd) }
-            let first = await group.next() ?? nil
+        enum Outcome: Sendable { case decided(HookDecision?), hungUp }
+
+        let decision = await withTaskGroup(of: Outcome.self) { group in
+            group.addTask { .decided(await self.sink.handle(request, from: pid)) }
+            // The user may answer in the terminal instead.
+            group.addTask {
+                _ = await Self.waitForHangUp(fd)
+                return .hungUp
+            }
+
+            var answer: HookDecision?
+            while let outcome = await group.next() {
+                if case let .decided(value) = outcome {
+                    answer = value
+                    break
+                }
+                break
+            }
             group.cancelAll()
-            return first
+            return answer
         }
 
         if let decision, let reply = try? HookLine.encodeDecision(decision) {
@@ -137,11 +127,9 @@ public actor HookSocketServer {
     }
 
     private func finish(_ fd: Int32) {
-        open.remove(fd)
+        guard open.remove(fd) != nil else { return }
         close(fd)
     }
-
-    // MARK: - Off-actor waits
 
     private static func read(_ fd: Int32) async -> Data? {
         await withCheckedContinuation { continuation in
@@ -151,14 +139,8 @@ public actor HookSocketServer {
         }
     }
 
-    /// Resolves to `nil` when the peer goes away — and when the task is
-    /// cancelled, which is the case that matters.
-    ///
-    /// A `DispatchSource` rather than a poll: the descriptor becomes readable
-    /// when the peer hangs up, so this costs nothing until it happens. But it
-    /// **must** honour cancellation: leaving `withTaskGroup` waits for every
-    /// child, so a continuation that only ever resumes on hang-up deadlocks the
-    /// server the moment the sink answers first.
+    /// Resolves to `nil` when the peer goes away — and when the task is cancelled, which
+    /// is the case that matters.
     private static func waitForHangUp(_ fd: Int32) async -> HookDecision? {
         let box = OnceBox()
         return await withTaskCancellationHandler {
@@ -180,10 +162,6 @@ public actor HookSocketServer {
 }
 
 /// Resumes a continuation exactly once, and cancels the source that feeds it.
-///
-/// A `DispatchSource` handler can fire again between `cancel()` and the cancel
-/// taking effect, and cancellation can arrive before the continuation is even
-/// armed. Resuming twice is a crash, not a warning.
 private final class OnceBox: @unchecked Sendable {
     private var continuation: CheckedContinuation<HookDecision?, Never>?
     private var source: DispatchSourceRead?

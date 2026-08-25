@@ -3,8 +3,8 @@ import Foundation
 import CoreGraphics
 @testable import VibeBuddyKit
 
-/// The shipped eyes buddy, read from disk rather than duplicated here: a copy
-/// would keep passing after the real file broke.
+/// The shipped eyes buddy, read from disk rather than duplicated here: a copy would keep
+/// passing after the real file broke.
 @MainActor
 enum EveFixture {
     static let manifest: BuddyManifest = {
@@ -20,7 +20,6 @@ enum EveFixture {
 
 @Suite("Eyes: the .buddy dialect")
 struct EyesFileTests {
-
     static let source = """
     face: 58x28 r10
 
@@ -127,13 +126,13 @@ struct EyesFileTests {
         for name in BuddyExpression.allCases {
             #expect(manifest.expressions[name.rawValue]?.eye.pose.eye.width ?? 0 > 0, "\(name)")
         }
-        // The shapes each state settled on, after the ones that were tried and
-        // dropped: `ring` read as a hole rather than an eye, `wing` as a bird.
+        // The shapes each state settled on, after the ones that were tried and dropped:
+        // `ring` read as a hole rather than an eye, `wing` as a bird.
         #expect(manifest.expressions["sleeping"]?.eye.pose.eye.shape == .arc)
         #expect(manifest.expressions["idle"]?.eye.pose.eye.shape == .oval)
         #expect(manifest.expressions["working"]?.eye.pose.eye.shape == .oval)
-        // `finished` had thick arcs of its own; it took `awaiting`'s shape
-        // and rhythm instead, so the two now differ by behaviour, not by form.
+        // `finished` had thick arcs of its own; it took `awaiting`'s shape and rhythm
+        // instead, so the two now differ by behaviour, not by form.
         #expect(manifest.expressions["finished"]?.eye.pose.eye.shape == .oval)
         #expect(manifest.expressions["failed"]?.eye.pose.eye.shape == .x)
         // Only `failed` tears; the rest are working screens.
@@ -161,7 +160,6 @@ struct EyesFileTests {
 
 @Suite("Eyes: the beat sequence")
 struct EyeBeatTests {
-
     static let spec = EyeSpec(
         pose: EyePose(
             eye: FaceFeature(shape: .oval, width: 7, height: 12, radius: 3.5, offsetY: -4),
@@ -184,10 +182,8 @@ struct EyeBeatTests {
         let beat = Self.spec.beat
         for index in 1..<40 {
             let start = Double(index) * beat
-            // Sampled well past the crossing: from there to the end of the beat
-            // the eyes are somewhere and stay there. This is what makes the
-            // movement read as a saccade — a short trip, then stillness — and
-            // not as continuous drift.
+            // Sampled well past the crossing: from there to the end of the beat the
+            // eyes are somewhere and stay there.
             let settled = EyeAnimation.at(phase: start + EyeSpec.saccade + 0.01, spec: Self.spec)
             for offset in stride(from: EyeSpec.saccade + 0.01, to: beat * 0.98, by: 0.05) {
                 let sample = EyeAnimation.at(phase: start + offset, spec: Self.spec)
@@ -207,8 +203,8 @@ struct EyeBeatTests {
             let after = EyeAnimation.at(phase: start + EyeSpec.saccade + 0.01, spec: Self.spec)
             guard before.gaze != after.gaze else { continue }
             crossings += 1
-            // Halfway through, the eyes are neither where they were nor where
-            // they are going.
+            // Halfway through, the eyes are neither where they were nor where they are
+            // going.
             let middle = EyeAnimation.at(phase: start + EyeSpec.saccade / 2, spec: Self.spec)
             #expect(middle.gaze != before.gaze, "beat \(index) had not left yet")
             #expect(middle.gaze != after.gaze, "beat \(index) was already there")
@@ -280,17 +276,16 @@ struct EyeBeatTests {
             var seen: Set<EyeBeat> = []
             for index in 0..<600 {
                 let current = EyeAnimation.beat(at: index, spec: spec)
-                // A blink between two identical looks breaks the run: the face
-                // visibly changed, so nothing reads as stuck. "Ahead, blink,
-                // ahead" is a normal thing for a face to do.
+                // A blink between two identical looks breaks the run: the face visibly
+                // changed, so nothing reads as stuck.
                 guard current != .blink else { lastLook = nil; run = 0; continue }
                 seen.insert(current)
                 run = current == lastLook ? run + 1 : 1
                 longest = max(longest, run)
                 lastLook = current
             }
-            // One, except where the walk restarts every 64 beats and may
-            // land on the look it left off — see EyeAnimation.rawPick.
+            // One, except where the walk restarts every 64 beats and may land on the
+            // look it left off — see EyeAnimation.rawPick.
             #expect(longest <= 2, "\(kind) held one look \(longest) beats running")
             #expect(seen.count >= min(3, kind.repertoire.count), "\(kind) barely moved")
         }
@@ -338,11 +333,11 @@ struct EyeBeatTests {
         #expect(half.eye.height == 7)
         #expect(half.eye.shape == .x)
         #expect(EyePose.lerp(a, b, 0.4).eye.shape == .oval)
-        // A mouth that appears takes its final form straight away rather than
-        // growing out of nothing.
+        // A mouth that appears takes its final form straight away rather than growing
+        // out of nothing.
         #expect(EyePose.lerp(a, b, 0.1).mouth == b.mouth)
-        // Clamped, not extrapolated: a pose past the target would invert the
-        // tilt halfway through a morph.
+        // Clamped, not extrapolated: a pose past the target would invert the tilt
+        // halfway through a morph.
         #expect(EyePose.lerp(a, b, 2) == b)
         #expect(EyePose.lerp(a, b, -1) == a)
     }
@@ -351,7 +346,6 @@ struct EyeBeatTests {
 @Suite("Eyes: rasterisation to whole pixels")
 @MainActor
 struct EyesRasterTests {
-
     static let plateSize = CGSize(width: 58, height: 28)
 
     static func face(
@@ -420,8 +414,8 @@ struct EyesRasterTests {
     func twoMirroredEyes() {
         let cells = Self.grid(Self.face(.wing, bend: 1))
         func key(_ dx: CGFloat, _ y: CGFloat) -> String { "\(dx)|\(y)" }
-        // The mirror axis is the snapped plate centre, not width / 2: the whole
-        // point of snapping is that the geometry lands on the grid.
+        // The mirror axis is the snapped plate centre, not width / 2: the whole point
+        // of snapping is that the geometry lands on the grid.
         let left = Set(cells.filter { $0.midX < Self.axis }.map { key(Self.axis - $0.midX, $0.midY) })
         let right = Set(cells.filter { $0.midX > Self.axis }.map { key($0.midX - Self.axis, $0.midY) })
         #expect(!left.isEmpty && !right.isEmpty)
@@ -437,8 +431,8 @@ struct EyesRasterTests {
             cells.contains { $0.contains(CGPoint(x: eye.x + dx, y: eye.y + dy)) }
         }
         // Probes in points on a 14 pt eye: the wall runs from 0.7 to 1.0 of the
-        // half-width (4.9–7 pt), the pupil out to 0.255 (1.8 pt), and the gap
-        // between them is what a ring has and a disc does not.
+        // half-width (4.9–7 pt), the pupil out to 0.255 (1.8 pt), and the gap between
+        // them is what a ring has and a disc does not.
         #expect(lit(0, 0), "no pupil")
         #expect(lit(-6, 0) || lit(-5, 0), "no left wall")
         #expect(lit(6, 0) || lit(5, 0), "no right wall")

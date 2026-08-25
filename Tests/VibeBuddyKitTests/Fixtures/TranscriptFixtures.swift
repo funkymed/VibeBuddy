@@ -1,12 +1,7 @@
 import Foundation
 
 /// Synthetic transcripts mirroring Claude Code 2.1.234's real shape.
-///
-/// Hand-written rather than captured, so they carry no conversation content and
-/// can be read, diffed and extended. Every entry type here was observed in a
-/// real transcript on 2026-08-19.
 enum TranscriptFixtures {
-
     static func data(_ lines: [String]) -> Data {
         Data(lines.joined(separator: "\n").utf8)
     }
@@ -22,7 +17,6 @@ enum TranscriptFixtures {
         """
     }
 
-    /// Agent is running a shell command.
     static let runningShell = data([
         base("user"),
         base("assistant", """

@@ -1,12 +1,10 @@
 import Foundation
 import Observation
 
-/// Which alerts are allowed to interrupt, and how they are rendered. A change
-/// here can only silence what RFC-012's state machine produced, never alter it.
+/// Which alerts are allowed to interrupt, and how they are rendered.
 @MainActor
 @Observable
 public final class NotificationPrefs {
-
     public enum Keys {
         public static let onFinished = "vibebuddy.alerts.finished"
         public static let onFailed = "vibebuddy.alerts.failed"
@@ -18,8 +16,8 @@ public final class NotificationPrefs {
 
     @ObservationIgnored private let store: PreferencesStore
 
-    /// Set while `reload()` re-reads the store, so no `didSet` writes back the
-    /// keys a reset has just removed.
+    /// Set while `reload()` re-reads the store, so no `didSet` writes back the keys a
+    /// reset has just removed.
     @ObservationIgnored private var isReloading = false
 
     public var onFinished: Bool = true { didSet { persist(onFinished, Keys.onFinished) } }
@@ -28,8 +26,7 @@ public final class NotificationPrefs {
         didSet { persist(onNeedsAttention, Keys.onNeedsAttention) }
     }
 
-    /// Speak the alert. Off by default and instantiated lazily on the other
-    /// side: `AVSpeechSynthesizer` allocates several megabytes of audio engine.
+    /// Speak the alert.
     public var voice: Bool = false { didSet { persist(voice, Keys.voice) } }
     public var haptics: Bool = false { didSet { persist(haptics, Keys.haptics) } }
 

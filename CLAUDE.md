@@ -100,7 +100,7 @@ Conséquence pratique : l'app ne porte pas de notice MIT, parce qu'elle n'a rien
 | [003](docs/rfc/done/RFC-003-collecte-sessions.md) | Collecte de sessions : source de vérité unique | **done** | **100 %** | v1 | ✔ |
 | [004](docs/rfc/done/RFC-004-usage-live.md) | Utilisation live : Keychain + endpoint OAuth | **done** | **100 %** | v1 | ✔ |
 | [005](docs/rfc/done/RFC-005-rendu-buddy.md) | Buddy : visage, format `.buddy`, rendu | **done** | **100 %** | v1 | ✔ |
-| [006](docs/rfc/RFC-006-pont-hook.md) | Pont hook Claude Code : binaire dédié + socket Unix | **in-progress** | **95 %** | v1 | 0,5 j |
+| [006](docs/rfc/done/RFC-006-pont-hook.md) | Pont hook Claude Code : binaire dédié + socket Unix | **done** | **100 %** | v1 | ✔ |
 | [007](docs/rfc/RFC-007-interception-permissions.md) | Interception des permissions : file, rendu, décisions | **in-progress** | **95 %** | v1 | 0,5 j |
 | [008](docs/rfc/RFC-008-vue-sessions.md) | Vue sessions et saut vers le terminal hôte | **in-progress** | **80 %** | v1.1 | 1-2 j |
 | [009](docs/rfc/RFC-009-index-activite.md) | Index d'activité persistant (heatmap et historique) | todo | 0 % | v1.2 | 3-4 j |
@@ -126,7 +126,6 @@ Ordre = ordre de réalisation, pas ordre de numérotation.
 #   RFC      Titre                                          Avancement            %    Reste   Jalon
 2   —        Spike keychain + oauth-usage                    ████████████████████ 100 %   ✔      v1
 3   —        Spike contrat de hook ← **prouvé en réel**      ████████████████████ 100 %   ✔      v1
-4   RFC-006  Pont hook + socket Unix                         ███████████████████░  95 %   0,5 j  v1
 5   RFC-007  Interception des permissions ← prouvée en réel  ███████████████████░  95 %   0,5 j  v1
 6   RFC-011  Build, signature, distribution                  ███████████████████░  95 %   0,5 j  v1
 7   RFC-008  Vue sessions + saut terminal/tmux               ████████████████░░░░  80 %   1-2 j  v1.1
@@ -136,6 +135,7 @@ Ordre = ordre de réalisation, pas ordre de numérotation.
 11  RFC-016  Ponts agents et terminaux (opencode, tmux)      ░░░░░░░░░░░░░░░░░░░░   0 %   4-6 j  v1.2
 
 ── DONE ──
+—   RFC-006  Pont hook + socket Unix                         ████████████████████ 100 %   —      v1
 —   RFC-002  Fenêtre notch (NSPanel, click-through)          ████████████████████ 100 %   —      v1
 —   RFC-010  Réglages segmentés + aperçu de buddy            ████████████████████ 100 %   —      v1
 —   RFC-013  Buddy interactif (regard, chasse, rire)         ████████████████████ 100 %   —      v1
@@ -146,9 +146,11 @@ Ordre = ordre de réalisation, pas ordre de numérotation.
 —   RFC-003  Collecte de sessions (source de vérité unique)  ████████████████████ 100 %   —      v1
 ```
 
-**Chemin critique : 007.** RFC-006 est à 95 % — transport, installateur et
-désinstallation livrés, il ne reste que la confirmation d'une minute du spike.
-RFC-007 est désormais le seul gros morceau du v1.
+**Chemin critique : 007.** RFC-006 est **close** depuis le 2026-08-25 : transport,
+installateur, désinstallation, contrat prouvé en réel, et T11 — l'intermittence
+du socket — réglée, ses deux causes étant dans le harnais de test. RFC-007 est
+désormais le seul gros morceau du v1, et il ne lui manque que du terrain : quatre
+des six cas de permission n'ont jamais été joués contre un vrai Claude Code.
 
 RFC-003 a établi que **quatre des signaux que RFC-012 devait prendre au hook sont
 déjà dans le transcript** : mode de permission, fin de tour, cycle de vie des

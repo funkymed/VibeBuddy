@@ -16,15 +16,14 @@ private let pill = CGSize(width: 560, height: 32)
 
 @Suite("NotchFrameSolver")
 struct NotchFrameSolverTests {
-
     @Test("centred on a notched screen sits flush against the top edge")
     func flushOnNotch() {
         let f = NotchFrameSolver.frame(size: pill, geometry: notched, fraction: 0.5)
         #expect(f.maxY == notched.screenFrame.maxY)
     }
 
-    // Anywhere but the cutout, a flush pill looks stuck to the menu bar rather
-    // than flowing out of anything.
+    // Anywhere but the cutout, a flush pill looks stuck to the menu bar rather than
+    // flowing out of anything.
     @Test("off-centre keeps a gap below the top edge")
     func gapWhenFloating() {
         let f = NotchFrameSolver.frame(size: pill, geometry: notched, fraction: 0)
@@ -55,8 +54,7 @@ struct NotchFrameSolverTests {
         #expect(NotchFrameSolver.clampFraction(7) == 1)
     }
 
-    // A second display has a non-zero origin. Positioning against width alone
-    // would place the window on the wrong monitor.
+    // A second display has a non-zero origin.
     @Test("an external display is positioned in its own coordinate space")
     func externalScreenOrigin() {
         let f = NotchFrameSolver.frame(size: pill, geometry: plain, fraction: 0.5)
@@ -77,7 +75,6 @@ struct NotchFrameSolverTests {
 
 @Suite("Snap magnets")
 struct SnapTests {
-
     @Test("a near miss is caught by the magnet")
     func nearMissSnaps() {
         #expect(NotchFrameSolver.snap(fraction: 0.02, size: pill, geometry: notched) == 0)
@@ -90,8 +87,8 @@ struct SnapTests {
         #expect(f == 0.28)
     }
 
-    // The threshold is in points, not fractions: a fixed fraction would make
-    // magnets four times stickier on an ultrawide than on a laptop.
+    // The threshold is in points, not fractions: a fixed fraction would make magnets
+    // four times stickier on an ultrawide than on a laptop.
     @Test("magnet reach is the same physical distance on any display")
     func thresholdIsPhysical() {
         let narrow = NotchFrameSolver.snap(fraction: 0.05, size: pill, geometry: notched)
@@ -104,7 +101,6 @@ struct SnapTests {
 
 @Suite("PanelState")
 struct PanelStateTests {
-
     @Test("only the expanded panel absorbs its whole frame")
     func absorbsFullFrame() {
         #expect(PanelState.panel.absorbsFullFrame)
@@ -129,9 +125,8 @@ struct PanelStateTests {
 
 @Suite("Pill sizing")
 struct PillSizeTests {
-
-    // The bug a screenshot caught and no test could: a pill exactly as wide and
-    // tall as the cutout is black-on-black, hence invisible.
+    // The bug a screenshot caught and no test could: a pill exactly as wide and tall as
+    // the cutout is black-on-black, hence invisible.
     @Test("the pill is always wider than the notch it hugs")
     func pillOverhangsTheNotch() {
         let size = NotchFrameSolver.pillSize(geometry: notched)
@@ -149,7 +144,7 @@ struct PillSizeTests {
     func slotsFitOnBothSides() {
         let size = NotchFrameSolver.pillSize(geometry: notched)
         let overhang = size.width - notched.notchSize!.width
-        #expect(overhang / 2 >= 56)  // the buddy needs 56 pt — RFC-005
+        #expect(overhang / 2 >= 56)  // the buddy needs 56 pt
     }
 
     @Test("a display without a notch gets a plain floating lozenge")

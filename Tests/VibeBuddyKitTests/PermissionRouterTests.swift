@@ -4,16 +4,9 @@ import VibeHookProtocol
 @testable import VibeBuddyKit
 
 /// The routing behind the permission panel, exercised without a window.
-///
-/// Every one of these encodes a defect that was found by hand on 2026-08-21:
-/// a request answered twice, a consent left standing over a request that had
-/// gone, an allow that reached Claude Code before the rule was on disk.
 @Suite("Permission router")
 @MainActor
 struct PermissionRouterTests {
-
-    // MARK: - The guard
-
     @Test("The same request at the same count changes nothing")
     func sameIDSameWaitingIsInert() {
         let router = PermissionRouter()
@@ -28,8 +21,8 @@ struct PermissionRouterTests {
         #expect(again.hasRequest)
     }
 
-    /// The counter is part of what is on screen: « +2 en attente » becoming
-    /// « +1 » is a change the panel has to redraw and remeasure.
+    /// The counter is part of what is on screen: « +2 en attente » becoming « +1 » is a
+    /// change the panel has to redraw and remeasure.
     @Test("The same request at a different count does change")
     func sameIDDifferentWaitingChanges() {
         let router = PermissionRouter()
@@ -43,9 +36,7 @@ struct PermissionRouterTests {
         #expect(router.waiting == 1)
     }
 
-    /// The guard compares identifiers, never models. Two models sharing an id
-    /// are the same request; replaying the sequence for them buys an off-screen
-    /// layout and an animation for nothing.
+    /// The guard compares identifiers, never models.
     @Test("Two different bodies under one id are the same request")
     func theGuardComparesIdentifiers() {
         let router = PermissionRouter()
@@ -60,8 +51,6 @@ struct PermissionRouterTests {
         #expect(twin != first)
         #expect(!router.set(twin, waiting: 0).changed)
     }
-
-    // MARK: - Opening, swapping, closing
 
     @Test("The very first request is not a swap")
     func firstRequestIsNotASwap() {
@@ -88,8 +77,8 @@ struct PermissionRouterTests {
         #expect(verdict.wasShowingSomething)
     }
 
-    /// When the last one goes the panel returns to the pill, and only because
-    /// something *was* there: a `nil` on an empty router leaves it alone.
+    /// When the last one goes the panel returns to the pill, and only because something
+    /// *was* there: a `nil` on an empty router leaves it alone.
     @Test("Taking the last request away is a withdrawal")
     func withdrawalIsFlagged() {
         let router = PermissionRouter()
@@ -103,10 +92,8 @@ struct PermissionRouterTests {
         #expect(router.permission == nil)
     }
 
-    // MARK: - Consent
-
-    /// The request went away under the consent screen — expired, or answered in
-    /// the terminal. There is nothing left to grant.
+    /// The request went away under the consent screen — expired, or answered in the
+    /// terminal.
     @Test("A consent dies with the request it was built for")
     func consentDiesWithItsRequest() {
         let router = PermissionRouter()
@@ -120,13 +107,13 @@ struct PermissionRouterTests {
         let verdict = router.set(nil, waiting: 0)
 
         #expect(router.consent == nil)
-        // Still a swap out of something, even though the request had gone
-        // first: the consent screen was what the user was looking at.
+        // Still a swap out of something, even though the request had gone first: the
+        // consent screen was what the user was looking at.
         #expect(verdict.wasShowingSomething)
     }
 
-    /// When there is nothing to write — the rule is already granted — it is
-    /// simply an allow, with no screen in the way.
+    /// When there is nothing to write — the rule is already granted — it is simply an
+    /// allow, with no screen in the way.
     @Test("Nothing to write means a plain allow and no screen")
     func alwaysAllowWithNothingToWriteIsAnAllow() {
         let router = PermissionRouter()
@@ -155,8 +142,8 @@ struct PermissionRouterTests {
         #expect(decisions == 0)
     }
 
-    /// The socket stays open on purpose here: the screen is up, the user has
-    /// not decided yet, and answering now would grant what they are reading.
+    /// The socket stays open on purpose here: the screen is up, the user has not decided
+    /// yet, and answering now would grant what they are reading.
     @Test("A consent to show answers nothing yet")
     func alwaysAllowWithAConsentAnswersNothing() {
         let router = PermissionRouter()
@@ -189,9 +176,9 @@ struct PermissionRouterTests {
         #expect(decisions == 0)
     }
 
-    /// The invariant: an allow that reached Claude Code before the rule was on
-    /// disk would be granted once and asked again next time, which reads as the
-    /// button not working.
+    /// The invariant: an allow that reached Claude Code before the rule was on disk
+    /// would be granted once and asked again next time, which reads as the button not
+    /// working.
     @Test("Confirming writes the rule before it answers")
     func confirmWritesBeforeAnswering() {
         let router = PermissionRouter()
@@ -221,8 +208,6 @@ struct PermissionRouterTests {
         #expect(events == 0)
     }
 
-    // MARK: - Answering
-
     @Test("Answering with no request on screen reaches nobody")
     func answerWithoutARequestIsSilent() {
         let router = PermissionRouter()
@@ -237,9 +222,7 @@ struct PermissionRouterTests {
         #expect(decisions == 0)
     }
 
-    /// A chosen option travels as a deny whose reason is the answer. The router
-    /// carries the decision it is given and never normalises it — anyone who
-    /// "fixes" this into an allow breaks every question answered from the notch.
+    /// A chosen option travels as a deny whose reason is the answer.
     @Test("An answered question travels as the deny it is")
     func questionAnswerIsPassedThroughUntouched() {
         let router = PermissionRouter()
@@ -259,8 +242,6 @@ struct PermissionRouterTests {
         #expect(message == QuestionAnswer.denyMessage(for: "Oui"))
     }
 
-    // MARK: - isHoldingAnAsk
-
     @Test("A fresh router holds nothing")
     func freshRouterHoldsNothing() {
         #expect(!PermissionRouter().isHoldingAnAsk)
@@ -273,8 +254,8 @@ struct PermissionRouterTests {
         #expect(router.isHoldingAnAsk)
     }
 
-    /// The consent screen is an ask in its own right: the request behind it is
-    /// still pending, and the panel must not close under the diff either.
+    /// The consent screen is an ask in its own right: the request behind it is still
+    /// pending, and the panel must not close under the diff either.
     @Test("A consent alone is still an ask")
     func aConsentIsAnAsk() {
         let router = PermissionRouter()
@@ -288,8 +269,6 @@ struct PermissionRouterTests {
         _ = router.set(nil, waiting: 0)
         #expect(!router.isHoldingAnAsk)
     }
-
-    // MARK: - Helpers
 
     private static func consent(for model: PermissionRequestModel) -> PermissionConsent {
         PermissionConsent(

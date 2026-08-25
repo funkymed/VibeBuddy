@@ -1,12 +1,10 @@
 import Foundation
 import Observation
 
-/// What the pill and the panel show, and how they behave. Read by the window
-/// and the panel, never by the buddy renderer.
+/// What the pill and the panel show, and how they behave.
 @MainActor
 @Observable
 public final class LayoutPrefs {
-
     public enum Keys {
         public static let showPillWithoutSession = "vibebuddy.layout.pillWithoutSession"
         public static let groupByDirectory = "vibebuddy.layout.groupByDirectory"
@@ -16,12 +14,11 @@ public final class LayoutPrefs {
 
     @ObservationIgnored private let store: PreferencesStore
 
-    /// Set while `reload()` re-reads the store, so no `didSet` writes back the
-    /// keys a reset has just removed.
+    /// Set while `reload()` re-reads the store, so no `didSet` writes back the keys a
+    /// reset has just removed.
     @ObservationIgnored private var isReloading = false
 
-    /// Keep the pill on screen when nothing is running. Defaults to on, which
-    /// diverges from D7 — see RFC-001, "Notes d'implémentation".
+    /// Keep the pill on screen when nothing is running.
     public var showPillWithoutSession: Bool = true {
         didSet { persist(showPillWithoutSession, Keys.showPillWithoutSession) }
     }

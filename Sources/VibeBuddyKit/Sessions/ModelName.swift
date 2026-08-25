@@ -2,7 +2,6 @@ import Foundation
 
 /// The version has to survive: `opus` alone cannot tell Opus 4.8 from Opus 5.
 public enum ModelName {
-
     static func isDateStamp(_ component: Substring) -> Bool {
         component.count == 8 && component.allSatisfy(\.isNumber)
     }

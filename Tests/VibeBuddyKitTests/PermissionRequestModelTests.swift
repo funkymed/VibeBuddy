@@ -5,7 +5,6 @@ import VibeHookProtocol
 
 @Suite("Reading a permission request")
 struct PermissionRequestModelTests {
-
     /// Builds the payload a `PermissionRequest` hook actually receives.
     static func request(tool: String, input: [String: Any],
                         extra: [String: Any] = [:]) -> HookRequest {
@@ -29,8 +28,6 @@ struct PermissionRequestModelTests {
         PermissionRequestModel.parse(request(tool: tool, input: input, extra: extra))!
     }
 
-    // MARK: - The envelope
-
     @Test("the envelope is kept, so a request can be matched to its session")
     func envelope() {
         let model = Self.parsed(tool: "Bash", input: ["command": "ls"])
@@ -41,8 +38,8 @@ struct PermissionRequestModelTests {
         #expect(model.transcriptPath?.hasSuffix("s-1.jsonl") == true)
     }
 
-    // A request with no id still has to be tellable from the next one, or a
-    // queue cannot hold two of them.
+    // A request with no id still has to be tellable from the next one, or a queue
+    // cannot hold two of them.
     @Test("a request with no id is given one")
     func missingIdentifier() {
         var root: [String: Any] = [
@@ -67,8 +64,6 @@ struct PermissionRequestModelTests {
         let request = HookRequest(event: .permissionRequest, payload: Data("[1,2,3]".utf8))
         #expect(PermissionRequestModel.parse(request) == nil)
     }
-
-    // MARK: - Per tool
 
     @Test("a Bash request is a command line")
     func shell() {
@@ -129,8 +124,6 @@ struct PermissionRequestModelTests {
         #expect(model.summary == .url("https://example.invalid"))
     }
 
-    // MARK: - The question, whose shape has moved before
-
     @Test("a question is found under `questions[0]`, or on its own")
     func questionShapes() {
         let nested = Self.parsed(tool: "AskUserQuestion", input: [
@@ -148,8 +141,7 @@ struct PermissionRequestModelTests {
         #expect(flat.summary == .question(prompt: "Continuer ?", options: ["Oui", "Non"]))
     }
 
-    // The three key names have all been seen. A missed option is an answer the
-    // user cannot give.
+    // The three key names have all been seen.
     @Test("options are read under label, value or text", arguments: ["label", "value", "text"])
     func optionKeys(_ key: String) {
         let model = Self.parsed(tool: "AskUserQuestion", input: [
@@ -164,8 +156,6 @@ struct PermissionRequestModelTests {
         #expect(model.summary == .question(prompt: "1. faire ceci", options: []))
     }
 
-    // MARK: - What the app has never heard of
-
     @Test("an unknown tool still produces a request, in a stable order")
     func unknownTool() {
         let model = Self.parsed(tool: "SomeFutureTool", input: [
@@ -174,8 +164,8 @@ struct PermissionRequestModelTests {
         guard case let .other(fields) = model.summary else {
             Issue.record("attendu .other, obtenu \(model.summary)"); return
         }
-        // Sorted: a dictionary has no order, and a panel that reshuffles its own
-        // fields between two frames is a panel nobody can read.
+        // Sorted: a dictionary has no order, and a panel that reshuffles its own fields
+        // between two frames is a panel nobody can read.
         #expect(fields.map(\.name) == ["alpha", "count", "zeta"])
         #expect(fields.first?.value == "premier")
         #expect(fields.first(where: { $0.name == "count" })?.value == "3")
@@ -190,8 +180,6 @@ struct PermissionRequestModelTests {
         #expect(fields.count == PermissionRequestModel.unknownFieldLimit)
     }
 
-    // MARK: - Truncation, at the storage and not at the view
-
     @Test("a huge string is cut when it is parsed, not when it is drawn")
     func truncatesAtParseTime() {
         let huge = String(repeating: "x", count: 200_000)
@@ -200,8 +188,8 @@ struct PermissionRequestModelTests {
             Issue.record("attendu .write"); return
         }
         #expect(contents.count < PermissionRequestModel.diffLimit + 100)
-        // And it says what it dropped: the count is the difference between a
-        // panel that summarises and one that hides.
+        // And it says what it dropped: the count is the difference between a panel that
+        // summarises and one that hides.
         #expect(contents.contains("caractères de plus"))
     }
 
@@ -211,10 +199,7 @@ struct PermissionRequestModelTests {
         #expect(model.summary == .shell(command: "ls -la", description: nil))
     }
 
-    // MARK: - Suggestions
-
     // Claude Code owns its pattern language (`Bash(npm install:*)`).
-    // Reimplementing it is how the two drift apart, so it is carried verbatim.
     @Test("suggestions are carried through as they came, in both shapes")
     func suggestionsAreVerbatim() {
         let strings = Self.parsed(

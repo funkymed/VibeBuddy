@@ -1,19 +1,14 @@
 import Foundation
 
 public enum AppName {
-
     public static let display = "VibeBuddy"
 }
 
-/// Where the app keeps the files a user can edit. The buddies in there are
-/// usually symbolic links into a working copy: migrate with `moveItem`, which
-/// keeps them as links rather than following them.
+/// Where the app keeps the files a user can edit.
 public enum SupportDirectory {
-
     public static let name = AppName.display
 
-    /// Directories this app used to live in, newest first. `vibebuddy` is in the
-    /// list because on a case-sensitive volume it is a different directory.
+    /// Directories this app used to live in, newest first.
     static let legacyNames = ["vibebuddy", "notch-buddy"]
 
     public static var path: String {
@@ -63,8 +58,7 @@ public enum SupportDirectory {
         }
     }
 
-    /// Whether two paths name the same directory on disk. Compare by file system
-    /// identifier: case, symbolic links and `/private` prefixes defeat strings.
+    /// Whether two paths name the same directory on disk.
     static func isSamePlace(
         _ a: String, _ b: String, using manager: FileManager = .default
     ) -> Bool {

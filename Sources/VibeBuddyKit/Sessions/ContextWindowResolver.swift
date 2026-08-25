@@ -1,12 +1,9 @@
 import Foundation
 
-/// Not in the transcript: measured here, `~/.claude/settings.json` holds
-/// `"model": "opus[1m]"` while all 3 000 entries of the matching transcript say plain
-/// `claude-opus-5`. A `/model` typed mid-session leaves no trace at all;
-/// `SessionStore.largeContextThreshold` is the backstop.
-/// See RFC-003, « Notes d'implémentation ».
+/// Not in the transcript: measured here, `~/.claude/settings.json` holds `"model":
+/// "opus[1m]"` while all 3 000 entries of the matching transcript say plain
+/// `claude-opus-5`.
 public struct ContextWindowResolver: Sendable {
-
     static let largeWindowMarker = "[1m]"
 
     public static let defaultWindow = 200_000

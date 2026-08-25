@@ -1,8 +1,6 @@
 import SwiftUI
 import VibeBuddyKit
 
-/// The colour and the word for a session state. The ordering lives in
-/// `SessionDisplayState`; this only maps it to the app's palette.
 enum SessionStateStyle {
     static func colour(_ session: AgentSession) -> Color {
         colour(SessionDisplayState.of(session))

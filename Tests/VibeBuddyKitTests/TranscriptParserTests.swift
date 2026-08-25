@@ -4,7 +4,6 @@ import Foundation
 
 @Suite("Transcript parsing")
 struct TranscriptParserTests {
-
     @Test("identity fields are picked up wherever they sit")
     func identityFields() {
         let t = TranscriptParser.parse(TranscriptFixtures.runningShell)
@@ -25,8 +24,8 @@ struct TranscriptParserTests {
         #expect(!t.turnEnded)
     }
 
-    // Cache reads and creations count: they are part of what the model was sent,
-    // and leaving them out understates the context by an order of magnitude.
+    // Cache reads and creations count: they are part of what the model was sent, and
+    // leaving them out understates the context by an order of magnitude.
     @Test("context size sums input, cache reads and cache creation")
     func contextTokens() {
         let t = TranscriptParser.parse(TranscriptFixtures.runningShell)
@@ -40,11 +39,8 @@ struct TranscriptParserTests {
     }
 }
 
-// The two findings that decouple this RFC from the hook bridge. The reference
-// implementation obtains both from hook events; neither needs one.
 @Suite("Signals the reference takes from hooks")
 struct TranscriptNativeSignalsTests {
-
     @Test("turn completion is in the transcript")
     func turnEnd() {
         let t = TranscriptParser.parse(TranscriptFixtures.turnFinished)
@@ -59,8 +55,8 @@ struct TranscriptNativeSignalsTests {
         #expect(t.permissionMode == "auto")
     }
 
-    // Found by the R9 counter, not by reading documentation: `started` and
-    // `result` carry an `agentId` and track subagents.
+    // Found by the R9 counter, not by reading documentation: `started` and `result`
+    // carry an `agentId` and track subagents.
     @Test("subagent lifecycle is in the transcript")
     func subagentLifecycle() {
         let t = TranscriptParser.parse(TranscriptFixtures.subagents)
@@ -80,7 +76,6 @@ struct TranscriptNativeSignalsTests {
 
 @Suite("Parser robustness")
 struct TranscriptRobustnessTests {
-
     @Test("known-but-unused entry types are not counted as unknown")
     func noiseIsSilent() {
         let t = TranscriptParser.parse(TranscriptFixtures.noiseOnly)
@@ -88,9 +83,7 @@ struct TranscriptRobustnessTests {
         #expect(t.action == .none)
     }
 
-    // Risk R9: the transcript format is not a contract. A renamed key would
-    // empty the app silently, so what the parser fails to read is counted and
-    // exposed rather than dropped.
+    // Risk R9: the transcript format is not a contract.
     @Test("unknown entry types are counted, not swallowed")
     func unknownIsCounted() {
         let t = TranscriptParser.parse(TranscriptFixtures.unknownType)
@@ -98,8 +91,8 @@ struct TranscriptRobustnessTests {
         #expect(t.model == "claude-opus-5")  // still parses what it does know
     }
 
-    // A tail read lands mid-write often enough that this is the normal case,
-    // not an edge case.
+    // A tail read lands mid-write often enough that this is the normal case, not an
+    // edge case.
     @Test("a truncated final line does not lose the rest")
     func truncatedTail() {
         let t = TranscriptParser.parse(TranscriptFixtures.truncatedTail)
@@ -121,12 +114,11 @@ struct TranscriptRobustnessTests {
     }
 }
 
-// A pill that says "édition" is less useful than one that says
-// "édition de NotchPanel.swift", and every tool hides its subject under a
-// different key — there is no common one.
+// A pill that says "édition" is less useful than one that says "édition de
+// NotchPanel.swift", and every tool hides its subject under a different key — there is
+// no common one.
 @Suite("Tool subject extraction")
 struct ToolSubjectTests {
-
     @Test("a shell command is its own subject")
     func shellSubject() {
         let t = TranscriptParser.parse(
@@ -135,8 +127,8 @@ struct ToolSubjectTests {
         #expect(t.subject == "swift build -c release")
     }
 
-    // A full path truncated to the pill's width keeps its least informative
-    // half, so only the last component is kept.
+    // A full path truncated to the pill's width keeps its least informative half, so
+    // only the last component is kept.
     @Test("a file path is reduced to its last component")
     func filePathSubject() {
         let t = TranscriptParser.parse(TranscriptFixtures.toolUse(
@@ -165,10 +157,9 @@ struct ToolSubjectTests {
     }
 }
 
-// The `failed` signal, and the third thing RFC-012 expected from a hook.
+// The `failed` signal, and the third thing expected from a hook.
 @Suite("Tool result errors")
 struct ToolResultTests {
-
     @Test("an errored result is detected")
     func errorDetected() {
         #expect(TranscriptParser.parse(TranscriptFixtures.toolError).lastResultWasError)
@@ -185,12 +176,10 @@ struct ToolResultTests {
     }
 }
 
-// Scanning newest-first means a completed turn's own tool use is encountered
-// *after* the completion marker. Letting it set the current action makes a
-// finished session look busy forever, which is exactly the alert that must fire.
+// Scanning newest-first means a completed turn's own tool use is encountered *after*
+// the completion marker.
 @Suite("Turn boundary")
 struct TurnBoundaryTests {
-
     private static let finishedAfterTool = TranscriptFixtures.data([
         TranscriptFixtures.base("assistant", #""message":{"model":"claude-opus-5","content":[{"type":"tool_use","name":"Bash","input":{"command":"swift build"}}]}"#),
         TranscriptFixtures.base("user", #""message":{"content":[{"type":"tool_result","is_error":false,"content":"ok"}]}"#),

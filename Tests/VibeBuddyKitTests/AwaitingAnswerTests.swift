@@ -3,14 +3,8 @@ import Testing
 @testable import VibeBuddyKit
 
 /// A pending question, read from the transcript.
-///
-/// The shape is fixed and was measured, not assumed: an assistant entry carries
-/// `tool_use` with an `id`, and the answer comes back as a `user` entry carrying
-/// `tool_result` with a matching `tool_use_id`. Between the two, nothing is
-/// written — which is exactly the window this detects.
 @Suite("Awaiting an answer")
 struct AwaitingAnswerTests {
-
     private func transcript(_ lines: [String]) -> Data {
         Data(lines.joined(separator: "\n").utf8)
     }
@@ -33,9 +27,7 @@ struct AwaitingAnswerTests {
         #expect(tail.question == "Garder le rendu pixelisé ?")
     }
 
-    // The scan runs newest-first, so the answer is seen before the question it
-    // answers. Getting that order wrong would report every answered question as
-    // still pending — an alert on every conversation.
+    // The scan runs newest-first, so the answer is seen before the question it answers.
     @Test("an answered question is not a wait")
     func answeredQuestion() {
         let tail = TranscriptParser.parse(transcript([question, answer]))
@@ -53,8 +45,7 @@ struct AwaitingAnswerTests {
         #expect(tail.awaitingQuestion)
     }
 
-    // Any pending `tool_use` looks the same in the file. Only tools that *are*
-    // questions may be read as a wait, or every slow command becomes one.
+    // Any pending `tool_use` looks the same in the file.
     @Test("a running tool is not a wait")
     func pendingToolIsNotAQuestion() {
         let entry = """
@@ -73,8 +64,6 @@ struct AwaitingAnswerTests {
         #expect(!QuestionTools.asks("Bash"))
         #expect(!QuestionTools.asks("Task"))
     }
-
-    // MARK: - State machine
 
     private func observation(
         awaiting: Bool, action: ToolAction = .none, turnEnded: Bool = false
@@ -98,9 +87,9 @@ struct AwaitingAnswerTests {
         #expect(second.alert == nil)
     }
 
-    // `ExitPlanMode` classifies as planning, so a machine that checked the
-    // action first would report an agent that has been standing still since the
-    // plan was printed as busy planning.
+    // `ExitPlanMode` classifies as planning, so a machine that checked the action first
+    // would report an agent that has been standing still since the plan was printed as
+    // busy planning.
     @Test("a question outranks a classified action")
     func questionBeatsAction() {
         let step = SessionStateMachine.advance(
@@ -124,8 +113,7 @@ struct AwaitingAnswerTests {
         #expect(SessionActivity.awaiting.isNotable)
     }
 
-    // The face existed in every buddy file and nothing ever produced it. This is
-    // what now does.
+    // The face existed in every buddy file and nothing ever produced it.
     @Test("the awaiting face finally has a producer")
     func buddyShowsTheFace() {
         let expression = BuddyExpression.from(

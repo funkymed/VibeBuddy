@@ -1,10 +1,7 @@
 import Foundation
 
-/// Transcripts grow without bound — 8 MB for a day's work, 517 files in the corpus
-/// here. Do not read whole files with `String(contentsOf:)`: that is risk R2.
-/// A struct rather than an actor: see RFC-003, « Notes d'implémentation ».
+/// Transcripts grow without bound — 8 MB for a day's work, 517 files in the corpus here.
 public struct JSONLTailReader: Sendable {
-
     public static let windowBytes = 64 * 1024
 
     private struct Cached {
@@ -37,9 +34,8 @@ public struct JSONLTailReader: Sendable {
 
     public var cachedCount: Int { cache.count }
 
-    // MARK: - Bounded read
-
-    /// Trimmed forward past the first newline: a mid-file window opens on a JSON fragment.
+    /// Trimmed forward past the first newline: a mid-file window opens on a JSON
+    /// fragment.
     public static func tail(of path: String, bytes: Int) -> Data? {
         guard let handle = FileHandle(forReadingAtPath: path) else { return nil }
         defer { try? handle.close() }

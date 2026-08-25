@@ -4,10 +4,9 @@ import Foundation
 
 @Suite("Language resolution")
 struct AppLanguageTests {
-
-    // `.system` stays a distinct case rather than being resolved once at
-    // launch: someone who changes their macOS language expects the app to
-    // follow, and a stored resolved value would freeze it forever.
+    // `.system` stays a distinct case rather than being resolved once at launch:
+    // someone who changes their macOS language expects the app to follow, and a stored
+    // resolved value would freeze it forever.
     @Test("system follows macOS", arguments: [
         (["fr-FR", "en-US"], AppLanguage.french),
         (["fr"],             .french),
@@ -19,8 +18,8 @@ struct AppLanguageTests {
         #expect(AppLanguage.system.resolved(preferred: preferred) == expected)
     }
 
-    // A language we do not have falls back whole rather than part-way: a
-    // Portuguese user gets English, not half a French interface.
+    // A language we do not have falls back whole rather than part-way: a Portuguese
+    // user gets English, not half a French interface.
     @Test("an unsupported language falls back to English, not to a partial match")
     func unsupportedFallsBack() {
         #expect(AppLanguage.system.resolved(preferred: ["pt-BR"]) == .english)
@@ -38,8 +37,8 @@ struct AppLanguageTests {
         #expect(AppLanguage.english.displayName == "English")
     }
 
-    // Dates follow the interface, so a French panel never prints "August 23"
-    // under "semaine".
+    // Dates follow the interface, so a French panel never prints "August 23" under
+    // "semaine".
     @Test("the locale follows the resolved language")
     func localeFollows() {
         #expect(AppLanguage.french.locale.identifier == "fr_FR")
@@ -49,12 +48,9 @@ struct AppLanguageTests {
 
 @Suite("String catalogue")
 struct StringsTests {
-
     @Test("both catalogues answer for the same keys")
     func bothLanguagesComplete() {
-        // The type system already guarantees this — a missing string would not
-        // compile. This asserts the values are actually filled in rather than
-        // left as empty placeholders.
+        // The type system already guarantees this — a missing string would not compile.
         for strings in [Strings.french, Strings.english] {
             #expect(!strings.noSessions.isEmpty)
             #expect(!strings.sessionsTitle.isEmpty)
@@ -87,8 +83,7 @@ struct StringsTests {
     }
 
     // Regression guard: `ToolActionClassifier` used to return French words straight
-    // into the row, so an English panel showed "édition · SessionStore.swift". If a
-    // label ever leaks back out of the Kit, both catalogues render it identically.
+    // into the row, so an English panel showed "édition · SessionStore.swift".
     @Test("a tool label is translated, not passed through", arguments: [
         ToolLabel.shell, .editing, .writing, .reading,
         .searching, .listing, .webSearch, .delegating, .planning,
@@ -101,7 +96,8 @@ struct StringsTests {
         #expect(fr != en)
     }
 
-    // The one label that must NOT be translated: an unknown tool is named, not described.
+    // The one label that must NOT be translated: an unknown tool is named, not
+    // described.
     @Test("an unknown tool keeps its own name in both languages")
     func unknownToolPassesThrough() {
         #expect(Strings.french.label(for: .other("mcp__weird")) == "mcp__weird")
@@ -121,14 +117,13 @@ struct StringsTests {
 @Suite("Localisation store")
 @MainActor
 struct LocalisationStoreTests {
-
     private func store() -> (Localisation, UserDefaults) {
         let suite = UserDefaults(suiteName: "vibebuddy.tests.\(UUID().uuidString)")!
         return (Localisation(defaults: suite), suite)
     }
 
-    // First launch stores nothing, so `.system` applies — detection is not a
-    // separate step, it is what `.system` means.
+    // First launch stores nothing, so `.system` applies — detection is not a separate
+    // step, it is what `.system` means.
     @Test("a fresh install starts on system")
     func freshInstallFollowsSystem() {
         let (l10n, _) = store()

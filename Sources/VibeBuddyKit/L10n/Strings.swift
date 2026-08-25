@@ -1,11 +1,7 @@
 import Foundation
 
 /// Every user-facing string, in every language.
-///
-/// Every language is an instance of the same struct, so adding a string without
-/// translating it does not compile. See RFC-001, "Notes d'implémentation".
 public struct Strings: Sendable {
-
     // Header
     public let noSessions: String
     public let sessionsIdle: @Sendable (Int) -> String
@@ -29,8 +25,8 @@ public struct Strings: Sendable {
     public let sessionHistory: @Sendable (Int) -> String
     public let contextTooltip: @Sendable (Int, Int) -> String
     public let jumpHint: String
-    /// Shown when the click found the terminal but not the tab — under tmux, or
-    /// on an emulator with no scripting dictionary.
+    /// Shown when the click found the terminal but not the tab — under tmux, or on an
+    /// emulator with no scripting dictionary.
     public let jumpNoTab: String
     public let jumpNoTerminal: String
     public let jumpFailed: @Sendable (String) -> String
@@ -52,7 +48,7 @@ public struct Strings: Sendable {
     public let settings: String
     public let settingsOpenFolder: String
 
-    // Tool labels — one per `ToolLabel` case. Reached through `label(for:)`.
+    // Tool labels — one per `ToolLabel` case.
     public let toolShell: String
     public let toolEditing: String
     public let toolWriting: String
@@ -71,13 +67,12 @@ public struct Strings: Sendable {
     public let alertFailed: String
     public let alertWaiting: String
 
-    // Permissions — RFC-007
+    // Permissions
     public let permissionAutomation: @Sendable (String) -> String
     public let permissionAutomationWhy: String
     public let permissionLoginItem: String
     public let permissionLoginItemWhy: String
-    /// What a refusal tells the model. Load-bearing: an empty message reads as
-    /// a refusal with no reason, and the model tries again another way.
+    /// What a refusal tells the model.
     public let permissionDenied: String
     public let permissionTitle: String
     public let consentTitle: String
@@ -92,20 +87,15 @@ public struct Strings: Sendable {
     public let permissionAlwaysAllow: String
     /// Names the file the button writes to, out loud: the consent half of R1.
     public let permissionAlwaysAllowHint: String
-    /// Under an `AskUserQuestion`'s options: clicking one answers Claude, it
-    /// does not grant anything. The only panel where those two differ.
+    /// Under an `AskUserQuestion`'s options: clicking one answers Claude, it does not
+    /// grant anything.
     public let permissionAnswerHint: String
     /// What « Allow » does on a question, said as what it does.
-    ///
-    /// Claude Code **discards** an `allow` from a hook for a tool that declares
-    /// `requiresUserInteraction` — read in the binary 2.1.239 — and falls back
-    /// to its own picker. So the button hands the question to the terminal; it
-    /// does not run anything, and calling it « Autoriser » promises otherwise.
     public let permissionAnswerInTerminal: String
     /// A diff whose left side is empty: the file does not exist yet.
     public let permissionNewFile: String
-    /// A write of nothing at all — said out loud, because an empty box reads as
-    /// a rendering bug rather than as an empty file.
+    /// A write of nothing at all — said out loud, because an empty box reads as a
+    /// rendering bug rather than as an empty file.
     public let permissionNoContent: String
     /// Caption above the host: what a fetch actually grants.
     public let permissionDomain: String
@@ -256,7 +246,8 @@ public struct Strings: Sendable {
         permissionDomain: "DOMAIN"
     )
 
-    /// Single translation point for `ToolLabel`; without it every view duplicates the switch.
+    /// Single translation point for `ToolLabel`; without it every view duplicates the
+    /// switch.
     public func label(for tool: ToolLabel) -> String {
         switch tool {
         case .shell:      return toolShell

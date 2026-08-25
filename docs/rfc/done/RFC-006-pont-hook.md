@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | **in-progress (96 %)** — transport, installateur et contrat **prouvé en réel** ; reste **T11 seule**, un défaut d'affamement de fils trouvé le 2026-08-21 et non corrigé |
+| **Status** | **done (100 %)** — clôturée le 2026-08-25. Transport, installateur et contrat prouvés en réel ; **T11 close**, ses deux causes étaient dans le harnais de test |
 | **Author** | Cyril Pereira |
 | **Created** | 2026-08-19 |
 | **Updated** | 2026-08-21 (soir) |
@@ -150,7 +150,7 @@ horodatée est ce qui rend l'erreur réparable.
 | T8 | `HookInstaller` idempotent + nettoyage des entrées obsolètes | **done** | **100** |
 | T9 | `vibebuddy --uninstall-hook` | **done** | **100** |
 | T10 | Mesure du temps de démarrage du hook (valide D4) | **done** | **100** — **3,2 ms** de médiane, cible 8 |
-| T11 | **Perte d'un événement tir-et-oublie** — 1 sur 6 → **1 sur 14** ; une cause trouvée et corrigée, une seconde isolée mais pas résolue | **in-progress** | **60** |
+| T11 | **Perte d'un événement tir-et-oublie** — deux causes, les deux dans le harnais de test. **0 échec sur 14** | **done** | **100** |
 
 ### Ce que T8 et T9 ont demandé de plus que prévu
 
@@ -254,7 +254,7 @@ permission est en attente **ne bloque pas Claude Code plus de 120 s**.
 `--uninstall-hook` retire exactement nos entrées, vérifié par `diff` contre la
 sauvegarde. Le hook démarre en moins de 8 ms.
 
-### T11, le 2026-08-23 — ce qui est trouvé, ce qui reste
+### T11, le 2026-08-23 — l'étape intermédiaire (voir la clôture ci-dessous)
 
 **Une cause sur deux est réglée, et ce n'était pas le socket.** Les tests
 dormaient 300 ms fixes avant d'affirmer. Un événement en tir-et-oublie est
@@ -299,6 +299,41 @@ première règle est de ne jamais bloquer ne peut pas se le permettre.
 run (quel `fd`, combien d'octets `send` a réellement écrits, à quel instant)
 pour savoir si les octets partent vers le descripteur que le serveur a accepté.
 La trace serveur seule ne peut pas répondre.
+
+### T11 close — 2026-08-25
+
+**Les deux causes étaient dans les tests, aucune dans le serveur.**
+
+1. **Une attente fixe.** Les tests dormaient 300 ms puis affirmaient. Un événement
+   en tir-et-oublie est traité de façon asynchrone ; sur une machine chargée ce
+   budget ne suffit pas toujours, et le taux d'échec suivait la charge — ce qui,
+   vu de l'extérieur, ressemble exactement à « instable sous charge parallèle ».
+   Remplacé par `waitUntil`, une attente sur la condition. La suite est passée de
+   1,14 s à 0,63 s au passage : les 500 ms étaient payées à chaque exécution,
+   même quand tout allait bien.
+
+2. **Un arrêt non attendu.** `defer { Task { await server.stop() } }` retombait au
+   milieu du test suivant et fermait des descripteurs déjà réattribués par le
+   noyau à la connexion en cours. La trace le montre sans ambiguïté :
+
+   ```
+   [socket A] fd 7 : réponse écrite
+   [socket B] accept → fd 7
+   (plus rien pour B)
+   ```
+
+   Corrigé par `withServer(sink:_:)`, qui attend l'arrêt y compris quand le corps
+   lève. Et `finish(fd)` ne ferme plus qu'une fois — `guard open.remove(fd) != nil` —
+   parce que l'acteur est réentrant : `stop()` peut s'exécuter pendant la
+   suspension de `await Self.read(fd)`.
+
+**Mesuré : 0 échec sur 14 exécutions**, contre 1 sur 6 à l'ouverture de la tâche.
+
+**Ce qui avait fait perdre quatre jours** : chercher la cause dans le serveur.
+Les deux hypothèses écartées le 2026-08-21 — affamement de fils, double source
+sur un descripteur — étaient des théories sur le code testé, alors que le défaut
+était dans ce qui le testait. Et c'est la trace derrière `VIBEBUDDY_HOOK_TRACE`
+qui a tranché en une exécution, pas le raisonnement.
 
 ## 6. Open Questions
 

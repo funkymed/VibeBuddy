@@ -1,12 +1,9 @@
 import AppKit
 import Darwin
 
-/// Under tmux the chain is `agent → shell → tmux server` and the server is detached
-/// from whichever client displays it, so the answer degrades to "some terminal is
-/// frontmost". Ambiguity errs toward *not* suppressing: a wrong suppression is worse
-/// than a wrong alert. Why it lives here: see RFC-003, « Notes d'implémentation ».
+/// Under tmux the chain is `agent → shell → tmux server` and the server is detached from
+/// whichever client displays it, so the answer degrades to "some terminal is frontmost".
 public enum TerminalFocusProbe {
-
     /// Warp reports as `stable`, which is not a typo.
     public static let terminalNames: Set<String> = [
         "Terminal", "iTerm2", "iTerm", "Alacritty", "alacritty",
@@ -23,7 +20,8 @@ public enum TerminalFocusProbe {
 
     public static let maxHops = 8
 
-    /// `NSWorkspace` needs no permission, unlike the Accessibility queries ruled out for v1.
+    /// `NSWorkspace` needs no permission, unlike the Accessibility queries ruled out for
+    /// v1.
     @MainActor
     public static func isAnyTerminalFrontmost() -> Bool {
         guard let front = NSWorkspace.shared.frontmostApplication else { return false }

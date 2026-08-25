@@ -1,20 +1,16 @@
 import Foundation
 
 /// Turns a stream of transcript readings into state changes and alerts.
-/// An alert fires on a transition, never on a state: re-reading the transcript
-/// or waking from sleep must not re-notify a turn that already completed.
 public enum SessionStateMachine {
-
     public static func advance(
         from current: SessionActivity,
         observing observation: SessionObservation
     ) -> (state: SessionActivity, alert: SessionAlert.Kind?) {
-
         guard observation.isLive else { return (.idle, nil) }
 
-        // A question with no answer beats everything below, including a running
-        // tool: `ExitPlanMode` is classified as planning, so checking the action
-        // first would report work in progress for an agent standing still.
+        // A question with no answer beats everything below, including a running tool:
+        // `ExitPlanMode` is classified as planning, so checking the action first would
+        // report work in progress for an agent standing still.
         if observation.awaitingAnswer {
             return (.awaiting, current == .awaiting ? nil : .needsAttention)
         }

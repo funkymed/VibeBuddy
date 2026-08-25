@@ -2,13 +2,10 @@ import SwiftUI
 import VibeBuddyKit
 
 /// Top row of the expanded panel: buddy, aggregate state, settings, quit.
-/// See RFC-008, "Notes d'implémentation".
 struct PanelHeader: View {
     let buddy: BuddyManifest?
     let expression: BuddyExpression
-    /// The size the buddy is drawn at in the collapsed pill. The panel draws it
-    /// at exactly that: one buddy, one size, so deploying the panel does not
-    /// resize the thing the eye is already following.
+    /// The size the buddy is drawn at in the collapsed pill.
     var buddyBox: CGSize = .zero
     let sessions: [AgentSession]
     @Bindable var budget: AnimationBudget
@@ -22,9 +19,7 @@ struct PanelHeader: View {
 
     var body: some View {
         HStack(alignment: .center, spacing: 12) {
-            // The buddy's seat. It is drawn by `NotchShellView`, which keeps
-            // one instance alive across both states so the face never blinks
-            // out when the panel opens.
+            // The buddy's seat.
             if buddy != nil {
                 Color.clear.frame(width: buddyBox.width, height: buddyBox.height)
             }
@@ -44,7 +39,7 @@ struct PanelHeader: View {
         }
     }
 
-    /// Working over live, not live over total. See RFC-008, "Notes d'implémentation".
+    /// Working over live, not live over total.
     private var counterChip: some View {
         HStack(spacing: 4) {
             Circle()
@@ -61,9 +56,8 @@ struct PanelHeader: View {
         .background(Capsule().fill(PanelInk.stroke))
     }
 
-    /// The app is an accessory with no menu bar, so `⌘,` reaches nothing: this
-    /// gear is the entire entry point. Keep the label — an icon-only `Image` is
-    /// a blank control to VoiceOver.
+    /// The app is an accessory with no menu bar, so `⌘,` reaches nothing: this gear is
+    /// the entire entry point.
     private var settingsButton: some View {
         Button(l10n.settings, systemImage: "slider.horizontal.3", action: onSettings)
             .labelStyle(.iconOnly)
@@ -76,8 +70,8 @@ struct PanelHeader: View {
             .pointingHandCursor()
     }
 
-    /// No Dock icon and no menu bar: without this there is no way to quit short
-    /// of `pkill`. Labelled for the same reason as the gear.
+    /// No Dock icon and no menu bar: without this there is no way to quit short of
+    /// `pkill`.
     private var quitButton: some View {
         Button(l10n.quit, systemImage: "power", action: onQuit)
             .labelStyle(.iconOnly)

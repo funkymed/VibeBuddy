@@ -2,11 +2,7 @@ import AppKit
 import Foundation
 
 /// Matched on the tty (see `ProcessLookup.tty`), never on title or cwd.
-/// Under tmux the agent's tty is the pane's, not the emulator's, so no iTerm2 session
-/// carries it: the match fails and the fallback activates the app without a tab.
-/// See RFC-003, « Notes d'implémentation ».
 public enum TerminalJumper {
-
     public enum Outcome: Sendable, Equatable {
         case selectedTab(app: String)
         case activatedApp(app: String)
@@ -14,8 +10,7 @@ public enum TerminalJumper {
         case failed(String)
     }
 
-    /// Emulators that publish a tty and can select a tab. Ghostty, kitty and Alacritty
-    /// ship no scripting dictionary and must fall back to activation.
+    /// Emulators that publish a tty and can select a tab.
     static let scriptable: Set<String> = ["iTerm2", "iTerm", "Terminal"]
 
     public static func jump(agentPID: pid_t) -> Outcome {
@@ -51,10 +46,7 @@ public enum TerminalJumper {
         return scriptable.contains(name) && ProcessLookup.tty(of: agentPID) != nil
     }
 
-    // MARK: - Scripts
-
-    /// iTerm2 nests windows > tabs > sessions, with the tty on the session. Select all
-    /// three, outermost first: selecting the session alone does not order the window.
+    /// iTerm2 nests windows > tabs > sessions, with the tty on the session.
     static func itermScript(tty: String) -> String {
         """
         tell application "iTerm2"

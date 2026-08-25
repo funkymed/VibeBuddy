@@ -1,19 +1,6 @@
 import Foundation
 
 /// JSON that remembers the order its keys were written in.
-///
-/// `JSONSerialization` decodes an object into a `Dictionary`, which has no
-/// order. Re-serialising it therefore shuffles the file — `.sortedKeys` makes
-/// that shuffle *stable* rather than making it stop, which is why D6 forbids it
-/// and why this type exists instead.
-///
-/// The user's `~/.claude/settings.json` is eleven kilobytes of hand-edited
-/// settings with `$schema` deliberately first. Anything that reorders it on
-/// every launch is a bug, however valid the JSON it produces.
-///
-/// Numbers keep their original text: re-encoding `1.0` as `1`, or losing a
-/// digit of a large integer, is the same class of damage in a smaller place.
-/// See RFC-006, risk R1 and decision D6.
 public indirect enum OrderedJSON: Equatable, Sendable {
     case object([(key: String, value: OrderedJSON)])
     case array([OrderedJSON])
@@ -37,8 +24,6 @@ public indirect enum OrderedJSON: Equatable, Sendable {
         }
     }
 
-    // MARK: - Reading an object
-
     public var objectPairs: [(key: String, value: OrderedJSON)]? {
         if case let .object(pairs) = self { return pairs }
         return nil
@@ -48,9 +33,7 @@ public indirect enum OrderedJSON: Equatable, Sendable {
         objectPairs?.first { $0.key == key }?.value
     }
 
-    /// Sets or replaces `key`, **in place** when it already exists. A key that
-    /// moves to the end of the file on every write is the reordering this type
-    /// exists to prevent, one key at a time.
+    /// Sets or replaces `key`, in place when it already exists.
     public func setting(_ key: String, to value: OrderedJSON?) -> OrderedJSON {
         var pairs = objectPairs ?? []
         let index = pairs.firstIndex { $0.key == key }

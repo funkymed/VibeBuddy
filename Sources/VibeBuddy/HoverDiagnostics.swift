@@ -1,20 +1,16 @@
 import AppKit
 import VibeBuddyKit
 
-/// Prints the three rects that arm the hover — window frame, tracking rect,
-/// polled screen rect — for each state, without a mouse.
+/// Prints the three rects that arm the hover — window frame, tracking rect, polled
+/// screen rect — for each state, without a mouse.
 @MainActor
 enum HoverDiagnostics {
-
     static func run() -> Never {
         let app = NSApplication.shared
         app.setActivationPolicy(.accessory)
 
         let panel = NotchPanel(wake: WakeCoordinator(), budget: AnimationBudget())
         // The pill's width comes from these: a bare panel measures nothing real.
-        // The id goes through the store, never `UserDefaults.standard`: this
-        // binary is unbundled, so its own domain is keyed on the executable
-        // name and not on the bundle identifier the packaged app writes to.
         let appearance = AppearancePrefs(store: PreferencesStore())
         var loader = BuddyLoader()
         panel.setBuddy(loader.load(id: appearance.buddyID).manifest)
@@ -35,8 +31,8 @@ enum HoverDiagnostics {
         settle(1.2)
         report(panel, "replié — animation terminée")
 
-        // Both setters resize the pill; a region that does not follow arms the
-        // hover outside the black.
+        // Both setters resize the pill; a region that does not follow arms the hover
+        // outside the black.
         panel.setSessionCount(0)
         settle(0.3)
         report(panel, "replié — 0 session")
@@ -49,8 +45,6 @@ enum HoverDiagnostics {
     }
 
     /// The rect the view actually paints, scanned from the rendered bitmap.
-    /// Every other number here comes from the same layout code as the hover
-    /// regions, so they agree with each other even when both are wrong.
     static func paintedRect(of view: NSView) -> CGRect {
         guard view.bounds.width > 1, view.bounds.height > 1,
               let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds)

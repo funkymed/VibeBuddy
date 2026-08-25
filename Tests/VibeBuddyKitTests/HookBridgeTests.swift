@@ -11,10 +11,7 @@ private var repositoryRoot: URL {
 
 @Suite("Hook: the response schema")
 struct HookSchemaTests {
-
-    /// R6 in one assertion. Claude Code invalidates the whole response if a
-    /// single extra top-level field appears, silently, and falls back to its own
-    /// prompt — the user sees the normal prompt and concludes the app is broken.
+    /// R6 in one assertion.
     @Test("allow encodes to exactly these bytes, and nothing else")
     func allowIsByteExact() throws {
         let data = try HookWire.encode(.allow)
@@ -54,14 +51,13 @@ struct HookSchemaTests {
 
 @Suite("Hook: what arrives on stdin")
 struct HookRequestTests {
-
     @Test("a real payload parses, and the raw bytes are kept")
     func parsesPayload() throws {
         let stdin = Data(#"{"hook_event_name":"PermissionRequest","tool_name":"Bash","tool_input":{"command":"ls"}}"#.utf8)
         let request = try #require(HookRequest.parse(stdin))
         #expect(request.event == .permissionRequest)
-        // Kept whole rather than decoded field by field: every field the hook
-        // learns to read is a field it can break on when Claude Code adds one.
+        // Kept whole rather than decoded field by field: every field the hook learns to
+        // read is a field it can break on when Claude Code adds one.
         #expect(request.payload == stdin)
     }
 
@@ -103,10 +99,8 @@ struct HookRequestTests {
 
 @Suite("Hook: the binary links no UI")
 struct HookIsForbiddenAppKitTests {
-
-    /// D4, enforced. dyld loads what this binary links **before** `main` runs,
-    /// on every tool call of every session. The reference implementation pays
-    /// 40-60 ms there; the budget for this one is 8.
+    /// D4, enforced. The reference implementation pays 40-60 ms there; the budget for
+    /// this one is 8.
     @Test("neither the hook nor its protocol imports AppKit or SwiftUI")
     func noUIImports() throws {
         for directory in ["Sources/VibeHook", "Sources/VibeHookProtocol"] {
@@ -149,16 +143,16 @@ private final class RecordingSink: HookEventSink, @unchecked Sendable {
         return answer
     }
 
-    /// Outside the async context: `NSLock` is unavailable there, and holding a
-    /// lock across a suspension point is how you deadlock an actor anyway.
+    /// Outside the async context: `NSLock` is unavailable there, and holding a lock
+    /// across a suspension point is how you deadlock an actor anyway.
     private func record(_ request: HookRequest) {
         lock.lock(); defer { lock.unlock() }
         seen.append(request)
     }
 }
 
-/// Short on purpose: `sun_path` holds 103 bytes, and the system temp directory
-/// alone is longer than that.
+/// Short on purpose: `sun_path` holds 103 bytes, and the system temp directory alone is
+/// longer than that.
 private func temporarySocket() -> String {
     "/tmp/vb-\(UUID().uuidString.prefix(8)).sock"
 }
@@ -175,20 +169,24 @@ private func send(_ json: String, to path: String, expectingReply: Bool) -> Stri
     return String(data: reply, encoding: .utf8)
 }
 
-/// Waits for a condition instead of guessing how long it takes.
-///
-/// **This is what RFC-006 T11 turned out to be.** The suite failed about one
-/// run in six, the cause was recorded as « unknown », and two attempted fixes
-/// on 2026-08-21 each made it worse — all of it looking for a race in the
-/// socket server. There was none: the tests slept a fixed 300 ms and then
-/// asserted. A fire-and-forget event is handled asynchronously, and on a busy
-/// machine that budget is simply not always enough. The failure rate tracked
-/// the load, which is exactly what « instable sous charge parallèle » looks
-/// like from the outside.
-///
-/// Polling to a deadline is both faster in the normal case — it returns as soon
-/// as the work lands, usually in a millisecond or two — and immune to a slow
-/// machine.
+private func withServer(
+    sink: HookEventSink,
+    _ body: (HookSocketServer, String) async throws -> Void
+) async throws {
+    let server = HookSocketServer(path: temporarySocket(), sink: sink)
+    try await server.start()
+    let path = await server.socketPath
+    do {
+        try await body(server, path)
+    } catch {
+        await server.stop()
+        throw error
+    }
+    await server.stop()
+}
+
+/// Waits for a condition instead of guessing how long it takes. There was none: the
+/// tests slept a fixed 300 ms and then asserted.
 private func waitUntil(
     _ timeout: TimeInterval = 5,
     _ condition: @Sendable () -> Bool
@@ -201,72 +199,57 @@ private func waitUntil(
     return condition()
 }
 
-/// Kept `.serialized`: these tests bind real sockets and the suite is short, so
-/// there is nothing to win by running them at once.
-///
-/// The « one failure in six » this note used to describe was **not** the socket
-/// — see `waitUntil` above for what it actually was.
+/// Kept `.serialized`: these tests bind real sockets and the suite is short, so there is
+/// nothing to win by running them at once.
 @Suite("Hook: the socket, end to end", .serialized)
 struct HookSocketServerTests {
-
     @Test("a fire-and-forget event reaches the app")
     func nonBlockingArrives() async throws {
         let sink = RecordingSink()
-        let server = HookSocketServer(path: temporarySocket(), sink: sink)
-        try await server.start()
-        defer { Task { await server.stop() } }
-
-        let path = await server.socketPath
-        #expect(send(#"{"hook_event_name":"Stop","session_id":"s1"}"#,
-                     to: path, expectingReply: false) == "")
-        #expect(await waitUntil { sink.received.map(\.event) == [.stop] },
-                "l'événement n'est jamais arrivé au puits")
+        try await withServer(sink: sink) { _, path in
+            #expect(send(#"{"hook_event_name":"Stop","session_id":"s1"}"#,
+                         to: path, expectingReply: false) == "")
+            #expect(await waitUntil { sink.received.map(\.event) == [.stop] },
+                    "l'événement n'est jamais arrivé au puits")
+        }
     }
 
     @Test("a permission request gets its decision back")
     func blockingIsAnswered() async throws {
         let sink = RecordingSink(answer: .deny(message: "non merci"))
-        let server = HookSocketServer(path: temporarySocket(), sink: sink)
-        try await server.start()
-        defer { Task { await server.stop() } }
-
-        let path = await server.socketPath
-        let reply = send(#"{"hook_event_name":"PermissionRequest","tool_name":"Bash"}"#,
-                         to: path, expectingReply: true)
-        let line = try #require(reply)
-        #expect(HookLine.decodeDecision(Data(line.utf8)) == .deny(message: "non merci"))
-        #expect(sink.received.first?.event == .permissionRequest)
+        try await withServer(sink: sink) { _, path in
+            let reply = send(#"{"hook_event_name":"PermissionRequest","tool_name":"Bash"}"#,
+                             to: path, expectingReply: true)
+            let line = try #require(reply)
+            #expect(HookLine.decodeDecision(Data(line.utf8)) == .deny(message: "non merci"))
+            #expect(sink.received.first?.event == .permissionRequest)
+        }
     }
 
-    /// The user answered in the terminal, so Claude Code killed the hook. The
-    /// app has to notice: otherwise the notch keeps showing a prompt for a
-    /// decision nobody is waiting for any more.
+    /// The user answered in the terminal, so Claude Code killed the hook.
     @Test("hanging up mid-decision does not wedge the server")
     func peerHangUpIsNoticed() async throws {
         let sink = RecordingSink(answer: .allow, delay: 30)
-        let server = HookSocketServer(path: temporarySocket(), sink: sink)
-        try await server.start()
-        defer { Task { await server.stop() } }
-        let path = await server.socketPath
+        try await withServer(sink: sink) { _, path in
+            let fd = try HookSocket.connect(to: path, timeout: 5)
+            let request = try #require(HookRequest.parse(
+                Data(#"{"hook_event_name":"PermissionRequest","tool_name":"Bash"}"#.utf8)))
+            #expect(HookSocket.write(try HookLine.encodeRequest(request), to: fd))
+            // Hang up once the server has actually taken the request, not after a guess
+            // at how long that takes.
+            #expect(await waitUntil { !sink.received.isEmpty },
+                    "le serveur n'a jamais vu la demande")
+            close(fd)
+        }
 
-        let fd = try HookSocket.connect(to: path, timeout: 5)
-        let request = try #require(HookRequest.parse(
-            Data(#"{"hook_event_name":"PermissionRequest","tool_name":"Bash"}"#.utf8)))
-        #expect(HookSocket.write(try HookLine.encodeRequest(request), to: fd))
-        // Hang up once the server has actually taken the request, not after a
-        // guess at how long that takes.
-        #expect(await waitUntil { !sink.received.isEmpty },
-                "le serveur n'a jamais vu la demande")
-        close(fd)
-
-        // The sink is still asleep for thirty seconds; the connection must be
-        // released anyway, and the next hook must be served.
-        try await Task.sleep(nanoseconds: 600_000_000)
-        let after = HookSocketServer(path: temporarySocket(), sink: RecordingSink())
-        try await after.start()
-        let second = await after.socketPath
-        #expect(send(#"{"hook_event_name":"Stop"}"#, to: second, expectingReply: false) == "")
-        await after.stop()
+        // The sink is still asleep for thirty seconds; the connection must be released
+        // anyway, and the next hook must be served.
+        let second = RecordingSink()
+        try await withServer(sink: second) { _, path in
+            #expect(send(#"{"hook_event_name":"Stop"}"#, to: path, expectingReply: false) == "")
+            #expect(await waitUntil { !second.received.isEmpty },
+                    "le serveur suivant n'a rien reçu")
+        }
     }
 
     @Test("the socket is private to its owner, and survives a stale file")
@@ -275,13 +258,13 @@ struct HookSocketServerTests {
         FileManager.default.createFile(atPath: path, contents: Data("résidu".utf8))
 
         let server = HookSocketServer(path: path, sink: RecordingSink())
-        // Binding over a leftover file is the normal case after a crash: the
-        // stale socket is unlinked rather than left to fail with EADDRINUSE.
+        // Binding over a leftover file is the normal case after a crash: the stale
+        // socket is unlinked rather than left to fail with EADDRINUSE.
         try await server.start()
-        defer { Task { await server.stop() } }
 
         let mode = try FileManager.default.attributesOfItem(atPath: path)[.posixPermissions] as? Int
         #expect(mode == 0o600, "mode \(String(mode ?? -1, radix: 8))")
+        await server.stop()
     }
 
     @Test("stopping releases the socket file")

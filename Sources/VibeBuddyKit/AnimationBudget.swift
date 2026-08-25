@@ -2,12 +2,10 @@ import Foundation
 import Observation
 
 /// Global ceiling on animation cost, consulted by every view that draws motion.
-/// See RFC-001, "Notes d'implémentation".
 @MainActor
 @Observable
 public final class AnimationBudget {
-
-    /// Frames per second the UI may draw at. `0` means static — not slow.
+    /// Frames per second the UI may draw at.
     public enum Tier: Double, Sendable, CaseIterable {
         case still = 0
         case ambient = 8
@@ -22,8 +20,8 @@ public final class AnimationBudget {
     public var minimumInterval: Double { tier == .still ? 1 : 1 / tier.rawValue }
     public var isPaused: Bool { tier == .still }
 
-    /// Do not use implicit SwiftUI animations below `.lively`: they outlive the
-    /// state change that triggered them and cannot be stopped once installed.
+    /// Do not use implicit SwiftUI animations below `.lively`: they outlive the state
+    /// change that triggered them and cannot be stopped once installed.
     public var allowsImplicitAnimations: Bool { tier == .lively }
 
     public init() {}

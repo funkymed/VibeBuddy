@@ -1,10 +1,9 @@
 import Foundation
 
-/// Finds and validates buddies, and never returns nothing: every failure mode
-/// resolves to the built-in buddy rather than to no face at all.
+/// Finds and validates buddies, and never returns nothing: every failure mode resolves
+/// to the built-in buddy rather than to no face at all.
 public struct BuddyLoader: Sendable {
-
-    /// Why a manifest could not be used. A value, never a trap.
+    /// Why a manifest could not be used.
     public enum LoadError: Error, CustomStringConvertible, Equatable {
         case notFound
         case unreadable(String)
@@ -18,7 +17,6 @@ public struct BuddyLoader: Sendable {
             }
         }
     }
-
 
     public static var searchPath: String {
         (SupportDirectory.path as NSString).appendingPathComponent("buddies")
@@ -86,11 +84,8 @@ public struct BuddyLoader: Sendable {
     }
 }
 
-/// The buddy that ships in the binary, written in the same `.buddy` text format
-/// as any other so the format is exercised on every launch.
-///
-/// Kept byte-for-byte in step with `assets/buddies/eve.buddy`, which is the
-/// copy a person edits; a test compares the two.
+/// The buddy that ships in the binary, written in the same `.buddy` text format as any
+/// other so the format is exercised on every launch.
 public enum BuiltInBuddy {
     public static let id = "eve"
 

@@ -1,12 +1,10 @@
 import Foundation
 import Observation
 
-/// The current language, and the strings that go with it. Observable so a
-/// change in preferences redraws the interface rather than waiting for a relaunch.
+/// The current language, and the strings that go with it.
 @MainActor
 @Observable
 public final class Localisation {
-
     public static let storageKey = "vibebuddy.language"
 
     public private(set) var language: AppLanguage
@@ -30,7 +28,7 @@ public final class Localisation {
         defaults.set(language.rawValue, forKey: Self.storageKey)
     }
 
-    /// What `.system` currently resolves to. Shown next to the picker.
+    /// What `.system` currently resolves to.
     public var effective: AppLanguage { language.resolved() }
 
     public var locale: Locale { language.locale }

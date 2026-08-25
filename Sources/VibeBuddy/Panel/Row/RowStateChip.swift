@@ -1,8 +1,7 @@
 import SwiftUI
 import VibeBuddyKit
 
-/// The coarse state, as a word in its own colour. The dot on the row carries
-/// the same colour for the scan across rows; the chip carries the word.
+/// The coarse state, as a word in its own colour.
 struct RowStateChip: View {
     let session: AgentSession
     let l10n: Strings

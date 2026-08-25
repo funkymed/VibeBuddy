@@ -4,7 +4,6 @@ import Testing
 @Suite("AnimationBudget")
 @MainActor
 struct AnimationBudgetTests {
-
     @Test("still means no clock at all, not a slow one")
     func stillIsZero() {
         let budget = AnimationBudget()
@@ -14,8 +13,8 @@ struct AnimationBudgetTests {
         #expect(!budget.allowsImplicitAnimations)
     }
 
-    // The rule the reference breaks: an off-screen pill must cost nothing,
-    // whatever Claude happens to be doing.
+    // The rule the reference breaks: an off-screen pill must cost nothing, whatever
+    // Claude happens to be doing.
     @Test("hidden beats busy")
     func hiddenWinsOverBusy() {
         let budget = AnimationBudget()

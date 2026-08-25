@@ -24,8 +24,8 @@ struct UsageSection: View {
                         .font(.system(size: 11))
                         .foregroundStyle(.orange.opacity(0.8))
                 }
-                // Said only once it matters: the endpoint refuses far more often
-                // than it answers, so a stale reading is worth flagging.
+                // Said only once it matters: the endpoint refuses far more often than
+                // it answers, so a stale reading is worth flagging.
                 if let age, age > 120, case let .ready(usage) = state {
                     Text(l10n.usageAge(SessionRow.duration(since: usage.fetchedAt)))
                         .font(.system(size: 11))
@@ -42,8 +42,8 @@ struct UsageSection: View {
                 UsageBar(label: l10n.usageSession, window: usage.fiveHour, locale: locale)
                 UsageBar(label: l10n.usageWeek, window: usage.sevenDay, locale: locale)
             case .unavailable:
-                // Empty gauges rather than nothing, and never a zero — a zero
-                // would read as good news.
+                // Empty gauges rather than nothing, and never a zero — a zero would
+                // read as good news.
                 UsageBar(label: l10n.usageSession, window: nil, locale: locale)
                 UsageBar(label: l10n.usageWeek, window: nil, locale: locale)
             }

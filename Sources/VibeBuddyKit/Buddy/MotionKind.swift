@@ -1,11 +1,10 @@
 import CoreGraphics
 import Foundation
 
-/// The closed vocabulary of buddy movements: a manifest chooses one, it never
-/// describes one. Each case is `phase → transform`, stateless and bounded.
-/// See RFC-005, "Notes d'implémentation".
+/// The closed vocabulary of buddy movements: a manifest chooses one, it never describes
+/// one.
 public enum MotionKind: String, Sendable, Equatable, CaseIterable, Decodable {
-    /// Perfectly still — not slow. This is what lets the whole clock be paused.
+    /// Perfectly still — not slow.
     case none
     case breathe
     case pulse

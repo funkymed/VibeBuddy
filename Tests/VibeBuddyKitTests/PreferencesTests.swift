@@ -2,25 +2,19 @@ import Foundation
 import Testing
 @testable import VibeBuddyKit
 
-/// Preferences, and the two properties that matter: they survive, and they do
-/// not write sixty times when they change sixty times.
+/// Preferences, and the two properties that matter: they survive, and they do not write
+/// sixty times when they change sixty times.
 @Suite("Preferences")
 @MainActor
 struct PreferencesTests {
-
-    /// A private suite per test, so nothing here can read — or corrupt — the
-    /// developer's own settings.
-    /// A private suite, wiped afterwards.
-    ///
-    /// Wiped because a suite that is merely created leaves a plist in
-    /// `~/Library/Preferences` for good: a few hundred runs of this file turned
-    /// that directory into a landfill of `vibebuddy.tests.<uuid>.plist`.
+    /// A private suite per test, so nothing here can read — or corrupt — the developer's
+    /// own settings.
     private func withStore(_ body: (PreferencesStore, UserDefaults) -> Void) {
         let name = "vibebuddy.tests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: name)!
         defer { defaults.removePersistentDomain(forName: name) }
-        // No legacy domain: these tests are about defaults and coalescing,
-        // not about what a previous install left behind.
+        // No legacy domain: these tests are about defaults and coalescing, not about
+        // what a previous install left behind.
         body(PreferencesStore(defaults: defaults, previous: []), defaults)
     }
 
@@ -37,8 +31,8 @@ struct PreferencesTests {
         }
     }
 
-    // The reference implementation writes from `didSet` on twenty properties,
-    // which is one synchronous write per frame while a window is dragged.
+    // The reference implementation writes from `didSet` on twenty properties, which is
+    // one synchronous write per frame while a window is dragged.
     @Test("a burst of changes collapses into one write")
     func coalesces() {
         withStore { store, _ in
@@ -86,16 +80,14 @@ struct PreferencesTests {
     }
 
     // The pixel grain and the buddy's size were preferences until 2026-08-21.
-    // Both are now fixed at the value the faces are drawn for, so there is
-    // nothing left to clamp — and nothing left to get wrong.
     @Test("the grain is a constant, not a preference")
     func grainIsFixed() {
         #expect(BuddyView.pixelSize == 3)
     }
 
-    // Reset used to reallocate the three models, but the settings window holds
-    // them by value and never rebuilds: every switch then edited an orphan and
-    // rewrote the keys the reset had just removed.
+    // Reset used to reallocate the three models, but the settings window holds them by
+    // value and never rebuilds: every switch then edited an orphan and rewrote the keys
+    // the reset had just removed.
     @Test("reloading after a reset yields the defaults and writes nothing back")
     func reloadRestoresDefaults() {
         withStore { store, _ in
@@ -123,8 +115,8 @@ struct PreferencesTests {
             #expect(notifications.voice == false)
             #expect(notifications.onFinished)
 
-            // The `didSet` observers must stay silent: nothing queued, nothing
-            // written, so the erased keys stay erased.
+            // The `didSet` observers must stay silent: nothing queued, nothing written,
+            // so the erased keys stay erased.
             #expect(store.writeCount == written)
             store.flush()
             #expect(store.writeCount == written)
@@ -158,7 +150,6 @@ struct PreferencesTests {
 @Suite("Preferences migration")
 @MainActor
 struct PreferencesMigrationTests {
-
     /// Same rule as the suite above: created, used, wiped.
     private func withDefaults(_ body: (UserDefaults) -> Void) {
         let name = "vibebuddy.migration.\(UUID().uuidString)"
@@ -183,8 +174,7 @@ struct PreferencesMigrationTests {
         }
     }
 
-    // A value already stored under the new name is the newer one. Copying over
-    // it would undo whatever the user changed since the first migration.
+    // A value already stored under the new name is the newer one.
     @Test("an existing value wins over the legacy one")
     func doesNotOverwrite() {
         withDefaults { store in

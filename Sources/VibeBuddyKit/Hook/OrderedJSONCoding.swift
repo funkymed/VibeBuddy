@@ -1,7 +1,6 @@
 import Foundation
 
 public extension OrderedJSON {
-
     enum ParseError: Error, Equatable {
         case unexpectedEnd
         case unexpected(byte: UInt8, at: Int)
@@ -20,7 +19,6 @@ public extension OrderedJSON {
     }
 
     /// Two-space indent, one key per line, in the order the object holds them.
-    /// The shape `~/.claude/settings.json` already has.
     func encoded(indent: Int = 0) -> String {
         let pad = String(repeating: " ", count: indent)
         let inner = String(repeating: " ", count: indent + 2)
@@ -159,8 +157,8 @@ private struct Parser {
                 case 0x72: out.append(0x0D)
                 case 0x74: out.append(0x09)
                 case 0x75:
-                    // Decoded through Foundation rather than by hand: surrogate
-                    // pairs are the part everyone gets wrong.
+                    // Decoded through Foundation rather than by hand: surrogate pairs
+                    // are the part everyone gets wrong.
                     let start = index - 1
                     var length = 6
                     if start + 12 <= bytes.count, bytes[start + 6] == 0x5C, bytes[start + 7] == 0x75 {

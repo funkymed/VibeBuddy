@@ -2,11 +2,9 @@ import Foundation
 import CoreServices
 
 /// Replaces a 1 Hz poll: the `pgrep` alone cost 11,34 ms per tick, 1,13 % of a core.
-/// `kFSEventStreamCreateFlagFileEvents` carries real paths, so a consumer re-reads
-/// three files (~1 ms) instead of walking five hundred (~17 ms).
-/// Treat the list as "at least these moved", never "only these": events coalesce.
+/// `kFSEventStreamCreateFlagFileEvents` carries real paths, so a consumer re-reads three
+/// files (~1 ms) instead of walking five hundred (~17 ms).
 public final class ProjectsWatcher: @unchecked Sendable {
-
     public static let latency: CFTimeInterval = 1.0
 
     private var stream: FSEventStreamRef?
@@ -31,9 +29,8 @@ public final class ProjectsWatcher: @unchecked Sendable {
             guard let info else { return }
             let watcher = Unmanaged<ProjectsWatcher>.fromOpaque(info).takeUnretainedValue()
 
-            // `eventPaths` is a C `char **` unless kFSEventStreamCreateFlagUseCFTypes is
-            // set, where it is a CFArray of CFStrings. Reading it the wrong way is not a
-            // type error but a wild pointer sent an ObjC message: crash in objc_msgSend.
+            // `eventPaths` is a C `char ` unless kFSEventStreamCreateFlagUseCFTypes
+            // is set, where it is a CFArray of CFStrings.
             let cStrings = paths.bindMemory(to: UnsafePointer<CChar>?.self, capacity: count)
             var list: [String] = []
             list.reserveCapacity(count)
@@ -51,7 +48,8 @@ public final class ProjectsWatcher: @unchecked Sendable {
             [path] as CFArray,
             FSEventStreamEventId(kFSEventStreamEventIdSinceNow),
             Self.latency,
-            // `NoDefer` fires at the *start* of the window: without it every update pays a second.
+            // `NoDefer` fires at the *start* of the window: without it every update
+            // pays a second.
             FSEventStreamCreateFlags(
                 kFSEventStreamCreateFlagFileEvents | kFSEventStreamCreateFlagNoDefer
             )

@@ -1,16 +1,15 @@
 import AppKit
 import SwiftUI
 
-/// Hosts SwiftUI and filters hit-tests so clicks on the window's transparent
-/// margins reach the menu bar. Without it, clicking the clock does nothing.
+/// Hosts SwiftUI and filters hit-tests so clicks on the window's transparent margins
+/// reach the menu bar.
 final class ClickThroughHostView<Content: View>: NSView {
-
     /// The region of the window that should absorb clicks.
     enum HitRegion: Equatable {
         case none
         case full
-        /// Horizontal strip of `width`, centred, shifted by `offsetX` so the
-        /// region tracks the pill when SwiftUI draws it off-centre.
+        /// Horizontal strip of `width`, centred, shifted by `offsetX` so the region
+        /// tracks the pill when SwiftUI draws it off-centre.
         case strip(width: CGFloat, offsetX: CGFloat)
     }
 
@@ -40,22 +39,11 @@ final class ClickThroughHostView<Content: View>: NSView {
         refreshTracking()
     }
 
-    /// Do not remove: an `NSTrackingArea` rect is in view coordinates and does
-    /// not follow a resize, and `layout()` is not called for a plain frame
-    /// change. A strip built while the window was 460 tall kept arming hover
-    /// after it shrank to 38 — see RFC-002, « Notes d'implémentation ».
+    /// Do not remove: an `NSTrackingArea` rect is in view coordinates and does not
+    /// follow a resize, and `layout()` is not called for a plain frame change.
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
-        // **Nobody else gets to set a cursor in this window.**
-        //
-        // AppKit rebuilds cursor rects on every mouse-moved event and applies
-        // whatever it finds — including the ones SwiftUI installs for its own
-        // controls and for selectable text. Ours was set correctly (traced:
-        // `zones=7 inZone=true`, hand requested) and then immediately replaced,
-        // which is why the hand never appeared for more than a frame.
-        //
-        // Turning the mechanism off for this window leaves exactly one writer:
-        // `applyCursor`.
+        // Nobody else gets to set a cursor in this window.
         window?.disableCursorRects()
     }
 
@@ -64,8 +52,7 @@ final class ClickThroughHostView<Content: View>: NSView {
         refreshTracking()
     }
 
-    /// Rebuild the tracking rect against the current bounds. The panel needs it
-    /// once the frame has settled: the region is chosen before the resize.
+    /// Rebuild the tracking rect against the current bounds.
     func refreshTrackingNow() { refreshTracking() }
 
     private func refreshTracking() {
@@ -75,32 +62,22 @@ final class ClickThroughHostView<Content: View>: NSView {
         guard hitRegion != .none, !rect.isEmpty else { return }
         let area = NSTrackingArea(
             rect: rect,
-            // `.activeAlways` matters: the app is an accessory and never
-            // becomes active, so anything gated on active state never fires.
+            // `.activeAlways` matters: the app is an accessory and never becomes
+            // active, so anything gated on active state never fires.
             options: [.mouseEnteredAndExited, .mouseMoved, .activeAlways],
             owner: self
         )
         addTrackingArea(area)
         tracking = area
 
-        // A tracking area sends no enter event for a pointer that was already
-        // inside when it was created. The region is rebuilt on every state
-        // change and every resize, so a still pointer gets no event at all and
-        // the panel waits for the 5 s fallback poll instead of opening.
+        // A tracking area sends no enter event for a pointer that was already inside
+        // when it was created. The region is rebuilt on every state change and every
+        // resize, so a still pointer gets no event at all and the panel waits for the 5
+        // s fallback poll instead of opening.
         reportPointerIfInside(rect)
     }
 
-    /// Report hover for a pointer that is already inside `rect`, in view
-    /// coordinates.
-    ///
-    /// **On the next turn of the run loop, never inline.** `refreshTracking` is
-    /// reached from the panel setting `hitRegion` in the middle of applying a
-    /// state change; reporting hover from there re-entered that same state
-    /// change through the hover handler, and the outer call then finished with
-    /// values it had computed for the state it was leaving. What you saw was an
-    /// all-black panel: the shape sized for the panel, the pill content skipped
-    /// because the state said panel, and the panel content skipped because the
-    /// stale outer call had just cleared the reveal flag.
+    /// Report hover for a pointer that is already inside `rect`, in view coordinates.
     private func reportPointerIfInside(_ rect: CGRect) {
         guard let window else { return }
         let onScreen = NSEvent.mouseLocation
@@ -132,12 +109,9 @@ final class ClickThroughHostView<Content: View>: NSView {
 
     override func mouseMoved(with event: NSEvent) {
         super.mouseMoved(with: event)
-        // **Hover now, cursor next turn.** The deferral exists to win the
-        // cursor back from whoever set it during this event — it buys nothing
-        // for hover, and costs it a run-loop turn on every movement. Sweeping
-        // between two controls, that turn is the difference between a highlight
-        // that follows the pointer and one that lags a frame behind it, which
-        // is what « parfois ça ne marche pas » looked like.
+        // Hover now, cursor next turn. The deferral exists to win the cursor back
+        // from whoever set it during this event — it buys nothing for hover, and costs
+        // it a run-loop turn on every movement.
         updateHover(with: event)
         scheduleCursor()
     }
@@ -148,23 +122,7 @@ final class ClickThroughHostView<Content: View>: NSView {
         scheduleCursor()
     }
 
-
-    /// **The one place a cursor is chosen, and it runs last.**
-    ///
-    /// Three parties want this pointer: us, SwiftUI's own `Button` tracking
-    /// areas, and — the one that was actually doing the damage — the I-beam
-    /// that `.textSelection(.enabled)` installs over the question and the diff.
-    /// They all act while the event is being delivered, in an order nothing
-    /// here controls, which is exactly what « le pointeur change tout le temps »
-    /// looks like.
-    ///
-    /// Deferring by one turn of the run loop settles it: everyone else has had
-    /// their say by then, and the last writer wins. It is also why this cannot
-    /// be a cursor rect or a `.cursorUpdate` area — neither reaches a window
-    /// that never becomes key, and this panel never does.
-    /// Hover, from the position the event carries. See
-    /// `CursorZones.update(forWindowPoint:in:)` for why it is not
-    /// `NSEvent.mouseLocation`.
+    /// The one place a cursor is chosen, and it runs last.
     private func updateHover(with event: NSEvent) {
         guard let window else { return }
         CursorZones.shared.update(forWindowPoint: event.locationInWindow, in: window)
@@ -178,27 +136,16 @@ final class ClickThroughHostView<Content: View>: NSView {
 
     private func applyCursor() {
         guard window != nil else { return }
-        // Updates every zone's hover state on the way, which is where the
-        // controls learn that the pointer arrived or left.
+        // Updates every zone's hover state on the way, which is where the controls
+        // learn that the pointer arrived or left.
         let wanted: NSCursor = CursorZones.shared.contains(NSEvent.mouseLocation)
             ? .pointingHand : .arrow
-        // **Compare against what is on screen, not against what we last set.**
-        //
-        // Remembering our own last value looked like the obvious way to avoid
-        // re-setting the same cursor on every event — and it is what broke it:
-        // the frontmost application resets the cursor whenever the pointer
-        // moves over it, so ours is wiped without us hearing about it, and a
-        // « we already put the hand there » flag then guarantees we never put
-        // it back. The hand appeared for one frame and never again.
-        //
-        // `currentSystem` is what is actually displayed, so this re-asserts
-        // exactly when something else has taken it, and stays silent otherwise.
+        // Compare against what is on screen, not against what we last set.
         guard NSCursor.currentSystem !== wanted else { return }
         wanted.set()
     }
 
-    /// Rect currently absorbing clicks, in view coordinates. Clamped to
-    /// `bounds`: a wider strip would arm the hover from outside the window.
+    /// Rect currently absorbing clicks, in view coordinates.
     var absorbingRect: CGRect {
         switch hitRegion {
         case .none:

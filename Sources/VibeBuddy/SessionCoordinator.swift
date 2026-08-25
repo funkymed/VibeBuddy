@@ -1,12 +1,11 @@
 import Foundation
 import VibeBuddyKit
 
-/// Drives `SessionStore` from its two clocks: FSEvents for transcript changes,
-/// and a poll for liveness — a process exiting emits no filesystem event.
-/// 30 s while idle, 2 s once a session is live.
+/// Drives `SessionStore` from its two clocks: FSEvents for transcript changes, and a
+/// poll for liveness — a process exiting emits no filesystem event. 30 s while idle, 2 s
+/// once a session is live.
 @MainActor
 final class SessionCoordinator {
-
     private let store: SessionStore
     private let wake: WakeCoordinator
     private var watcher: ProjectsWatcher?
@@ -19,8 +18,8 @@ final class SessionCoordinator {
     let alerts = AlertBus()
     private let tracker: AlertTracker
     var onAlert: ((SessionAlert) -> Void)?
-    /// Pushed rather than observed: an `@Observable` read inside the tracker's
-    /// closure would tie its lifetime to a preference model.
+    /// Pushed rather than observed: an `@Observable` read inside the tracker's closure
+    /// would tie its lifetime to a preference model.
     var quietWhenTerminalFrontmost = true
     /// Alerts the policy chose not to show, with the reason.
     var suppressedAlerts: [(alert: SessionAlert, reason: String)] { tracker.suppressed }

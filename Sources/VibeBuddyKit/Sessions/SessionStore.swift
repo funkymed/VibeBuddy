@@ -1,19 +1,12 @@
 import Foundation
 
 /// Process death emits no filesystem event, so liveness stays a poll.
-/// See RFC-003, « Notes d'implémentation ».
 public actor SessionStore {
-
     public static let fullWalkInterval: TimeInterval = 120
 
     public static let staleAfter: TimeInterval = 15 * 60
 
     /// How long a session stays listed after its process is gone.
-    ///
-    /// Short on purpose. `staleAfter` decides whether a transcript is worth
-    /// reading at all; this decides how long a dead row keeps a place in a list
-    /// whose whole point is what is happening *now*. Long enough to see that
-    /// the thing finished, short enough that the list is never mostly history.
     public static let lingerAfterDeath: TimeInterval = 10
 
     /// Above this many prompt tokens the 1M window is *proved*. Backstop only — a
@@ -24,7 +17,6 @@ public actor SessionStore {
     private let root: String
     private var reader = JSONLTailReader()
 
-    /// See RFC-003, « Notes d'implémentation ».
     private let liveness: @Sendable () -> [String: [pid_t]]
 
     /// Sticky: a tail landing on a user turn carries no `usage`, and the gauge would
@@ -45,17 +37,13 @@ public actor SessionStore {
         self.liveness = liveness ?? { ProcessLookup.agentPIDs() }
     }
 
-    // MARK: - Reading
-
     public var sessions: [AgentSession] { current }
-
-    // MARK: - Refresh
 
     private var knownPaths: [String: (modified: Date, size: UInt64, created: Date)] = [:]
     private var lastFullWalk: Date = .distantPast
 
-    /// `changed` is the FSEvents path list: re-stat only those, ~1 ms instead of ~17 ms on
-    /// a 517-file corpus. A full walk still runs: it cannot see a *deleted* transcript.
+    /// `changed` is the FSEvents path list: re-stat only those, ~1 ms instead of ~17 ms
+    /// on a 517-file corpus.
     @discardableResult
     public func refresh(now: Date = Date(), changed: [String]? = nil) -> [AgentSession] {
         let live = liveness()
@@ -79,7 +67,8 @@ public actor SessionStore {
 
         for (cwd, group) in byCwd {
             let pids = live[cwd] ?? []
-            // Freshest first, capped at the live process count: mtime lies about liveness.
+            // Freshest first, capped at the live process count: mtime lies about
+            // liveness.
             let ranked = group.sorted { $0.modified > $1.modified }
             for (index, candidate) in ranked.enumerated() {
                 let isLive = index < pids.count
@@ -87,8 +76,8 @@ public actor SessionStore {
                 sessions.append(makeSession(
                     candidate: candidate,
                     cwd: cwd,
-                    // Positional pairing is a stopgap (risk R8): arbitrary when two agents
-                    // share a directory.
+                    // Positional pairing is a stopgap (risk R8): arbitrary when two
+                    // agents share a directory.
                     pid: index < pids.count ? pids[index] : nil,
                     isLive: isLive
                 ))
@@ -96,12 +85,6 @@ public actor SessionStore {
         }
 
         // Ten seconds after it stops, a session stops being news.
-        //
-        // Measured from its own last activity rather than from when this
-        // process first noticed it was dead. Stateless — nothing to remember,
-        // nothing to bound — and it behaves at launch: a session that ended an
-        // hour ago is not shown for ten seconds and then withdrawn, it is
-        // simply never shown.
         sessions.removeAll {
             !$0.isLive && now.timeIntervalSince($0.lastActivity) >= Self.lingerAfterDeath
         }
@@ -112,8 +95,6 @@ public actor SessionStore {
         if sessions != current { current = sessions }
         return sessions
     }
-
-    // MARK: - Assembly
 
     private func makeSession(
         candidate: (path: String, tail: ParsedTail, modified: Date, created: Date),

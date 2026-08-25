@@ -1,7 +1,6 @@
 import Foundation
 
 public enum ToolActionClassifier {
-
     public static func classify(tool: String, input: [String: Any]) -> ToolAction {
         switch tool {
         case "Read", "Grep", "Glob", "LS", "NotebookRead":
@@ -46,7 +45,7 @@ public enum ToolActionClassifier {
     }
 
     /// Returns a key, never a sentence: this type lives in the Kit and must not decide
-    /// the interface language. `Strings.label(for:)` translates.
+    /// the interface language.
     public static func label(tool: String) -> ToolLabel {
         switch tool.lowercased() {
         case "bash", "bashoutput":   return .shell
@@ -65,8 +64,7 @@ public enum ToolActionClassifier {
         }
     }
 
-    /// Commands worth widening the buddy's eyes at. Precision over recall: every pattern
-    /// here destroys data outside the project or hands over the machine.
+    /// Commands worth widening the buddy's eyes at.
     public static func isDangerous(_ command: String) -> Bool {
         let c = command.lowercased()
 
@@ -87,8 +85,6 @@ public enum ToolActionClassifier {
         "history -c",
     ]
 
-    /// Download piped into a shell. Do not match the literal `"curl | sh"`: a real command
-    /// carries a URL between the two. Check the halves on either side of the pipe.
     private static func pipesDownloadToShell(_ c: String) -> Bool {
         let parts = c.split(separator: "|", omittingEmptySubsequences: false)
         guard parts.count >= 2 else { return false }
@@ -103,8 +99,7 @@ public enum ToolActionClassifier {
         return false
     }
 
-    /// `rm -rf` is only alarming depending on what follows. Check the operand *after* the
-    /// flags: without it `rm -rf .build` trips the alarm on every project cleanup.
+    /// `rm -rf` is only alarming depending on what follows.
     private static func hasDangerousRemoval(_ c: String) -> Bool {
         guard c.contains("rm ") else { return false }
         let recursive = c.contains("-rf") || c.contains("-fr")

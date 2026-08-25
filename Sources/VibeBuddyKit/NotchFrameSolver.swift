@@ -1,9 +1,7 @@
 import CoreGraphics
 
 /// Turns (screen, anchor, desired size) into a window frame.
-/// See RFC-001, "Notes d'implémentation".
 public enum NotchFrameSolver {
-
     public static let edgePadding: CGFloat = 10
 
     /// The notch anchor stays flush at 0 so the pill flows out of the cutout.
@@ -13,14 +11,11 @@ public enum NotchFrameSolver {
 
     public static let snapThreshold: CGFloat = 60
 
-    /// 56×35 pt for the tigreboite buddy (RFC-005), plus breathing room.
+    /// 56×35 pt for the tigreboite buddy, plus breathing room.
     public static let defaultSlotWidth: CGFloat = 64
 
     public static let floatingPillHeight: CGFloat = 26
 
-    /// Size of the collapsed pill. Do not hardcode it: a pill exactly as wide and
-    /// tall as the cutout is black-on-black, correct and invisible. Derive it from
-    /// the notch — `leftSlot + notchWidth + rightSlot`, height equal to the notch.
     public static func pillSize(
         geometry: NotchGeometry,
         leftSlot: CGFloat = defaultSlotWidth,
@@ -67,9 +62,7 @@ public enum NotchFrameSolver {
         return clampFraction((originX - screen.minX - edgePadding) / usable)
     }
 
-    /// Snap a dragged fraction to the nearest magnet, if close enough. Threshold
-    /// in points, not fraction units: a fixed fraction would make magnets four
-    /// times stickier on a 34" ultrawide than on a 13" laptop.
+    /// Snap a dragged fraction to the nearest magnet, if close enough.
     public static func snap(
         fraction: CGFloat,
         size: CGSize,

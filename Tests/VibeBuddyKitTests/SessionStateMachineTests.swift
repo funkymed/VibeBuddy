@@ -18,7 +18,6 @@ private func observe(
 
 @Suite("Session state transitions")
 struct SessionStateTests {
-
     @Test("a running tool means working")
     func toolMeansWorking() {
         let (state, alert) = SessionStateMachine.advance(from: .idle, observing: observe(action: .shell))
@@ -43,13 +42,11 @@ struct SessionStateTests {
     }
 }
 
-// Every test here is about *not* firing. These are the failure modes that make
-// a notification system worth turning off.
+// Every test here is about *not* firing.
 @Suite("Alerts that must not fire")
 struct AlertSuppressionTests {
-
-    // The rule the whole design rests on: an alert belongs to a transition, not
-    // to a state. Re-reading the same transcript must stay silent.
+    // The rule the whole design rests on: an alert belongs to a transition, not to a
+    // state.
     @Test("a second reading of the same finished turn is silent")
     func noRepeatOnRefresh() {
         let first = SessionStateMachine.advance(from: .working, observing: observe(turnEnded: true))
@@ -72,8 +69,7 @@ struct AlertSuppressionTests {
         #expect(alerts == 1)
     }
 
-    // A subagent finishing is not the turn finishing. Without this, every
-    // delegation fires a notification — which is how people learn to ignore them.
+    // A subagent finishing is not the turn finishing.
     @Test("a subagent still running keeps the turn open")
     func subagentBlocksCompletion() {
         let (state, alert) = SessionStateMachine.advance(
@@ -90,8 +86,7 @@ struct AlertSuppressionTests {
         #expect(alert == nil)
     }
 
-    // The process is gone, so the user already knows. Alerting here would mean
-    // a notification every time the app restarts and re-reads old transcripts.
+    // The process is gone, so the user already knows.
     @Test("a dead session never alerts")
     func deadSessionSilent() {
         let (state, alert) = SessionStateMachine.advance(
@@ -110,7 +105,6 @@ struct AlertSuppressionTests {
 
 @Suite("Full turn sequences")
 struct TurnSequenceTests {
-
     /// Run a script of observations and collect what fired.
     private func run(_ script: [SessionObservation]) -> [SessionAlert.Kind] {
         var state = SessionActivity.idle

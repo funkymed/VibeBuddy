@@ -1,17 +1,13 @@
 import Foundation
 
-/// Remembers the last good reading across launches, shown with its age. The
-/// endpoint is rate limited (measured 2026-08-20: `429`, `retry-after: 0`), so a
-/// launch inside a refusal has nothing to show for the whole backoff.
+/// Remembers the last good reading across launches, shown with its age.
 public struct UsageCache {
-
-    // Not `Sendable`: `UserDefaults` is not. Only ever touched from `UsageState`,
-    // which is `@MainActor`.
+    // Not `Sendable`: `UserDefaults` is not.
 
     public static let key = "vibebuddy.usage.last"
 
-    /// Past this, a stored reading is dropped rather than shown: a five-hour
-    /// window resets, so yesterday's reading is not stale, it is wrong.
+    /// Past this, a stored reading is dropped rather than shown: a five-hour window
+    /// resets, so yesterday's reading is not stale, it is wrong.
     public static let maximumAge: TimeInterval = 5 * 3600
 
     private let defaults: UserDefaults

@@ -3,11 +3,8 @@ import SwiftUI
 import VibeBuddyKit
 
 /// A real macOS window, deliberately unlike the notch panel.
-///
-/// See RFC-010, "Notes d'implémentation".
 @MainActor
 final class SettingsWindow {
-
     private var window: NSWindow?
     /// Survives the view, so it can be reset on every `show()`.
     private let navigation = SettingsNavigation()
@@ -38,9 +35,6 @@ final class SettingsWindow {
     }
 
     /// Every opening starts on the first pane.
-    ///
-    /// Reset here rather than in the view: the window is reused, so the view is
-    /// only built once and anything it holds persists between visits.
     func show() {
         onVisibilityChange?(true)
         navigation.tab = .general
@@ -76,20 +70,7 @@ final class SettingsWindow {
         bringToFront(window)
     }
 
-    /// Put the window in front **once**, and let it behave like a window after
-    /// that.
-    ///
-    /// It used to be pinned one level above `.statusBar`, so it stayed on top
-    /// of every application on the machine — a settings sheet that no other
-    /// window could ever cover, and that followed the user into whatever they
-    /// switched to. The reason given was that `.floating` (3) sits below the
-    /// notch panel (25) and the window would open under the pill that opened
-    /// it; the real answer to that is `.normal` plus an activation, which
-    /// raises it above ordinary windows without making it a permanent overlay.
-    ///
-    /// The notch panel does pass over it when deployed. That is correct: the
-    /// panel lives in the notch, the settings do not, and the panel must stay
-    /// reachable while the settings are open.
+    /// Put the window in front once, and let it behave like a window after that.
     private func bringToFront(_ window: NSWindow) {
         window.level = .normal
         window.makeKeyAndOrderFront(nil)

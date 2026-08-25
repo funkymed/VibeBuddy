@@ -5,7 +5,6 @@ import Testing
 
 @Suite("Following the pointer")
 struct PointerGazeTests {
-
     /// A face 62×30 sitting in the middle of the bar.
     static let anchor = CGRect(x: 800, y: 1130, width: 62, height: 30)
     static let start = Date(timeIntervalSinceReferenceDate: 0)
@@ -43,8 +42,6 @@ struct PointerGazeTests {
         return now
     }
 
-    // MARK: - The delay
-
     @Test("a pointer that has only just moved is ignored")
     func nothingHappensImmediately() {
         var state = Self.tracker()
@@ -75,9 +72,9 @@ struct PointerGazeTests {
 
     @Test("the eyes arrive rather than snap")
     func trackingEasesIn() {
-        // Sampled a clear step inside the tracking window at each end, not on
-        // its edge: at the boundary the double-take is still on screen, one
-        // float epsilon short of finishing.
+        // Sampled a clear step inside the tracking window at each end, not on its edge:
+        // at the boundary the double-take is still on screen, one float epsilon short
+        // of finishing.
         let base = PointerGazeState.noticeDelay + PointerGazeState.startleDuration
         var early: Double = 1, late: Double = 0
         var s1 = Self.tracker(), s2 = Self.tracker()
@@ -88,8 +85,6 @@ struct PointerGazeTests {
         #expect(early < late)
         #expect(late == 1)
     }
-
-    // MARK: - Going quiet
 
     @Test("a pointer left alone hands the face back to its own cycle")
     func restsWhenTheMouseStops() {
@@ -111,8 +106,6 @@ struct PointerGazeTests {
         #expect(state.mood(at: now) == .resting)
     }
 
-    // MARK: - Being wiggled at
-
     /// Shakes the pointer `turns` times, each leg `swing` points wide.
     @discardableResult
     static func shake(
@@ -129,9 +122,7 @@ struct PointerGazeTests {
         return now
     }
 
-    // One gesture, one meaning, whatever the face was doing: a shake starts a
-    // chase. It used to depend on the expression — working chased, everyone
-    // else laughed — which made the gesture unpredictable.
+    // One gesture, one meaning, whatever the face was doing: a shake starts a chase.
     @Test("shaking the mouse starts a chase, from any face")
     func wiggleChases() {
         var state = Self.tracker()
@@ -157,8 +148,8 @@ struct PointerGazeTests {
         }
     }
 
-    // The whole point of the tightening: aiming at a button and overshooting it
-    // makes two or three small reversals, and it used to be enough.
+    // The whole point of the tightening: aiming at a button and overshooting it makes
+    // two or three small reversals, and it used to be enough.
     @Test("aiming and correcting is not a shake")
     func correctingIsNotAShake() {
         var state = Self.tracker()
@@ -190,8 +181,8 @@ struct PointerGazeTests {
         #expect(state.mood(at: after) == .resting)
     }
 
-    // `^^` is for laughing and for nothing else: every other mood leaves the
-    // eye the shape its manifest drew.
+    // `^^` is for laughing and for nothing else: every other mood leaves the eye the
+    // shape its manifest drew.
     @Test("only laughter changes the drawn shape")
     func onlyLaughterChangesTheShape() {
         let pose = EyePose(eye: FaceFeature(shape: .oval))
@@ -200,8 +191,6 @@ struct PointerGazeTests {
         #expect(pose.following(mood: .startled(progress: 0.5)).eye.shape == .oval)
         #expect(pose.following(mood: .resting) == pose)
     }
-
-    // MARK: - The nine zones
 
     @Test("the middle band looks level, and to the side the pointer is on")
     func middleBandIsLevel() {
@@ -235,8 +224,8 @@ struct PointerGazeTests {
         #expect(right.y < 0)
         #expect(right.x > 0)
         #expect(right.roll == 1)
-        // Never as far sideways as a straight look: that is what makes it read
-        // as a turn of the head rather than a look.
+        // Never as far sideways as a straight look: that is what makes it read as a
+        // turn of the head rather than a look.
         #expect(right.x < 1)
 
         state.note(Self.point(across: 0.05, down: 0.1), at: Self.start)
@@ -285,8 +274,6 @@ struct PointerGazeTests {
         #expect(state.mood(at: now) == .resting)
     }
 
-    // MARK: - What it does to the animation
-
     @Test("resting leaves the manifest's animation untouched")
     func restingIsATrueNoOp() {
         let base = EyeAnimation.at(phase: 1.3, spec: EyeSpec(pose: EyePose()))
@@ -301,8 +288,8 @@ struct PointerGazeTests {
         let out = base.following(
             mood: .following(progress: 1), look: PointerLook(x: 1, y: 0),
             eye: eye, phase: 0)
-        // The same reach the manifest's own `right` beat uses, give or take the
-        // cat's small jitter.
+        // The same reach the manifest's own `right` beat uses, give or take the cat's
+        // small jitter.
         let reach = eye.width * EyeSpec.reachX
         #expect(out.gaze.width > 0)
         #expect(abs(out.gaze.width - reach) <= reach * 0.06)
@@ -342,9 +329,8 @@ struct PointerGazeTests {
 /// Shaking the mouse at a buddy that is working drops it into a chase.
 @Suite("The chase")
 struct PointerChaseTests {
-
-    /// What the panel sets while the buddy is working: it does not look up at
-    /// passing movement, but a shake still reaches it.
+    /// What the panel sets while the buddy is working: it does not look up at passing
+    /// movement, but a shake still reaches it.
     static func busy() -> PointerGazeState {
         var state = PointerGazeState()
         state.anchor = PointerGazeTests.anchor
@@ -376,8 +362,8 @@ struct PointerChaseTests {
         if case .amused = state.mood(at: now) { Issue.record("il a ri au lieu de chasser") }
     }
 
-    // The point of the change: `finished` chases too, and so does every other
-    // face that carries a clock.
+    // The point of the change: `finished` chases too, and so does every other face that
+    // carries a clock.
     @Test("a buddy that has finished chases just the same")
     func finishedChasesToo() {
         var state = PointerGazeTests.tracker()   // follows the pointer, like idle and finished
@@ -403,8 +389,7 @@ struct PointerChaseTests {
             Issue.record("la chasse s'est arrêtée alors que la souris bougeait"); return
         }
 
-        // Hands off. Gone once it has let go — the fade is covered on its own
-        // in `chaseFadesOut`.
+        // Hands off.
         let after = now.addingTimeInterval(
             PointerGazeState.restDelay + PointerGazeState.chaseFade + 0.1)
         #expect(state.mood(at: after) == .resting)
@@ -448,8 +433,8 @@ struct PointerChaseTests {
         #expect(PointerMood.startled(progress: 0.5).tint == nil)
     }
 
-    // A narrowed working eye chasing a mouse reads as annoyance; the wide
-    // round one reads as play.
+    // A narrowed working eye chasing a mouse reads as annoyance; the wide round one
+    // reads as play.
     @Test("the chase borrows the eyes of a buddy that has finished")
     func chaseBorrowsFinishedEyes() {
         #expect(PointerMood.chasing(progress: 1).borrowedExpression == .finished)
@@ -476,7 +461,6 @@ struct PointerChaseTests {
 /// Poking the face.
 @Suite("Being poked")
 struct PointerPokeTests {
-
     @Test("a poke makes it laugh, with none of the evidence a shake needs")
     func pokeAmuses() {
         var state = PointerGazeTests.tracker()
@@ -500,8 +484,8 @@ struct PointerPokeTests {
             Issue.record("le clic n'a pas été entendu"); return
         }
 
-        // Still chasing once the laugh is over, provided the pointer is still
-        // moving: the poke suspended it, it did not cancel it.
+        // Still chasing once the laugh is over, provided the pointer is still moving:
+        // the poke suspended it, it did not cancel it.
         var x: CGFloat = 900
         let end = now.addingTimeInterval(PointerGazeState.amusementDuration + 0.05)
         while now < end {
@@ -536,7 +520,6 @@ struct PointerPokeTests {
 /// Laughing is one behaviour with several ways in, and it must stay one.
 @Suite("Laughing, from anywhere")
 struct LaughterEntryPointsTests {
-
     /// The ways a laugh starts, each producing the same mood.
     @Test("a click at rest, a click while busy, and a shake mid-chase all laugh")
     func everyRouteLaughs() {
@@ -561,8 +544,8 @@ struct LaughterEntryPointsTests {
         now = now.addingTimeInterval(0.05)
         var again = chasing
         _ = PointerGazeTests.shake(&again, turns: 7, swing: 60)
-        // The second shake, replayed on the same state, lands as a laugh
-        // because the chase is already on.
+        // The second shake, replayed on the same state, lands as a laugh because the
+        // chase is already on.
         var x: CGFloat = 900
         for i in 0..<9 {
             x += (i % 2 == 0) ? 60 : -60
@@ -575,8 +558,8 @@ struct LaughterEntryPointsTests {
         }
     }
 
-    // The laugh happens *inside* the chase: the buddy has not let go, so it
-    // must not let go of the colour either.
+    // The laugh happens *inside* the chase: the buddy has not let go, so it must not
+    // let go of the colour either.
     @Test("a laugh during a chase keeps the chase's colour, and its eyes after")
     func laughingMidChaseStaysPink() {
         var state = PointerChaseTests.busy()

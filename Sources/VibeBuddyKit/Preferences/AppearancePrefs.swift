@@ -6,7 +6,6 @@ import Observation
 @MainActor
 @Observable
 public final class AppearancePrefs {
-
     public enum Keys {
         public static let buddyID = "vibebuddy.buddy"
         public static let overrides = "vibebuddy.buddy.overrides"
@@ -14,34 +13,26 @@ public final class AppearancePrefs {
 
     @ObservationIgnored private let store: PreferencesStore
 
-    /// Set while `reload()` re-reads the store, so no `didSet` writes back the
-    /// keys a reset has just removed.
+    /// Set while `reload()` re-reads the store, so no `didSet` writes back the keys a
+    /// reset has just removed.
     @ObservationIgnored private var isReloading = false
 
-    /// Which manifest is active. Historical key, unchanged: already on disk.
+    /// Which manifest is active.
     public var buddyID: String = BuiltInBuddy.id {
         didSet { persist(buddyID, Keys.buddyID) }
     }
-
-
-
 
     public init(store: PreferencesStore) {
         self.store = store
         reload()
     }
 
-    /// Re-read the store in place. Reallocating the model instead would strand
-    /// every view that captured the old one — the settings window keeps it by
-    /// value and never rebuilds.
+    /// Re-read the store in place.
     public func reload() {
         isReloading = true
         defer { isReloading = false }
         buddyID = store.string(Keys.buddyID, default: BuiltInBuddy.id) ?? BuiltInBuddy.id
-        // The buddy edit layer was removed on 2026-08-21 with the editor that
-        // fed it. Its key is dropped here rather than left behind: a preference
-        // nothing reads is a preference that comes back to life the day someone
-        // reintroduces the name.
+        // The buddy edit layer was removed on 2026-08-21 with the editor that fed it.
         if store.data(Keys.overrides) != nil { store.remove(Keys.overrides) }
     }
 
@@ -49,6 +40,5 @@ public final class AppearancePrefs {
         guard !isReloading else { return }
         store.set(value, forKey: key)
     }
-
 
 }

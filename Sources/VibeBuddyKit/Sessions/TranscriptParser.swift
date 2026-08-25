@@ -9,7 +9,7 @@ public struct ParsedTail: Sendable, Equatable {
     public var effort: String?
     public var gitBranch: String?
     public var action: ToolAction = .none
-    /// Untranslated key for the running tool. The view translates it.
+    /// Untranslated key for the running tool.
     public var status: ToolLabel?
     /// What the tool is pointed at: a file name, a command, a pattern.
     public var subject: String?
@@ -18,29 +18,26 @@ public struct ParsedTail: Sendable, Equatable {
     public var lastTimestamp: Date?
     public var turnEnded: Bool = false
     /// A question `tool_use` whose id has no matching `tool_result` anywhere newer.
-    /// See RFC-003, « Notes d'implémentation ».
     public var awaitingQuestion: Bool = false
     public var question: String?
     public var lastTurnDurationMs: Int?
     var sawResult = false
     var answered: Set<String> = []
-    /// Counted so a finishing subagent is never read as the turn finishing: that
-    /// mistake alerts on every delegation.
+    /// Counted so a finishing subagent is never read as the turn finishing: that mistake
+    /// alerts on every delegation.
     public var subagentsStarted: Int = 0
     public var subagentsFinished: Int = 0
 
     public var subagentsRunning: Int { max(0, subagentsStarted - subagentsFinished) }
-    /// Entry types the parser did not recognise, with counts. The format is not a
-    /// contract (risk R9): counting failures turns silent degradation into a number.
+    /// Entry types the parser did not recognise, with counts.
     public var unrecognised: [String: Int] = [:]
 
     public init() {}
 }
 
 /// Closed list by construction: a pending `Bash` and an unanswered question look the
-/// same in the transcript. Do not infer a wait from elapsed time.
+/// same in the transcript.
 public enum QuestionTools {
-
     public static let names: Set<String> = ["AskUserQuestion", "ExitPlanMode"]
 
     public static func asks(_ tool: String) -> Bool { names.contains(tool) }
@@ -56,10 +53,8 @@ public enum QuestionTools {
     }
 }
 
-/// Reads a transcript tail: `Data` in, `ParsedTail` out. Entry types and what each
-/// carries: see RFC-003, « Notes d'implémentation ».
+/// Reads a transcript tail: `Data` in, `ParsedTail` out.
 public enum TranscriptParser {
-
     public static let maxLines = 80
 
     public static func parse(_ data: Data) -> ParsedTail {
@@ -106,8 +101,6 @@ public enum TranscriptParser {
         }
         return out
     }
-
-    // MARK: - Entry kinds
 
     private static func absorbMessage(
         _ entry: [String: Any], into out: inout ParsedTail, isAssistant: Bool
@@ -173,15 +166,12 @@ public enum TranscriptParser {
         }
     }
 
-    // MARK: - Helpers
-
     private static func take(_ slot: inout String?, _ value: String?) {
         guard slot == nil, let value, !value.isEmpty else { return }
         slot = value
     }
 
     /// `ISO8601DateFormatter` is not `Sendable`, so no shared static under Swift 6.
-    /// Both the fractional and the plain form occur; accept both or half go nil.
     public static func date(from string: String) -> Date? {
         let fractional = ISO8601DateFormatter()
         fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]

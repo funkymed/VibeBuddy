@@ -2,15 +2,12 @@ import Testing
 import Foundation
 @testable import VibeBuddyKit
 
-/// The panel's re-entry guard and its frame stamp, exercised without a window.
-/// Both defects these encode — the beachball and the collapse to a 460 pt hover
-/// strip — only ever appeared at runtime; here they are ordinary assertions.
+/// The panel's re-entry guard and its frame stamp, exercised without a window. Both
+/// defects these encode — the beachball and the collapse to a 460 pt hover strip — only
+/// ever appeared at runtime; here they are ordinary assertions.
 @Suite("Panel state machine")
 @MainActor
 struct PanelStateMachineTests {
-
-    // MARK: - move(to:)
-
     @Test("A move to the state already held applies nothing")
     func idempotentMove() {
         let machine = PanelStateMachine()
@@ -50,8 +47,6 @@ struct PanelStateMachineTests {
         #expect(passes.map(\.animated) == [false])
     }
 
-    // MARK: - Re-entry
-
     @Test("A re-entrant apply produces one further pass, and only after the first returns")
     func reentryIsDeferred() {
         let machine = PanelStateMachine()
@@ -62,8 +57,8 @@ struct PanelStateMachineTests {
             if !reentered {
                 reentered = true
                 machine.apply()  // the tracking area reporting hover, in effect
-                // If the inner call had run here, the next line would come
-                // after a second "enter". It must not.
+                // If the inner call had run here, the next line would come after a
+                // second "enter".
                 log.append("still inside \(pass.generation)")
             }
             log.append("exit \(pass.generation)")
@@ -122,9 +117,9 @@ struct PanelStateMachineTests {
         count = 0
         machine.apply()
 
-        // Were the reset done before the replay instead of after it, the bound
-        // would never be reached at all; were it never done, the second cycle
-        // would run zero times.
+        // Were the reset done before the replay instead of after it, the bound would
+        // never be reached at all; were it never done, the second cycle would run zero
+        // times.
         #expect(first == 10)
         #expect(count == 10)
     }
@@ -143,8 +138,6 @@ struct PanelStateMachineTests {
 
         #expect(count == 5)
     }
-
-    // MARK: - Frame generation
 
     @Test("Every pass carries a strictly greater generation")
     func generationIsStrictlyIncreasing() {
@@ -193,8 +186,6 @@ struct PanelStateMachineTests {
         #expect(!machine.isCurrent(pass?.generation))
     }
 
-    // MARK: - Hover arbitration
-
     private static let allStates: [PanelState] = [.hidden, .pill, .speech, .panel]
 
     @Test("Hovering opens the panel from the pill, whatever else is going on")
@@ -209,8 +200,8 @@ struct PanelStateMachineTests {
 
     @Test("Hovering changes nothing from any state but the pill")
     func hoverDoesNothingElsewhere() {
-        // `.speech` included: the code has only ever opened from `.pill`, and a
-        // stale comment in `NotchPanel` claiming otherwise is not the contract.
+        // `.speech` included: the code has only ever opened from `.pill`, and a stale
+        // comment in `NotchPanel` claiming otherwise is not the contract.
         for state in [PanelState.hidden, .speech, .panel] {
             for opening in [false, true] {
                 for ask in [false, true] {
@@ -266,8 +257,8 @@ struct PanelStateMachineTests {
                 }
             }
         }
-        // Exactly five of the thirty-two combinations move: four opens from the
-        // pill, one close from a settled panel. Anything else is a regression.
+        // Exactly five of the thirty-two combinations move: four opens from the pill,
+        // one close from a settled panel.
         #expect(seen.sorted() == [
             "panel/false/false/false→pill",
             "pill/true/false/false→panel",

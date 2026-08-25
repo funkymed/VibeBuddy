@@ -1,13 +1,12 @@
 import AppKit
 import VibeBuddyKit
 
-// Entry point. `--bench <mode> <seconds>`, `--hover` and `--info` are optional.
+// Entry point.
 
 let args = CommandLine.arguments
 
-// Registering the hook writes to a file that is the user's, so it is an
-// explicit command that shows its diff and asks — never something a launch
-// does on its own. `--settings <path>` aims elsewhere. RFC-006, T8 and T9.
+// Registering the hook writes to a file that is the user's, so it is an explicit
+// command that shows its diff and asks — never something a launch does on its own.
 if args.contains("--install-hook") || args.contains("--uninstall-hook") {
     exit(HookInstallCommand.run(arguments: args))
 }
@@ -29,9 +28,9 @@ if args.contains("--hover") {
     MainActor.assumeIsolated { HoverDiagnostics.run() }
 }
 
-// `--simulate-permission <genre>`, `--simulate-questions [n]` and
-// `--simulate-finished` are read by `AppCoordinator`; listed here so the flags
-// are findable from the entry point like every other one.
+// `--simulate-permission <genre>`, `--simulate-questions [n]` and `--simulate-finished`
+// are read by `AppCoordinator`; listed here so the flags are findable from the entry
+// point like every other one.
 if args.contains("--help"), args.contains("--simulate-permission")
     || args.contains("--simulate-questions") || args.contains("--simulate-finished") {
     print("--simulate-permission <genre>  genres : \(PermissionSamples.kinds.joined(separator: " · "))")

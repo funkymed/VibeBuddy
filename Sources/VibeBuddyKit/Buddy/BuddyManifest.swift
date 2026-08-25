@@ -1,11 +1,8 @@
 import CoreGraphics
 import Foundation
 
-/// A buddy, as data: a screen and six faces, loaded from a file, never compiled
-/// in.
-/// See RFC-005, "Notes d'implémentation".
+/// A buddy, as data: a screen and six faces, loaded from a file, never compiled in.
 public struct BuddyManifest: Sendable, Equatable {
-
     public static let supportedSchema = 3
 
     public let schema: Int
@@ -16,12 +13,9 @@ public struct BuddyManifest: Sendable, Equatable {
     public let face: FacePlate
     public let expressions: [String: Expression]
 
-    /// The screen. Absent from the first version of the format, which drew
-    /// glyphs and had no screen at all.
+    /// The screen.
     public struct FacePlate: Sendable, Equatable, Codable {
-        /// A screen is either a rounded rectangle or an oval. Two cases rather
-        /// than "radius large enough": an ellipse is not a rounded rectangle at
-        /// any radius, and the difference is visible at the corners.
+        /// A screen is either a rounded rectangle or an oval.
         public enum Silhouette: String, Sendable, Equatable, Codable {
             case rounded, oval
         }
@@ -42,7 +36,7 @@ public struct BuddyManifest: Sendable, Equatable {
 
     public struct Expression: Sendable, Equatable {
         public let eye: EyeSpec
-        /// Movement of the whole screen. A reaction, never a loop.
+        /// Movement of the whole screen.
         public let motion: MotionKind
         /// Overrides the manifest colour for this state.
         public let colour: String?
@@ -59,8 +53,6 @@ public struct BuddyManifest: Sendable, Equatable {
         self.schema = schema; self.id = id; self.name = name
         self.colour = colour; self.face = face; self.expressions = expressions
     }
-
-    // MARK: - Validation
 
     public enum ValidationError: Error, CustomStringConvertible, Equatable {
         case unsupportedSchema(Int)
@@ -105,16 +97,8 @@ public struct BuddyManifest: Sendable, Equatable {
         return (text.count == 6 || text.count == 8) && UInt32(text, radix: 16) != nil
     }
 
-    /// The same buddy, larger or smaller. The pill is measured from
-    /// `face.width`, so this is what makes the collapsed pill's width a
-    /// preference rather than a constant.
+    /// The same buddy, larger or smaller.
     // `scaled(_:)` was removed on 2026-08-21, and is not to come back.
-    //
-    // It multiplied the plate and every pose by the pill's size preference. But
-    // `EyeRaster` lights whole cells: at another size the same face lands on a
-    // different number of them, so the eyes came out a different *shape*, not a
-    // bigger one. The pill now widens its own ear and leaves the manifest at
-    // the size its author wrote. See `PillLayout.resolve`.
 
     /// Settings for an expression, falling back to `idle`.
     public func expression(_ name: BuddyExpression) -> Expression? {

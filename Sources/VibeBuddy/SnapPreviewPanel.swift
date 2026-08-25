@@ -1,11 +1,10 @@
 import AppKit
 import VibeBuddyKit
 
-/// Translucent ghost showing where the pill lands if released now — the magnets
-/// fire on release. Created lazily and torn down at the end of every drag.
+/// Translucent ghost showing where the pill lands if released now — the magnets fire on
+/// release.
 @MainActor
 final class SnapPreviewPanel {
-
     private var panel: NSPanel?
 
     /// Show the ghost at `fraction`, or hide it when the drag is not near a magnet.

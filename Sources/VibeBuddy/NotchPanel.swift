@@ -3,32 +3,20 @@ import SwiftUI
 import VibeBuddyKit
 import VibeHookProtocol
 
-/// The window. Geometry arithmetic lives in `NotchFrameSolver`, where it is
-/// testable without a display. One state, exactly one frame per transition.
+/// The window.
 @MainActor
 final class NotchPanel: NSPanel {
-
     /// The largest the panel gets: the sessions view is written to this, and a
-    /// permission never grows past it — the text was already cut at parse time,
-    /// but a diff of forty lines would still ask for a window taller than the
-    /// screen.
+    /// permission never grows past it — the text was already cut at parse time, but a
+    /// diff of forty lines would still ask for a window taller than the screen.
     static let panelMaxSize = CGSize(width: 560, height: 460)
-    /// The smallest. Below this the header, one line of summary and the
-    /// decision bar start crowding each other, and a panel that changes height
-    /// by twenty points between two requests reads as jitter rather than as
-    /// fit.
+    /// The smallest.
     static let panelMinHeight: CGFloat = 200
     /// Kept at panel width even in pill state, so the transition never jumps
-    /// horizontally. `ClickThroughHostView` keeps the margins click-through.
+    /// horizontally.
     static let carrierWidth: CGFloat = 560
 
     /// What the panel is actually sized to right now.
-    ///
-    /// Width never varies. Height follows what a permission needs and falls
-    /// back to the full box for the sessions view, which is laid out against
-    /// it. Clamped both ways: `panelMinHeight` keeps a one-line request from
-    /// looking like a mistake, `panelMaxSize.height` keeps a long diff on the
-    /// screen.
     var panelSize: CGSize {
         guard let measured = measuredPanelHeight else { return Self.panelMaxSize }
         return CGSize(
@@ -36,8 +24,8 @@ final class NotchPanel: NSPanel {
             height: min(max(measured, Self.panelMinHeight), Self.panelMaxSize.height))
     }
 
-    /// The height the permission panel asked for, or nil when the panel is not
-    /// showing one. Recomputed when what it shows changes, never per frame.
+    /// The height the permission panel asked for, or nil when the panel is not showing
+    /// one.
     private var measuredPanelHeight: CGFloat?
 
     private typealias Host = ClickThroughHostView<NotchShellView>
@@ -45,8 +33,8 @@ final class NotchPanel: NSPanel {
     private let wake: WakeCoordinator
     private let budget: AnimationBudget
     private let hover: HoverProbe
-    /// Do not erase to `AnyView`: it boxes on every rebuild and destroys the
-    /// structural comparison SwiftUI uses to skip untouched subtrees.
+    /// Do not erase to `AnyView`: it boxes on every rebuild and destroys the structural
+    /// comparison SwiftUI uses to skip untouched subtrees.
     private var host: Host!
     private let snapPreview = SnapPreviewPanel()
     private let metrics = PanelMetrics()
@@ -62,16 +50,15 @@ final class NotchPanel: NSPanel {
     private var revealWork: DispatchWorkItem?
     var onQuit: () -> Void = { NSApp.terminate(nil) }
     var onSettings: () -> Void = {}
-    /// Clicking a live session row. The pid is the agent's, not the terminal's.
+    /// Clicking a live session row.
     var onJump: (pid_t) -> Void = { _ in }
     private var jumpNote: String?
-    /// Which request is on screen, which consent is pending, and in what order
-    /// the two get answered and written. Lives in the Kit, where it is testable
-    /// without a window; the panel only performs what it decides.
+    /// Which request is on screen, which consent is pending, and in what order the two
+    /// get answered and written.
     private let permissions = PermissionRouter()
 
-    /// Kept on the panel so its owner never learns about the router: the
-    /// coordinator sets these on the window it built.
+    /// Kept on the panel so its owner never learns about the router: the coordinator
+    /// sets these on the window it built.
     var onPermissionDecision: ((String, HookDecision?) -> Void)? {
         get { permissions.onDecision }
         set { permissions.onDecision = newValue }
@@ -84,36 +71,16 @@ final class NotchPanel: NSPanel {
         get { permissions.onConsentConfirmed }
         set { permissions.onConsentConfirmed = newValue }
     }
-    /// Panel-facing preferences (RFC-010), held as plain values: observing the
-    /// models would re-evaluate the view on every preference write.
+    /// Panel-facing preferences, held as plain values: observing the models would
+    /// re-evaluate the view on every preference write.
     private var groupByDirectory = true
     private var jumpOnClick = true
     private var showUsage = true
 
     /// Suppresses hover while another surface of ours owns the screen.
-    ///
-    /// Do not pin the panel open over the settings window: `.floating` (3) is
-    /// below `.statusBar` (25), so the panel covers what it just opened.
-    /// See RFC-002, « Notes d'implémentation ».
-    /// True from the moment the panel starts growing until it has finished.
-    ///
-    /// Both hover sources lag during the growth — the tracking area is built
-    /// against `bounds`, which follows the resize, and the probe against a rect
-    /// that is only correct once it settles. Neither is allowed to close a
-    /// panel that has not finished opening; the probe is a poll, so if the
-    /// pointer really has left it says so again on its next tick.
     private var opening = false
 
     /// Whether the settings window is on screen.
-    ///
-    /// It used to be `suppressesHover`, and it collapsed the panel: the
-    /// settings were pinned one level above `.statusBar`, so a deployed panel
-    /// could only hide them. With the window back at `.normal`, there is
-    /// nothing to protect — and being unable to open the notch while its own
-    /// settings are on screen is exactly the moment you want to look at it.
-    ///
-    /// What it still does is keep the panel from taking the key status away
-    /// from the window the user is typing in. See `scheduleKeyIfDeployed`.
     var settingsAreOpen = false
     private var usage: UsageState.Status = .unknown
     private var l10n: Strings = .french
@@ -123,10 +90,8 @@ final class NotchPanel: NSPanel {
     private(set) var geometry: NotchGeometry?
     private var anchorFraction: CGFloat = 0.5
 
-    /// State, re-entry guard and frame generation live in the Kit, where they
-    /// are testable without a window. Initialised on the declaration line:
-    /// `canBecomeKey` reads through it, and AppKit asks early — before `init`
-    /// is done setting anything up.
+    /// State, re-entry guard and frame generation live in the Kit, where they are
+    /// testable without a window.
     private let machine = PanelStateMachine()
 
     var state: PanelState { machine.state }
@@ -140,8 +105,8 @@ final class NotchPanel: NSPanel {
     private var dragStartOrigin: NSPoint = .zero
     private var dragTravel: CGFloat = 0
     private var isDragging = false
-    /// Do not drop this guard: `hitTest` returning nil still delivers the event
-    /// to the *window*, so a menu-bar click through a margin also drags the pill.
+    /// Do not drop this guard: `hitTest` returning nil still delivers the event to the
+    /// *window*, so a menu-bar click through a margin also drags the pill.
     private var dragArmed = false
 
     init(wake: WakeCoordinator, budget: AnimationBudget) {
@@ -156,16 +121,7 @@ final class NotchPanel: NSPanel {
             defer: false
         )
 
-        // **Dark, whatever the system is set to.**
-        //
-        // The panel is drawn on the black of the notch, but AppKit dresses its
-        // own controls from the window's appearance — and in light mode a
-        // scroller is dark grey on a light track, which on this background is
-        // black on black. The indicator was there and invisible; `.visible`
-        // scroll indicators were being asked for and rendered into nothing.
-        //
-        // Forcing `darkAqua` is the whole fix, and it is the honest one: this
-        // window *is* a dark surface, permanently, in every system theme.
+        // Dark, whatever the system is set to.
         appearance = NSAppearance(named: .darkAqua)
         isOpaque = false
         backgroundColor = .clear
@@ -179,8 +135,8 @@ final class NotchPanel: NSPanel {
         host = Host(rootView: shellView)
         contentView = host
 
-        // The poll below is the safety net: a pointer warped by a hotkey emits
-        // no enter event at all.
+        // The poll below is the safety net: a pointer warped by a hotkey emits no enter
+        // event at all.
         host.onHoverChange = { [weak self] hovering in
             guard let self else { return }
             self.logHover(source: "zone", hovering: hovering)
@@ -207,27 +163,12 @@ final class NotchPanel: NSPanel {
         rebuildContent()
     }
 
-    /// Whether the panel is holding something that waits on a **person**. See
-    /// `PermissionRouter.isHoldingAnAsk`, where the reasoning lives.
+    /// Whether the panel is holding something that waits on a person.
     private var isHoldingAnAsk: Bool { permissions.isHoldingAnAsk }
 
-    /// **Key while the panel is open, never while it is a pill.**
-    ///
-    /// It was flatly `false`, to keep the terminal's keyboard focus. The cost
-    /// turned out to be the pointer: macOS lets only the frontmost application
-    /// put a cursor on screen, so `NSCursor.set()` from here was executed and
-    /// discarded — traced, with the zones resolving correctly and the hand
-    /// requested on every move. No amount of ordering or re-asserting fixes
-    /// that; the window has to be key.
-    ///
-    /// `.nonactivatingPanel` is what makes this affordable: such a panel becomes
-    /// key **without activating the application**, so the terminal underneath
-    /// keeps the keyboard. Restricted to the deployed state so the pill, which
-    /// is on screen all day, never takes it.
+    /// Key while the panel is open, never while it is a pill.
     override var canBecomeKey: Bool { state == .panel }
     override var canBecomeMain: Bool { false }
-
-    // MARK: - State
 
     func show() {
         guard state == .hidden else { return }
@@ -268,8 +209,8 @@ final class NotchPanel: NSPanel {
         }
     }
 
-    /// Do not use `setFrame(_:display:animate:false)` here: an in-flight
-    /// `animator()` keeps driving the window and it lands at the old target.
+    /// Do not use `setFrame(_:display:animate:false)` here: an in-flight `animator()`
+    /// keeps driving the window and it lands at the old target.
     private func setFrameImmediately(_ target: CGRect) {
         NSAnimationContext.runAnimationGroup { ctx in
             ctx.duration = 0
@@ -277,8 +218,8 @@ final class NotchPanel: NSPanel {
         }
     }
 
-    /// Takes the key status on the next run-loop turn, if the panel still wants
-    /// it by then. See the note in `applyEffects`.
+    /// Takes the key status on the next run-loop turn, if the panel still wants it by
+    /// then.
     private func scheduleKeyIfDeployed() {
         guard !keyRequestPending else { return }
         keyRequestPending = true
@@ -297,11 +238,6 @@ final class NotchPanel: NSPanel {
     private var keyRequestPending = false
 
     /// Everything a state change does to the window.
-    ///
-    /// Driven by `machine.onApply`, never called directly: the re-entry guard
-    /// and the frame stamp are the machine's, and the pass carries the state
-    /// this body must agree with from end to end — even if something it calls
-    /// changes the state underneath it.
     private func applyEffects(_ pass: PanelStateMachine.Pass) {
         let state = pass.state
         let animated = pass.animated
@@ -309,61 +245,24 @@ final class NotchPanel: NSPanel {
         let size = state == .panel ? panelSize : pillSize
         let carrier = CGSize(width: Self.carrierWidth, height: size.height)
 
-        // Destination region up front: interpolating it drops the pointer out
-        // of the growing panel and collapses it mid-open.
+        // Destination region up front: interpolating it drops the pointer out of the
+        // growing panel and collapses it mid-open.
         host.hitRegion = hitRegion(for: state)
-        // The probe needs the same treatment, and did not have it: its rect was
-        // only reassigned once the animation had finished, so for the whole
-        // growth it compared the pointer against the 38 pt pill. Moving the
-        // pointer *down into* the opening panel left that rect and collapsed it.
+        // The probe needs the same treatment, and did not have it: its rect was only
+        // reassigned once the animation had finished, so for the whole growth it
+        // compared the pointer against the 38 pt pill.
         hover.pillRect = hoverRect(for: state)
         opening = state == .panel
 
-        // **Unfused mouse movement while the panel is open.**
-        //
-        // AppKit merges mouse-moved events by default: swept quickly, a whole
-        // run of positions arrives as a single event carrying the last one, and
-        // every control the pointer crossed on the way is never told. That is
-        // the « je glisse d'un bouton à l'autre sans m'arrêter et ça ne passe
-        // pas en hover » — the events for the buttons in between did not exist.
-        //
-        // Turned off only while the panel is deployed, which is the only state
-        // with anything to hover, and the only one where the extra events are
-        // worth their cost. Restored on the way back to the pill so the resting
-        // budget is untouched.
+        // Unfused mouse movement while the panel is open.
         NSEvent.isMouseCoalescingEnabled = (state != .panel)
 
         if state.isVisible { orderFrontRegardless() }
-        // Key only while deployed, and only so the cursor can be ours. See
-        // `canBecomeKey`. The pill never asks.
-        //
-        // **Never `resignKey()`.** It is a notification AppKit sends, not a
-        // command it takes: « you should never invoke this method directly ».
-        // Calling it here crashed the app every time the settings window
-        // opened, and for a reason worth remembering — `settings.show()` makes
-        // that window key, which sets `suppressesHover`, which collapses this
-        // panel, which ran `resignKey()` **in the middle of AppKit's own key
-        // transition**. Two parties resigning the same window at once.
-        //
-        // Nothing is needed in its place: `canBecomeKey` is already false once
-        // the panel is not deployed, and the window that asked for the focus
-        // takes it. Measured before all this: the frontmost application stays
-        // the terminal throughout.
-        //
-        // Not while the settings own the screen either, or this panel would
-        // pull the focus back from the window the user just opened.
-        //
-        // **Deferred, and never from inside `applyEffects`.** Taking the key
-        // status makes AppKit send notifications, which reach the hover path,
-        // which changes `state`, whose `didSet` re-enters here — and the
-        // re-entry guard below faithfully replays the call, which takes the key
-        // again. That loop is what froze the app on the beachball when the
-        // settings window opened. Asking for it on the next turn of the run
-        // loop, against whatever the state is by then, cannot recurse.
+        // Key only while deployed, and only so the cursor can be ours.
         scheduleKeyIfDeployed()
 
-        // Closing the panel ends the question, so the face goes back to
-        // speaking for everything rather than for one session.
+        // Closing the panel ends the question, so the face goes back to speaking for
+        // everything rather than for one session.
         if state != .panel { clearSelection() }
 
         revealWork?.cancel()
@@ -390,10 +289,10 @@ final class NotchPanel: NSPanel {
         let target = targetFrame(for: state)
 
         let reduceMotion = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
-        // Never skip the frame change on `frame.size == carrier`: mid-animation
-        // the window passes through the target size, and a collapse taking that
-        // shortcut left it at 460 pt while the state said pill — a 38 pt hover
-        // strip became a 460 pt column.
+        // Never skip the frame change on `frame.size == carrier`: mid-animation the
+        // window passes through the target size, and a collapse taking that shortcut
+        // left it at 460 pt while the state said pill — a 38 pt hover strip became a
+        // 460 pt column.
         guard animated, !reduceMotion, state != .hidden else {
             if let target { setFrameImmediately(target) }
             metrics.drawnWidth = size.width
@@ -411,19 +310,14 @@ final class NotchPanel: NSPanel {
         )
     }
 
-    /// Width animates in SwiftUI, height on the `NSWindow`: same duration, same
-    /// curve, same run-loop turn, or the shape stretches before it settles.
+    /// Width animates in SwiftUI, height on the `NSWindow`: same duration, same curve,
+    /// same run-loop turn, or the shape stretches before it settles.
     private func growTogether(
         to target: CGRect?, drawnWidth: CGFloat, growing: Bool, generation: Int
     ) {
         let duration = growing ? PanelTiming.expand : PanelTiming.collapse
 
-        // Nothing to grow from on the very first appearance. `drawnWidth`
-        // starts at zero, and `NotchShellView` wraps the three fixed slots —
-        // ear, cutout, ear — in a frame of that width. A frame narrower than
-        // its content centres it, so animating 0 → 404 slides both ears in
-        // from the middle and the buddy spends a quarter of a second cut in
-        // half: at launch you saw one eye instead of two.
+        // Nothing to grow from on the very first appearance.
         if metrics.drawnWidth == 0 {
             metrics.drawnWidth = drawnWidth
         } else {
@@ -461,11 +355,8 @@ final class NotchPanel: NSPanel {
 
         opening = false
 
-        // The panel is open and the animation is over, so whatever became of
-        // the reveal work item, the content belongs on screen now. Without
-        // this the shape is drawn — it always is — while both contents are
-        // skipped, and an open panel with nothing in it is a black rectangle.
-        // Never show a shape with no content in it.
+        // The panel is open and the animation is over, so whatever became of the reveal
+        // work item, the content belongs on screen now.
         if state == .panel, !contentRevealed {
             revealWork?.cancel()
             contentRevealed = true
@@ -478,10 +369,7 @@ final class NotchPanel: NSPanel {
         hover.setActive(state.isVisible)
         budget.update(isVisible: state.isVisible, isBusy: state == .panel)
     }
-    /// Hover opens the panel from `.pill` **and from `.speech`**.
-    ///
-
-
+    /// Hover opens the panel from `.pill` and from `.speech`.
 
     /// `log stream --predicate 'subsystem == "com.vibebuddy"' --info`
     private func logHover(source: String, hovering: Bool) {
@@ -498,8 +386,6 @@ final class NotchPanel: NSPanel {
         PerfProbe.log.info("\(line, privacy: .public)")
     }
 
-    // MARK: - Diagnostics
-
     /// The three rects that decide when the panel opens, for `--hover`.
     var debugTrackingRect: CGRect { host.absorbingRect }
     /// What the view really paints, scanned from its own bitmap.
@@ -509,8 +395,6 @@ final class NotchPanel: NSPanel {
     var debugState: String { String(describing: state) }
 
     /// Screen-space rect of the visible pill, which is narrower than the window.
-    /// The rect the probe tests against, taken from where the window is
-    /// **going** rather than where it currently is.
     private func hoverRect(for state: PanelState) -> CGRect {
         guard let target = targetFrame(for: state) else { return pillScreenRect }
         let width = state == .panel ? panelSize.width : pillSize.width
@@ -554,39 +438,22 @@ final class NotchPanel: NSPanel {
         host.hosting.rootView = shellView
     }
 
-    // MARK: - Permissions
-
     /// Shows a request, or takes the last one away.
-    ///
-    /// A request **forces the panel open** and holds it there: it is the one
-    /// thing more urgent than whatever the user was doing with the notch. When
-    /// the last one goes, the panel returns to the pill rather than falling
-    /// back to the session list — the user did not ask for that list, a
-    /// permission put the panel on screen.
     func setPermission(_ model: PermissionRequestModel?, waiting: Int) {
         let verdict = permissions.set(model, waiting: waiting)
-        // Nothing changed: not even a remeasure, or the same request would pay
-        // for an off-screen layout and an animation on every repeat.
+        // Nothing changed: not even a remeasure, or the same request would pay for an
+        // off-screen layout and an animation on every repeat.
         guard verdict.changed else { return }
 
         // Measured once everything the panel shows has settled, and
-        // **unconditionally**. Left over from a request that is gone, it would
-        // size the sessions view to a permission nobody is looking at any more:
-        // answer a question, hover the notch again, and the panel opens at the
-        // height of the question instead of its own. `nil` is what puts the
-        // full box back, and only measuring on the way in never produces it.
-        //
-        // Before the state moves, too: `applyEffects` reads `panelSize`, so the
-        // panel opens at the right height rather than opening at the full box
-        // and shrinking into place.
+        // unconditionally.
         measuredPanelHeight = measurePermissionHeight()
 
         if verdict.hasRequest {
             if state != .panel {
                 setState(.panel)
             } else {
-                // Already open on another request. Swap the content, then move
-                // the frame to what the new one needs.
+                // Already open on another request.
                 rebuildContent()
                 resizeToContent(animated: true)
             }
@@ -596,18 +463,12 @@ final class NotchPanel: NSPanel {
             rebuildContent()
         }
 
-        // The face was pinned to `idle` while the ask was up; put back whatever
-        // the sessions are actually doing now that it is gone.
+        // The face was pinned to `idle` while the ask was up; put back whatever the
+        // sessions are actually doing now that it is gone.
         applyExpression()
     }
 
-    // MARK: - Sizing to what is on screen
-
     /// Measures what the permission panel wants, and moves the window to it.
-    ///
-    /// Called when what the panel *shows* changes — a request arrives, another
-    /// takes its place, the consent screen opens or closes — and never per
-    /// frame.
     private func refreshPanelHeight(animated: Bool) {
         let previous = measuredPanelHeight
         measuredPanelHeight = measurePermissionHeight()
@@ -617,21 +478,9 @@ final class NotchPanel: NSPanel {
     }
 
     /// The height the panel's current content lays out to, at panel width.
-    ///
-    /// Measured off screen on a throwaway host rather than read back from the
-    /// live one: the view being measured is not the view being shown, so its
-    /// height is free, and nothing it reports can feed back into the frame it
-    /// was measured at. Width is fixed and does not depend on height, so this
-    /// settles in one pass.
-    ///
-    /// `AnyView` here is deliberate and does not contradict D2's ban on it:
-    /// that ban is about the *displayed* host, where boxing destroys the
-    /// structural comparison SwiftUI uses to skip untouched subtrees. This host
-    /// is built once per request, asked its size, and dropped.
     private func measurePermissionHeight() -> CGFloat? {
-        // The buddy's seat is reserved by the shared header, so its height is
-        // part of what gets measured. `alertText` is left out: it widens the
-        // ears, it does not change the seat.
+        // The buddy's seat is reserved by the shared header, so its height is part of
+        // what gets measured.
         let buddyBox = geometry.map {
             PillLayout.resolve(geometry: $0, buddy: buddy, sessionCount: sessionCount)
                 .buddyBox
@@ -652,14 +501,14 @@ final class NotchPanel: NSPanel {
                 model: permission, waiting: permissions.waiting, measuring: true,
                 l10n: l10n, onDeny: {}, onAllow: {}, onAlwaysAllow: {}, onAnswer: { _ in }))
         } else {
-            // The sessions view is laid out against the full box; it does not
-            // ask for a size, it is given one.
+            // The sessions view is laid out against the full box; it does not ask for a
+            // size, it is given one.
             return nil
         }
 
-        // The same wrapper the screen draws, header and padding included —
-        // measuring the body alone and adding a guessed header height is how
-        // the number drifts from what is on screen.
+        // The same wrapper the screen draws, header and padding included — measuring
+        // the body alone and adding a guessed header height is how the number drifts
+        // from what is on screen.
         let width = Self.panelMaxSize.width
         let host = NSHostingView(
             rootView: DeployedPanel(header: header) { content }.frame(width: width))
@@ -668,17 +517,8 @@ final class NotchPanel: NSPanel {
         return height > 0 ? height : nil
     }
 
-    /// Animates the window to the height the content asked for, without
-    /// disturbing anything else about the state.
-    ///
-    /// Deliberately **not** a call to `machine.apply()`: that one hides the content
-    /// and schedules it back in, which is right when the panel opens and wrong
-    /// here — a second request arriving while the first is on screen would make
-    /// the whole panel blink. What it does borrow is the two things that must
-    /// never lag behind the frame: the hover rect is set to the *destination*
-    /// (a probe still holding the old rect closes a panel the pointer is inside
-    /// of), and `finishStateChange` re-asserts the tracking area on the settled
-    /// frame.
+    /// Animates the window to the height the content asked for, without disturbing
+    /// anything else about the state.
     private func resizeToContent(animated: Bool) {
         guard let target = targetFrame(for: .panel) else { return }
         let generation = machine.nextGeneration()
@@ -703,9 +543,7 @@ final class NotchPanel: NSPanel {
         permissions.answer(decision)
     }
 
-    /// Draws the consent screen when the router says there is one to show. When
-    /// there is nothing to write it has already answered `.allow`, and there is
-    /// no screen to put in the way.
+    /// Draws the consent screen when the router says there is one to show.
     private func alwaysAllowPermission() {
         guard permissions.alwaysAllow() else { return }
         rebuildContent()
@@ -718,9 +556,8 @@ final class NotchPanel: NSPanel {
         refreshPanelHeight(animated: true)
     }
 
-    /// No visual effect of its own: the write and the answer both happen in the
-    /// router, and the queue comes back through `setPermission` with whatever
-    /// is next.
+    /// No visual effect of its own: the write and the answer both happen in the router,
+    /// and the queue comes back through `setPermission` with whatever is next.
     private func confirmConsent() {
         permissions.confirmConsent()
     }
@@ -771,9 +608,7 @@ final class NotchPanel: NSPanel {
         if state == .panel { rebuildContent() }
     }
 
-    /// The session the user clicked, if any. While one is chosen the face shows
-    /// *that* session rather than the aggregate: you asked about this one, so
-    /// the buddy answers about this one.
+    /// The session the user clicked, if any.
     private var chosen: String?
 
     private func select(_ id: String) {
@@ -782,7 +617,7 @@ final class NotchPanel: NSPanel {
         rebuildContent()
     }
 
-    /// Clears the choice. The panel closing means the question is over.
+    /// Clears the choice.
     private func clearSelection() {
         guard chosen != nil else { return }
         chosen = nil
@@ -800,8 +635,7 @@ final class NotchPanel: NSPanel {
             activity: state.activity, hasLiveSession: session.isLive, isVisible: true))
     }
 
-    /// What the face would show with nobody chosen. Kept so the choice can be
-    /// undone without waiting for the next refresh.
+    /// What the face would show with nobody chosen.
     private var aggregateExpression: BuddyExpression = .sleeping
 
     func setSessionCount(_ count: Int) {
@@ -811,8 +645,7 @@ final class NotchPanel: NSPanel {
         machine.apply(animated: false)
     }
 
-    /// Called by the coordinator with the aggregate. Remembered, then applied
-    /// only if the user has not chosen a session to follow instead.
+    /// Called by the coordinator with the aggregate.
     func setAggregateExpression(_ next: BuddyExpression) {
         aggregateExpression = next
         guard chosen == nil else { return }
@@ -820,16 +653,11 @@ final class NotchPanel: NSPanel {
     }
 
     func setExpression(_ wanted: BuddyExpression) {
-        // **A panel that is waiting on a person shows an available face.**
-        // Whatever the sessions are doing behind it, the thing on screen is a
-        // question addressed to the user: a face that keeps working, or one
-        // that shows the red of a failure that has nothing to do with what is
-        // being asked, reads as the app being busy with something else. `idle`
-        // also follows the pointer (see `updateGaze`), which is the right
-        // answer to « this is for you ».
-        //
-        // The aggregate is still remembered in `aggregateExpression`, so
-        // `applyExpression` puts the real face back the moment the ask leaves.
+        // A panel that is waiting on a person shows an available face. Whatever the
+        // sessions are doing behind it, the thing on screen is a question addressed to
+        // the user: a face that keeps working, or one that shows the red of a failure
+        // that has nothing to do with what is being asked, reads as the app being busy
+        // with something else.
         let next = isHoldingAnAsk ? .idle : wanted
         guard next != expression else { return }
         expression = next
@@ -839,55 +667,23 @@ final class NotchPanel: NSPanel {
     }
 
     /// Who reacts to the pointer, and how.
-    ///
-    /// `idle` and `finished` follow it: they have nothing better to do. Working
-    /// does **not** — a face that is working should look busy, not
-    /// distractible.
-    ///
-    /// A **shake** gets through to all of them and starts a chase, working or
-    /// not: one gesture, one meaning. **`sleeping` included**, since
-    /// 2026-08-22: it used to be excluded on the grounds that it carries no
-    /// clock, but the clock is `AnimationBudget`'s and it is already `.ambient`
-    /// whenever the pill is on screen — the sleeping *face* draws no motion of
-    /// its own, which is not the same thing. A buddy you cannot wake by
-    /// shaking at it is a toy that is broken, and waking it is the one gesture
-    /// anybody tries first.
-    ///
-    /// It still does not **follow** the pointer while asleep: an ordinary
-    /// movement leaves it alone, exactly as `working` is left alone. Only the
-    /// shake gets through.
-    ///
-    /// **Cost:** `PointerMonitor` is now armed whenever the pill is visible,
-    /// including with no session at all. It is silent while the pointer is
-    /// still — that is why it is a monitor and not a poll — so the resting
-    /// budget should not move. Should, not does: `make perf` scenario A has not
-    /// been run since.
     private func updateGaze() {
         let follows = expression == .idle || expression == .finished
         let wanted = state.isVisible
         gaze.isEnabled = wanted
         gaze.followsPointer = follows
         // A face that follows nothing needs far fewer samples; see
-        // `PointerMonitor.sleepingInterval`. This is the pill-on-screen-all-day
-        // case, which is the one the resting budget is written for.
+        // `PointerMonitor.sleepingInterval`.
         pointer.isDormant = !follows && state != .panel
         gaze.anchor = wanted ? buddyScreenRect : .zero
-        // The bands are read off the display the face is on, so a second
-        // monitor of another size divides in the same places.
+        // The bands are read off the display the face is on, so a second monitor of
+        // another size divides in the same places.
         gaze.screen = wanted ? (screen ?? NSScreen.main)?.frame ?? .zero : .zero
         pointer.setActive(wanted)
     }
 
-    /// Where the face itself is on screen — the ear, not the whole pill, and
-    /// the header's seat once the panel is open.
-    ///
-    /// Both seats, because the buddy travels between them and this rect is what
-    /// decides whether a click landed on it. It only knew the collapsed one,
-    /// which is the one the pointer is never over: hovering opens the panel, so
-    /// by the time anybody clicks, the face has already moved.
-    ///
-    /// The same two positions `NotchShellView.buddyOrigin` interpolates
-    /// between, read from the same constants.
+    /// Where the face itself is on screen — the ear, not the whole pill, and the
+    /// header's seat once the panel is open.
     private var buddyScreenRect: CGRect {
         let shell = pillScreenRect
         guard let geometry, let buddy else { return shell }
@@ -904,11 +700,11 @@ final class NotchPanel: NSPanel {
         return CGRect(origin: origin, size: box)
     }
 
-    /// What counts as clicking on the buddy. Grown a little: the face is 62×30,
-    /// and asking for a hit inside exactly that is asking for a miss.
+    /// What counts as clicking on the buddy. Grown a little: the face is 62×30, and
+    /// asking for a hit inside exactly that is asking for a miss.
     private var buddyClickRect: CGRect { buddyScreenRect.insetBy(dx: -8, dy: -8) }
 
-    /// Show an alert in the pill for a few seconds. Never interrupts an open panel.
+    /// Show an alert in the pill for a few seconds.
     func present(_ alert: SessionAlert, for duration: TimeInterval = 4) {
         guard state == .pill || state == .speech else { return }
         alertDismissal?.cancel()
@@ -927,8 +723,6 @@ final class NotchPanel: NSPanel {
         DispatchQueue.main.asyncAfter(deadline: .now() + duration, execute: dismissal)
     }
 
-    // MARK: - Screens
-
     /// Re-resolve after a display is plugged, unplugged or rearranged.
     func refreshGeometry() {
         let resolved = NotchGeometry.resolve(preferredScreenID: geometry?.screenID)
@@ -936,8 +730,6 @@ final class NotchPanel: NSPanel {
         geometry = resolved
         if state != .hidden { machine.apply() }
     }
-
-    // MARK: - Drag
 
     override func mouseDown(with event: NSEvent) {
         // `host` fills the window, so its coordinates are the window's.
@@ -972,9 +764,7 @@ final class NotchPanel: NSPanel {
     override func mouseUp(with event: NSEvent) {
         defer { dragArmed = false }
         snapPreview.hide()
-        // A click that went nowhere is a poke, and a poke on the face is
-        // funny. Checked before the drag bail-out below, which returns early
-        // precisely when nothing was dragged.
+        // A click that went nowhere is a poke, and a poke on the face is funny.
         if !isDragging, buddyClickRect.contains(NSEvent.mouseLocation) {
             gaze.amuse()
         }

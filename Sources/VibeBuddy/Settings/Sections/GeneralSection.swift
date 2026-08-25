@@ -34,9 +34,9 @@ struct GeneralSection: View {
                         ? l10n.strings.settingsLanguageSystem(l10n.effective.displayName)
                         : nil
                 ) {
-                    // Do not assign `l10n.language` directly: only `set(_:)` swaps
-                    // the catalogue, and `onLanguageChange()` rebuilds what
-                    // observes nothing — the AppKit menus and the notch.
+                    // Do not assign `l10n.language` directly: only `set(_:)` swaps the
+                    // catalogue, and `onLanguageChange()` rebuilds what observes
+                    // nothing — the AppKit menus and the notch.
                     Picker(s.language, selection: Binding(
                         get: { l10n.language },
                         set: { l10n.set($0); onLanguageChange() }

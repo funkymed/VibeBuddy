@@ -1,16 +1,10 @@
 import Foundation
 
-/// The only thing in this app allowed to create a timer.
-///
-/// One `DispatchSourceTimer` at the shortest registered cadence; longer clients
-/// are skipped until due, so ten `.lazy` clients cost one wakeup per 30 s. 25 %
-/// leeway lets the kernel coalesce. On sleep or lock the timer is cancelled.
-///
-/// Do not create a `Timer` anywhere else — review failure (D3).
-/// See RFC-001, "Notes d'implémentation".
+/// The only thing in this app allowed to create a timer. One `DispatchSourceTimer` at
+/// the shortest registered cadence; longer clients are skipped until due, so ten `.lazy`
+/// clients cost one wakeup per 30 s. 25 % leeway lets the kernel coalesce.
 @MainActor
 public final class WakeCoordinator {
-
     /// Higher values coalesce better; too high and a 1 s cadence visibly drifts.
     private static let leewayFraction: Double = 0.25
 
@@ -30,8 +24,6 @@ public final class WakeCoordinator {
     public private(set) var tickCount: Int = 0
 
     public init() {}
-
-    // MARK: - Registration
 
     public func register(
         id: String,
@@ -63,8 +55,6 @@ public final class WakeCoordinator {
         entries[id]?.cadence
     }
 
-    // MARK: - Suspension
-
     public func suspend() {
         guard !isSuspended else { return }
         isSuspended = true
@@ -82,11 +72,8 @@ public final class WakeCoordinator {
         reschedule()
     }
 
-    // MARK: - Introspection
-
     public var effectiveInterval: TimeInterval? { scheduledInterval }
 
-    /// Steady-state wakeups per second. Budget: < 2/s at rest, 0 when suspended.
     public var wakeupsPerSecond: Double {
         guard let interval = scheduledInterval, interval > 0 else { return 0 }
         return 1 / interval
@@ -95,8 +82,6 @@ public final class WakeCoordinator {
     public nonisolated static func effectiveInterval(for cadences: [Cadence]) -> TimeInterval? {
         cadences.compactMap(\.interval).min()
     }
-
-    // MARK: - Scheduling
 
     private func reschedule() {
         let target = isSuspended
@@ -129,8 +114,8 @@ public final class WakeCoordinator {
         let now = Self.now()
         for (key, entry) in entries {
             guard let interval = entry.cadence.interval else { continue }
-            // Tolerate the leeway we asked for, otherwise a client whose cadence
-            // equals the tick interval skips every other tick.
+            // Tolerate the leeway we asked for, otherwise a client whose cadence equals
+            // the tick interval skips every other tick.
             let due = now - entry.lastFired >= interval * (1 - Self.leewayFraction)
             guard due else { continue }
             entries[key]?.lastFired = now
@@ -138,8 +123,8 @@ public final class WakeCoordinator {
         }
     }
 
-    /// Monotonic clock: wall time would let a clock change fire every client at
-    /// once, or stall them for hours.
+    /// Monotonic clock: wall time would let a clock change fire every client at once, or
+    /// stall them for hours.
     private nonisolated static func now() -> TimeInterval {
         Double(DispatchTime.now().uptimeNanoseconds) / 1_000_000_000
     }

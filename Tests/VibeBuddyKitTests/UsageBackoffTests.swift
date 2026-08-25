@@ -3,22 +3,17 @@ import Testing
 @testable import VibeBuddyKit
 
 /// What the app does while the endpoint refuses.
-///
-/// Measured on 2026-08-20 against the live endpoint: `429`, body
-/// `{"type":"rate_limit_error"}`, header `retry-after: 0`. Zero is not a
-/// schedule, and obeying it is how one refusal becomes a loop.
 @Suite("Usage backoff")
 @MainActor
 struct UsageBackoffTests {
-
     /// A client that answers whatever the test wants, without a network.
     private struct Stub: CredentialSource {
         func read() -> (token: String, expiresAt: Date)? { ("t", .distantFuture) }
     }
 
     private func state(seeded: UsageState.Status = .unknown) -> UsageState {
-        // No cache: these tests are about the schedule, and a stored reading
-        // from a previous run would make "unknown" mean something else.
+        // No cache: these tests are about the schedule, and a stored reading from a
+        // previous run would make "unknown" mean something else.
         UsageState(seeded: seeded, cache: nil)
     }
 
@@ -48,8 +43,8 @@ struct UsageBackoffTests {
         #expect(seen[1] == 120)
         #expect(seen[2] == 240)
         #expect(seen.last == UsageState.backoffCeiling)
-        // Never goes backwards: a schedule that shortens under refusal is the
-        // bug this replaces.
+        // Never goes backwards: a schedule that shortens under refusal is the bug this
+        // replaces.
         #expect(seen == seen.sorted())
     }
 
@@ -75,7 +70,6 @@ struct UsageBackoffTests {
 /// The cache, which is what stops a rate-limited launch from showing nothing.
 @Suite("Usage cache")
 struct UsageCacheTests {
-
     /// Created, used, wiped: an untouched suite still leaves a plist behind.
     private func withCache(_ body: (UsageCache) throws -> Void) rethrows {
         let name = "vibebuddy.usage.tests.\(UUID().uuidString)"
@@ -97,8 +91,7 @@ struct UsageCacheTests {
         }
     }
 
-    // A five-hour window resets. A reading from yesterday is not stale, it is
-    // about a window that no longer exists.
+    // A five-hour window resets.
     @Test("a reading older than the window is dropped, not shown")
     func expires() {
         withCache { store in

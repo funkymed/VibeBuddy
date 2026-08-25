@@ -1,22 +1,8 @@
 import CoreGraphics
 import Foundation
 
-/// Parser for the `.buddy` text format.
-///
-/// A file opens with the screen, then one section per expression:
-///
-///     face: 80x30 oval
-///
-///     idle (amber #FFBB00)
-///     eye   shape:oval w:9 h:13 r:4.5 gap:20 y:-3
-///     mouth shape:arc w:24 h:9 t:0.6 bend:1 y:8
-///     time  beat:1.6 blink:0.3 grain:0.03 glitch:0 gaze:wander
-///
-/// A `.buddy` is data outside the binary: recompiling changes nothing, the file
-/// has to be re-read. Parsing never throws — a bad section is skipped.
-/// See RFC-005, "Notes d'implémentation".
+/// Parser for the `.buddy` text format. face: 80x30 oval
 public struct BuddyFile: Sendable {
-
     public struct ParseResult: Sendable {
         public let manifest: BuddyManifest?
         /// Unparsed lines, with their number, so an editor can point at them.
@@ -24,8 +10,6 @@ public struct BuddyFile: Sendable {
     }
 
     /// `name (anything #RRGGBB)` — the colour word is decoration.
-    /// Do not hoist this into a stored property: `Regex` is not `Sendable`, and
-    /// sharing one across concurrent parses is a real race.
     private static func headerPattern()
         -> Regex<(Substring, Substring, Substring, Substring)> {
         /^\s*([a-zA-Z][a-zA-Z0-9_-]*)\s*\(([^)]*?)#([0-9A-Fa-f]{6})\s*\)\s*$/
@@ -62,8 +46,8 @@ public struct BuddyFile: Sendable {
                 continue  // a comment, not a colour
             }
 
-            // Directives only before the first section, so a pose line that
-            // reads like one is never eaten.
+            // Directives only before the first section, so a pose line that reads like
+            // one is never eaten.
             if current == nil, let colon = trimmed.firstIndex(of: ":") {
                 let key = trimmed[..<colon].trimmingCharacters(in: .whitespaces).lowercased()
                 let value = trimmed[trimmed.index(after: colon)...]
@@ -76,10 +60,8 @@ public struct BuddyFile: Sendable {
                     }
                     continue
                 }
-                // `kind`, `font`, `size` and `speed` belonged to the glyph
-                // format and are gone. Say so rather than swallow them: a file
-                // written for the old format would otherwise parse to a face
-                // that ignores half of what it was told.
+                // `kind`, `font`, `size` and `speed` belonged to the glyph format and
+                // are gone.
                 if ["kind", "font", "size", "speed"].contains(key) {
                     problems.append("ligne \(index + 1) : « \(key): » n'existe plus")
                     continue
@@ -96,8 +78,8 @@ public struct BuddyFile: Sendable {
                 problems.append("ligne \(index + 1) hors section : « \(trimmed) »")
                 continue
             }
-            // Several lines merge into one spec, so a face can be split across
-            // lines the way a long one wants to be.
+            // Several lines merge into one spec, so a face can be split across lines
+            // the way a long one wants to be.
             switch applyPose(trimmed, to: eye ?? EyeSpec(pose: EyePose())) {
             case let .ok(updated): eye = updated
             case let .unknown(token):
@@ -125,10 +107,8 @@ public struct BuddyFile: Sendable {
         )
     }
 
-    // MARK: - The grammar
-
-    /// `80x30 oval` or `58x28 r10` — width, height, then either the word
-    /// `oval` or a corner radius.
+    /// `80x30 oval` or `58x28 r10` — width, height, then either the word `oval` or a
+    /// corner radius.
     static func parseFace(_ text: String) -> BuddyManifest.FacePlate? {
         let pattern = /^(\d+(?:\.\d+)?)\s*x\s*(\d+(?:\.\d+)?)(?:\s+(oval|r\s*\d+(?:\.\d+)?))?$/
         guard let match = try? pattern.wholeMatch(
@@ -149,9 +129,7 @@ public struct BuddyFile: Sendable {
             radius: CGFloat(radius), silhouette: .rounded)
     }
 
-    /// One line of a section. The first word says which part it describes, the
-    /// rest are `key:value` pairs in any order. Returns the offending token
-    /// rather than a message, so the caller owns the wording.
+    /// One line of a section.
     static func applyPose(_ line: String, to spec: EyeSpec) -> PoseOutcome {
         var spec = spec
         var tokens = line.split(whereSeparator: { $0 == " " || $0 == "\t" }).map(String.init)
@@ -165,8 +143,8 @@ public struct BuddyFile: Sendable {
         }
         tokens.removeFirst()
 
-        // A `mouth` line is what creates the mouth: a face with no such line
-        // has no mouth at all, rather than one of size zero.
+        // A `mouth` line is what creates the mouth: a face with no such line has no
+        // mouth at all, rather than one of size zero.
         if target == .mouth, spec.pose.mouth == nil {
             spec.pose.mouth = FaceFeature(shape: .arc, width: 18, height: 7, offsetY: 7)
         }
@@ -229,8 +207,8 @@ public struct BuddyFile: Sendable {
 
     enum Target { case eye, mouth, time }
 
-    /// Not `Result`: `String` is not an `Error`, and wrapping the key in one
-    /// would be ceremony around a parser that never throws by design.
+    /// Not `Result`: `String` is not an `Error`, and wrapping the key in one would be
+    /// ceremony around a parser that never throws by design.
     enum PoseOutcome {
         case ok(EyeSpec)
         case unknown(String)
@@ -238,12 +216,8 @@ public struct BuddyFile: Sendable {
 }
 
 extension MotionKind {
-    /// A face moves in beats, so the only motion left for the screen is a
-    /// reaction — one that happens and settles.
-    ///
-    /// `breathe` and `pulse` are deliberately absent: a continuous scale under
-    /// a face that snaps between fixed poses is the one soft thing left on
-    /// screen, and it is what reads as the whole thing drifting.
+    /// A face moves in beats, so the only motion left for the screen is a reaction — one
+    /// that happens and settles.
     static func `default`(for expression: String) -> MotionKind {
         switch expression {
         case "finished": return .bounce

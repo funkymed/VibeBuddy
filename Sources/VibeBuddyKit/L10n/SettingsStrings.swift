@@ -1,11 +1,7 @@
 import Foundation
 
 /// The settings window's own catalogue.
-///
-/// Apart from `Strings` because the surfaces differ in lifetime. Same rule: a
-/// `struct`, so a string added without a translation does not compile.
 public struct SettingsStrings: Sendable {
-
     public struct Section: Sendable {
         public let title: String
         public let symbol: String
@@ -102,7 +98,7 @@ public struct SettingsStrings: Sendable {
         permissionsNotAsked: "jamais demandé",
         system: "Système",
         startAtLogin: "Ouvrir à l'ouverture de session",
-        startAtLoginUnavailable: "Indisponible tant que l'app n'est pas empaquetée (RFC-011)",
+        startAtLoginUnavailable: "Indisponible tant que l'app n'est pas empaquetée",
         language: "Langue de l'app",
         expressions: "Expressions",
         colour: "Couleur",
@@ -157,7 +153,7 @@ public struct SettingsStrings: Sendable {
         permissionsNotAsked: "never asked",
         system: "System",
         startAtLogin: "Open at login",
-        startAtLoginUnavailable: "Unavailable until the app is packaged (RFC-011)",
+        startAtLoginUnavailable: "Unavailable until the app is packaged",
         language: "App language",
         expressions: "Expressions",
         colour: "Colour",

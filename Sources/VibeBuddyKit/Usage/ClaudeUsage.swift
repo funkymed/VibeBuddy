@@ -1,12 +1,8 @@
 import Foundation
 
-/// Live limit utilisation, as Anthropic's own billing page reports it.
-///
-/// Every field is optional. Verified 2026-08-19: the response carries windows
-/// this build has never heard of (`tangelo`, `cinder_cove`), most of them null.
-/// Render a missing one as "unavailable", never zero: 0 % looks like good news.
+/// Live limit utilisation, as Anthropic's own billing page reports it. Render a missing
+/// one as "unavailable", never zero: 0 % looks like good news.
 public struct ClaudeUsage: Sendable, Equatable, Codable {
-
     public struct Window: Sendable, Equatable, Codable {
         /// 0…100.
         public let utilisation: Double
@@ -57,8 +53,8 @@ public struct ClaudeUsage: Sendable, Equatable, Codable {
         return Window(utilisation: utilisation, resetsAt: resets)
     }
 
-    /// `2026-08-19T22:20:00.226366+00:00` — fractional seconds, and an offset
-    /// rather than `Z`. Both spellings occur, so both are accepted.
+    /// `2026-08-19T22:20:00.226366+00:00` — fractional seconds, and an offset rather
+    /// than `Z`.
     static func parseDate(_ text: String) -> Date? {
         let fractional = ISO8601DateFormatter()
         fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
@@ -69,7 +65,7 @@ public struct ClaudeUsage: Sendable, Equatable, Codable {
 
 public enum UsageOutcome: Sendable, Equatable {
     case success(ClaudeUsage)
-    /// Throttled. Honour `retryAfter`: hammering a rate limiter blocks a token.
+    /// Throttled.
     case rateLimited(retryAfter: TimeInterval)
     case noCredentials
     case failed(String)

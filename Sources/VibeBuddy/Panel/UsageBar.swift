@@ -2,22 +2,21 @@ import SwiftUI
 import VibeBuddyKit
 
 /// One limit window: a label, a dotted gauge, a percentage, a reset time.
-/// Dots rather than a bar — see RFC-008, "Notes d'implémentation".
 struct UsageBar: View {
     let label: String
     let window: ClaudeUsage.Window?
     let locale: Locale
     var dotCount: Int = 10
 
-    /// Rounded up: rounding down renders 4 % as an empty gauge, which reads as
-    /// "not started" rather than "barely started".
+    /// Rounded up: rounding down renders 4 % as an empty gauge, which reads as "not
+    /// started" rather than "barely started".
     private var filled: Int {
         guard let window, window.utilisation > 0 else { return 0 }
         return max(1, Int((window.fraction * Double(dotCount)).rounded(.up)))
     }
 
-    /// The shared quota scale — see `QuotaScale`, which the per-session context
-    /// ring reads from too.
+    /// The shared quota scale — see `QuotaScale`, which the per-session context ring
+    /// reads from too.
     private var tint: Color {
         guard let window else { return QuotaScale.unknown }
         return QuotaScale.colour(window.fraction)
@@ -30,8 +29,8 @@ struct UsageBar: View {
                 .foregroundStyle(PanelInk.secondary)
                 .frame(width: 68, alignment: .leading)
 
-            // 9 pt dots, not 6: a 6 pt ring with a 1 pt border leaves 4 pt of fill,
-            // the smallest thing on a Retina panel and unusable to count.
+            // 9 pt dots, not 6: a 6 pt ring with a 1 pt border leaves 4 pt of fill, the
+            // smallest thing on a Retina panel and unusable to count.
             HStack(spacing: 3) {
                 ForEach(0..<dotCount, id: \.self) { index in
                     Circle()
@@ -66,8 +65,7 @@ struct UsageBar: View {
         return "\(Int(window.utilisation.rounded()))%"
     }
 
-    /// A time for today, a date beyond: "22:20" against "23 août, 20:00". A full
-    /// date for a reset two hours out makes the reader do arithmetic.
+    /// A time for today, a date beyond: "22:20" against "23 août, 20:00".
     static func resetText(_ date: Date, now: Date = Date(), locale: Locale = .current) -> String {
         let calendar = Calendar.current
         let formatter = DateFormatter()

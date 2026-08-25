@@ -4,7 +4,6 @@ import Testing
 
 @Suite("Granting a rule for good")
 struct PermissionRulesTests {
-
     static let userFile = """
     {
       "$schema": "https://json.schemastore.org/claude-code-settings.json",
@@ -33,8 +32,6 @@ struct PermissionRulesTests {
             path: path, backupDirectory: directory + "/backups")), path, directory)
     }
 
-    // MARK: - Reading
-
     @Test("what is granted is read as written")
     func readsGranted() throws {
         let (rules, _, directory) = try Self.onDisk()
@@ -42,8 +39,8 @@ struct PermissionRulesTests {
         #expect(rules.granted() == ["Read", "Bash(git status:*)"])
     }
 
-    // Failing to *grant* is safe; the caller is a permission prompt that has to
-    // work whatever state the file is in.
+    // Failing to *grant* is safe; the caller is a permission prompt that has to work
+    // whatever state the file is in.
     @Test("a file that is missing or broken grants nothing, rather than throwing")
     func unreadableGrantsNothing() throws {
         let (missing, _, dir1) = try Self.onDisk(nil)
@@ -56,8 +53,6 @@ struct PermissionRulesTests {
         // And it is still there, untouched.
         #expect(FileManager.default.fileExists(atPath: path))
     }
-
-    // MARK: - Adding, as a pure value
 
     @Test("a rule is appended, and everything else keeps its place")
     func appendsInPlace() throws {
@@ -89,8 +84,7 @@ struct PermissionRulesTests {
         #expect(try #require(after.objectPairs).first?.key == "model")
     }
 
-    // The file is the user's. Anything we do not understand is left alone
-    // rather than reinterpreted.
+    // The file is the user's.
     @Test("a permissions block of an unexpected shape is left exactly as it was",
           arguments: [#"{ "permissions": "off" }"#, #"{ "permissions": { "allow": "tout" } }"#])
     func refusesOddShapes(_ text: String) throws {
@@ -98,10 +92,8 @@ struct PermissionRulesTests {
         #expect(PermissionRules.adding("Bash", to: odd) == odd)
     }
 
-    // MARK: - The rule offered
-
-    // Claude Code's suggestion is scoped to what was actually asked; the bare
-    // tool name grants every use of it for ever.
+    // Claude Code's suggestion is scoped to what was actually asked; the bare tool name
+    // grants every use of it for ever.
     @Test("Claude Code's own suggestion is preferred to the tool's name")
     func prefersTheSuggestion() {
         let model = PermissionRequestModel(
@@ -116,8 +108,6 @@ struct PermissionRulesTests {
             id: "a", toolName: "WebFetch", summary: .url("https://x.invalid"))
         #expect(PermissionRules.rule(for: model) == "WebFetch")
     }
-
-    // MARK: - Writing, and the consent that must come first
 
     @Test("committing writes once, and says so; a second time writes nothing")
     func commitIsIdempotent() throws {

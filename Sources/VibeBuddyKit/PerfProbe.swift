@@ -2,16 +2,12 @@ import Foundation
 import Darwin
 import os
 
-/// Self-measurement of the numbers RFC-001 puts a budget on.
-///
-/// Read from inside the process via `task_info`: no `sudo`, no subprocess — a
-/// probe that spawned `ps` would be measuring what it added. The governing
-/// metric is idle wakeups, not CPU: 0.4 % CPU at 70 wakeups/s drains a battery
-/// and trips no percentage-based threshold.
+/// Self-measurement of the numbers puts a budget on. The governing metric is idle
+/// wakeups, not CPU: 0.4 % CPU at 70 wakeups/s drains a battery and trips no
+/// percentage-based threshold.
 public struct PerfSample: Sendable, Equatable {
     public let residentBytes: UInt64
-    /// Physical footprint, bytes — what macOS charges the process and shows as
-    /// "Memory". On Apple Silicon it diverges from RSS enough to matter.
+    /// Physical footprint, bytes — what macOS charges the process and shows as "Memory".
     public let footprintBytes: UInt64
     public let cpuSeconds: Double
     public let interruptWakeups: UInt64
@@ -24,7 +20,6 @@ public struct PerfSample: Sendable, Equatable {
 }
 
 public enum PerfProbe {
-
     public static let log = Logger(subsystem: "fr.funkylab.vibebuddy", category: "perf")
 
     private static let launchedAt = Date()
@@ -53,8 +48,6 @@ public enum PerfProbe {
     }
 
     public static let csvHeader = "label,uptime_s,rss_mb,footprint_mb,cpu_s,wakeups,idle_wakeups"
-
-    // MARK: - mach plumbing
 
     private static func machBasicInfo() -> mach_task_basic_info? {
         var info = mach_task_basic_info()

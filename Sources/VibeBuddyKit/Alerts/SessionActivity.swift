@@ -40,16 +40,12 @@ public struct SessionObservation: Sendable, Equatable {
     }
 }
 
-/// Something worth telling the user about. Named `SessionAlert` because SwiftUI
-/// already owns `Alert`.
+/// Something worth telling the user about.
 public struct SessionAlert: Sendable, Equatable, Identifiable {
     public enum Kind: String, Sendable, Equatable {
         case finished
         case failed
-        /// The agent is blocked asking for something. Read from the transcript
-        /// for tools that are questions by definition (`AskUserQuestion`,
-        /// `ExitPlanMode`). A pending *permission* prompt is not readable this
-        /// way — it is written only once resolved, and still needs RFC-006.
+        /// The agent is blocked asking for something.
         case needsAttention
     }
 

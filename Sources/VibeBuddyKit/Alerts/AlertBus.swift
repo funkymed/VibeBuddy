@@ -1,16 +1,12 @@
 import Foundation
 
 /// Where alerts go.
-///
-/// A bus, not a direct call into the UI: RFC-012 plans a phone relay, which is
-/// a second subscriber here and an edit to every raise site otherwise.
 @MainActor
 public final class AlertBus {
-
     private var subscribers: [UUID: AsyncStream<SessionAlert>.Continuation] = [:]
     private(set) public var delivered: [SessionAlert] = []
 
-    /// Retained history, for diagnostics and late viewers. Bounded, not a log.
+    /// Retained history, for diagnostics and late viewers.
     public static let historyLimit = 50
 
     public init() {}

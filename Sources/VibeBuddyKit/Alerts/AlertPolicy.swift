@@ -2,13 +2,11 @@ import Foundation
 
 /// Decides whether an alert actually reaches the user.
 public struct AlertPolicy: Sendable {
-
-    /// Minimum gap between two visual alerts, whatever their source: three
-    /// sessions finishing at once produce one interruption, not three.
+    /// Minimum gap between two visual alerts, whatever their source: three sessions
+    /// finishing at once produce one interruption, not three.
     public static let minimumGap: TimeInterval = 12
 
-    /// Window in which the same session repeating the same alert counts as one
-    /// event. Guards a rewritten transcript (compaction) replaying a completion.
+    /// Window in which the same session repeating the same alert counts as one event.
     public static let dedupeWindow: TimeInterval = 60
 
     public struct Decision: Sendable, Equatable {
@@ -21,8 +19,8 @@ public struct AlertPolicy: Sendable {
 
     public init() {}
 
-    /// - Parameter hostingTerminalIsFrontmost: the user is already looking at
-    ///   this terminal, so the alert would be noise.
+    /// - Parameter hostingTerminalIsFrontmost: the user is already looking at this
+    /// terminal, so the alert would be noise.
     public mutating func admit(
         _ alert: SessionAlert,
         now: Date,

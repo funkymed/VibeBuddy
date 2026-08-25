@@ -1,19 +1,16 @@
 import AppKit
 import VibeBuddyKit
 
-/// Owns the object graph and the app's relationship with the system. Sleep and
-/// screen lock suspend the wake coordinator, tearing the shared timer to zero.
-/// See RFC-002, « Notes d'implémentation ».
+/// Owns the object graph and the app's relationship with the system.
 @MainActor
 final class AppCoordinator: NSObject, NSApplicationDelegate {
-
     let wake = WakeCoordinator()
     let animation = AnimationBudget()
     private(set) var geometry: NotchGeometry?
     private var panel: NotchPanel?
     private var sessions: SessionCoordinator?
-    /// Held for the life of the app: a `DispatchSourceSignal` that is not
-    /// retained is cancelled, and the signal goes back to killing us outright.
+    /// Held for the life of the app: a `DispatchSourceSignal` that is not retained is
+    /// cancelled, and the signal goes back to killing us outright.
     private var terminationSignals: [DispatchSourceSignal] = []
     /// Set by `--simulate-permission <genre>`; nil in normal use.
     static let simulatedPermission: String? = {
@@ -21,30 +18,26 @@ final class AppCoordinator: NSObject, NSApplicationDelegate {
         guard let index = args.firstIndex(of: "--simulate-permission") else { return nil }
         return index + 1 < args.count ? args[index + 1] : "shell"
     }()
-    /// Set by `--simulate-questions [n]`. A **queue**, because one request
-    /// shows a panel and only several show the queue: the counter counting
-    /// down, the next question taking the place of the answered one, the window
-    /// resizing between two of different lengths.
+    /// Set by `--simulate-questions [n]`.
     static let simulatedQuestions: Int? = {
         let args = CommandLine.arguments
         guard let index = args.firstIndex(of: "--simulate-questions") else { return nil }
         let next = index + 1 < args.count ? Int(args[index + 1]) : nil
         return max(1, next ?? 3)
     }()
-    /// Set by `--simulate-finished`: the end-of-task alert in the pill, which
-    /// is objective n°1 of the product and the one thing that cannot be
-    /// summoned on demand — it arrives when an agent finishes, not when you are
-    /// ready to look at it.
+    /// Set by `--simulate-finished`: the end-of-task alert in the pill, which is
+    /// objective n°1 of the product and the one thing that cannot be summoned on demand
+    /// — it arrives when an agent finishes, not when you are ready to look at it.
     static let simulatesFinished = CommandLine.arguments.contains("--simulate-finished")
     /// The hook socket, and the permission requests it brings in.
     private let hook = HookService()
     let usage = UsageState()
     let l10n = Localisation()
-    /// One store, three models — RFC-010: splitting by who observes what keeps
-    /// a buddy colour change from invalidating the window layout.
+    /// One store, three models: splitting by who observes what keeps a buddy colour
+    /// change from invalidating the window layout.
     let prefs: PreferencesStore
-    /// Held by value by the settings window, which never rebuilds: a reset
-    /// reloads these in place rather than replacing them.
+    /// Held by value by the settings window, which never rebuilds: a reset reloads these
+    /// in place rather than replacing them.
     let appearance: AppearancePrefs
     let layout: LayoutPrefs
     let notifications: NotificationPrefs
@@ -54,7 +47,6 @@ final class AppCoordinator: NSObject, NSApplicationDelegate {
     var onBuddyReload: ((String) -> Void)?
 
     var showPillOnLaunch = true
-    /// Which buddy to load. Nil means the built-in one.
     var buddyID: String? = BuiltInBuddy.id
 
     override init() {
@@ -81,8 +73,8 @@ final class AppCoordinator: NSObject, NSApplicationDelegate {
         geometry = NotchGeometry.resolve()
         observeSystemState()
         observeTermination()
-        // Before the panel: a hook that connects to nothing exits cleanly, but
-        // one that connects to a half-built app is a Claude Code left waiting.
+        // Before the panel: a hook that connects to nothing exits cleanly, but one that
+        // connects to a half-built app is a Claude Code left waiting.
         hook.start()
         hook.watchForExpiry()
 
@@ -102,10 +94,8 @@ final class AppCoordinator: NSObject, NSApplicationDelegate {
             onReset: { [weak self] in self?.resetEverything() }
         )
         settings.onVisibilityChange = { [weak self, weak panel] open in
-            // Told, but no longer used to close anything: the notch stays
-            // usable while the settings are open. What the flag still buys is
-            // the keyboard — the panel does not take the key status from the
-            // window the user is typing in.
+            // Told, but no longer used to close anything: the notch stays usable while
+            // the settings are open.
             panel?.settingsAreOpen = open
             // A coalesced write must not be lost when the window closes.
             if !open {
@@ -152,8 +142,7 @@ final class AppCoordinator: NSObject, NSApplicationDelegate {
                     "\(alert.projectName) \(label)", locale: self.l10n.locale)
             }
         }
-        // The queue pushes; the panel does not pull. One request on screen, the
-        // rest a number — arbitrage of 2026-08-21.
+        // The queue pushes; the panel does not pull.
         hook.permissions.onChange = { [weak self] in
             guard let self else { return }
             self.panel?.setPermission(
@@ -161,8 +150,8 @@ final class AppCoordinator: NSObject, NSApplicationDelegate {
         }
         applySimulationFlags(to: panel)
 
-        // The rules live behind the same writer as the hook's own entries
-        // (decision D6): one place in this app touches that file.
+        // The rules live behind the same writer as the hook's own entries (decision
+        // D6): one place in this app touches that file.
         let rules = PermissionRules()
         hook.permissions.alwaysAllowed = { rules.granted() }
         panel.onPermissionAlwaysAllowAsked = { model in
@@ -190,13 +179,12 @@ final class AppCoordinator: NSObject, NSApplicationDelegate {
 
         sessions.onChange = { [weak self] list in
             guard let self, let panel = self.panel else { return }
-            // A transcript that has moved on has overtaken any permission still
-            // waiting on it. Free: this callback already fires on the watcher's
-            // own events (RFC-007, T3).
+            // A transcript that has moved on has overtaken any permission still waiting
+            // on it.
             self.hook.expireStale(against: list)
             let live = list.filter(\.isLive)
-            // `onThePill`, not `aggregate`: with several sessions the face shows
-            // that something is running. Alerts still carry the urgent ones.
+            // `onThePill`, not `aggregate`: with several sessions the face shows that
+            // something is running.
             let activity = SessionDisplayState.onThePill(of: list)?.activity
             panel.setAggregateExpression(Self.forcedFace ?? BuddyExpression.from(
                 activity: activity, hasLiveSession: !live.isEmpty, isVisible: true))
@@ -216,7 +204,7 @@ final class AppCoordinator: NSObject, NSApplicationDelegate {
         sessions.start()
         self.sessions = sessions
 
-        // The only unconditional periodic wake in the app — RFC-001, D3.
+        // The only unconditional periodic wake in the app, D3.
         wake.register(id: "usage", cadence: .lazy) { [weak self] in
             guard let self else { return }
             Task { @MainActor in
@@ -232,24 +220,9 @@ final class AppCoordinator: NSObject, NSApplicationDelegate {
         PerfProbe.log.info("launched · notch=\(self.geometry?.hasNotch ?? false, privacy: .public)")
     }
 
-    /// Takes the windows off the screen before dying on `SIGTERM` or `SIGINT`.
-    ///
-    /// The default disposition kills the process where it stands: AppKit never
-    /// runs, no window is ordered out, and what was on screen is left for
-    /// whatever is behind it to repaint — which, over a still terminal window,
-    /// can be a long time. Three panels from three successive `make stop` runs
-    /// stayed visible on 2026-08-22, and a screenshot taken with **zero
-    /// instances alive** still showed one whole. It reads as several copies of
-    /// the app running at once, which is a defect this project already has for
-    /// real (RFC-011) — a ghost that imitates a known bug is worse than a
-    /// ghost.
-    ///
-    /// `SIG_IGN` first is not optional: the source only ever fires for a signal
-    /// the process is not already being killed by.
-    ///
-    /// **The cost, said out loud:** an app whose main loop is wedged no longer
-    /// dies on `SIGTERM`, because we have just told the kernel to leave it to
-    /// us. `make stop` follows up with `-9` for that case.
+    /// Takes the windows off the screen before dying on `SIGTERM` or `SIGINT`. The
+    /// cost, said out loud: an app whose main loop is wedged no longer dies on
+    /// `SIGTERM`, because we have just told the kernel to leave it to us.
     private func observeTermination() {
         for number in [SIGTERM, SIGINT] {
             signal(number, SIG_IGN)
@@ -262,31 +235,16 @@ final class AppCoordinator: NSObject, NSApplicationDelegate {
         }
     }
 
-    /// Off the screen first, then the ordinary quit.
-    ///
-    /// `terminate` is what runs `applicationWillTerminate`, and that is where
-    /// the queue is drained and the socket unlinked — the things that decide
-    /// whether a Claude Code somewhere waits out its 120 s. Ordering the
-    /// windows out first only makes the screen right; it is the terminate that
-    /// makes the exit right, and duplicating its work here would be a second
-    /// source of truth for shutting down.
+    /// Off the screen first, then the ordinary quit. `terminate` is what runs
+    /// `applicationWillTerminate`, and that is where the queue is drained and the socket
+    /// unlinked — the things that decide whether a Claude Code somewhere waits out its
+    /// 120 s.
     private func terminateCleanly() {
         for window in NSApp.windows { window.orderOut(nil) }
         NSApp.terminate(nil)
     }
 
-    // MARK: - Rehearsals
-
     /// The `--simulate-*` flags, in one place.
-    ///
-    /// They exist because the alternative is running a real Claude Code and
-    /// hoping it does the thing you wanted to look at. A permission of the
-    /// right kind, three questions in a row, an agent finishing — each arrives
-    /// when the model decides to, which is never while you are looking at the
-    /// pixel you are trying to judge.
-    ///
-    /// Every one of them puts requests in with **nobody waiting on the other
-    /// end**: answering decides nothing, which is exactly what a rehearsal is.
     private func applySimulationFlags(to panel: NotchPanel) {
         if let kind = Self.simulatedPermission {
             hook.permissions.insertPreview(PermissionSamples.model(kind))
@@ -297,13 +255,11 @@ final class AppCoordinator: NSObject, NSApplicationDelegate {
             }
         }
         if Self.simulatesFinished {
-            // The pill has to be on screen for an alert to have somewhere to
-            // go: `present` refuses from `.hidden`, and « pastille visible sans
-            // session » is off by default (D7).
+            // The pill has to be on screen for an alert to have somewhere to go:
+            // `present` refuses from `.hidden`, and « pastille visible sans session »
+            // is off by default (D7).
             panel.show()
-            // Long enough to be looked at rather than caught. The real one is
-            // four seconds, which is right for a notification and useless for
-            // judging one.
+            // Long enough to be looked at rather than caught.
             panel.present(
                 SessionAlert(sessionID: "simulation", projectName: "notch",
                              kind: .finished, at: Date()),
@@ -313,14 +269,12 @@ final class AppCoordinator: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         wake.suspend()
-        // A socket file left behind is one a later `vibe-hook` connects to and
-        // waits on — and a hook that waits is a Claude Code that waits.
+        // A socket file left behind is one a later `vibe-hook` connects to and waits on
+        // — and a hook that waits is a Claude Code that waits.
         hook.stop()
         // The other moment a queued write must not be lost.
         prefs.flush()
     }
-
-    // MARK: - System state
 
     private func observeSystemState() {
         let workspace = NSWorkspace.shared.notificationCenter
@@ -339,8 +293,8 @@ final class AppCoordinator: NSObject, NSApplicationDelegate {
             MainActor.assumeIsolated { self?.leaveLowPower("wake") }
         }
 
-        // Screen lock is not on NSWorkspace — it only arrives on the
-        // distributed centre, undocumented but stable for many releases.
+        // Screen lock is not on NSWorkspace — it only arrives on the distributed
+        // centre, undocumented but stable for many releases.
         let distributed = DistributedNotificationCenter.default()
         distributed.addObserver(
             forName: .init("com.apple.screenIsLocked"),
@@ -379,9 +333,9 @@ final class AppCoordinator: NSObject, NSApplicationDelegate {
         try? FileManager.default.createDirectory(
             atPath: root, withIntermediateDirectories: true)
 
-        // Resolve symlinks first: a buddy in the search path is usually a link
-        // into a working copy, and FSEvents reports writes to the directory
-        // holding the real bytes, never to the link's folder.
+        // Resolve symlinks first: a buddy in the search path is usually a link into a
+        // working copy, and FSEvents reports writes to the directory holding the real
+        // bytes, never to the link's folder.
         var directories = Set([root])
         if let entries = try? FileManager.default.contentsOfDirectory(atPath: root) {
             for entry in entries where entry.hasSuffix(".buddy") {
@@ -406,9 +360,6 @@ final class AppCoordinator: NSObject, NSApplicationDelegate {
     }
 
     /// Bring the terminal running `pid` to the front, on the right tab.
-    ///
-    /// Do not run on the main actor: an Apple Event is a round trip to another
-    /// process and would freeze the panel until iTerm2 answers.
     private func jump(to pid: pid_t) {
         let strings = l10n.strings
         Task.detached(priority: .userInitiated) {
@@ -427,10 +378,7 @@ final class AppCoordinator: NSObject, NSApplicationDelegate {
     }
 
     private func loadBuddy(_ id: String?) {
-        // Every buddy now comes from a file. The branch that used to sit here
-        // rebuilt one from `UserDefaults`, for manifests the editor created
-        // without ever writing them to disk — a buddy that existed only in a
-        // preference, which is what made two sources of truth for one face.
+        // Every buddy now comes from a file.
         var loader = BuddyLoader()
         let loaded = loader.load(id: id)
         panel?.setBuddy(loaded.manifest)
@@ -449,9 +397,6 @@ final class AppCoordinator: NSObject, NSApplicationDelegate {
     }
 
     /// Delete every preference this app owns, then reload from defaults.
-    ///
-    /// Do not wipe the domain: it also holds system-managed entries for this
-    /// bundle, and removing those breaks much later.
     private func resetEverything() {
         for key in PreferencesStore.allKeys { prefs.remove(key) }
         appearance.reload()
@@ -481,11 +426,6 @@ final class AppCoordinator: NSObject, NSApplicationDelegate {
     }
 
     /// `VIBEBUDDY_FACE=finished` pins the buddy to one expression.
-    ///
-    /// A face is authored by eye, and five of the six cannot be reached on
-    /// demand: they depend on what an agent happens to be doing. Reading the
-    /// environment once at launch costs nothing and is the only way to look at
-    /// `failed` without breaking something on purpose.
     static let forcedFace: BuddyExpression? = ProcessInfo.processInfo
         .environment["VIBEBUDDY_FACE"]
         .flatMap { BuddyExpression(rawValue: $0.lowercased()) }

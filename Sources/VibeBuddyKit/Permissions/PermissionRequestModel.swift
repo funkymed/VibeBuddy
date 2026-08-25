@@ -2,19 +2,7 @@ import Foundation
 import VibeHookProtocol
 
 /// One permission request, parsed into something a view can draw.
-///
-/// **Truncated at parse time, not at display time.** A `tool_input` carries
-/// whatever Claude is about to do: an `Edit`'s `new_string` can be a whole file,
-/// and a `Write` can be larger still. Keeping it whole to shorten it in a view
-/// means the app's memory follows the size of the user's files, for a panel that
-/// shows twenty lines. RFC-007, T1.
-///
-/// Every field is optional except the tool's name, and an unknown tool still
-/// produces a request. The schema is not a contract (R9), and the failure mode
-/// to avoid is silence: a request that fails to parse must still reach the user,
-/// even as a list of raw fields.
 public struct PermissionRequestModel: Sendable, Equatable, Identifiable {
-
     /// Longest string kept from any single field.
     public static let fieldLimit = 4_000
     /// Longest text kept for the two sides of a diff.
@@ -22,21 +10,17 @@ public struct PermissionRequestModel: Sendable, Equatable, Identifiable {
     /// Most fields kept for a tool this app knows nothing about.
     public static let unknownFieldLimit = 12
 
-    /// Opening of the line appended in place of what was dropped. Public because
-    /// the diff view has to tell that line apart from the file's own text: it is
-    /// not part of the change, so it must not be painted as one.
+    /// Opening of the line appended in place of what was dropped.
     public static let truncationMark = "… ("
 
     public let id: String
     public let toolName: String
     public let sessionID: String?
     public let cwd: String?
-    /// Given on every event since the hook contract was read — RFC-006, Q1.
+    /// Given on every event since the hook contract was read, Q1.
     public let transcriptPath: String?
     public let summary: Summary
-    /// What Claude Code offers to remember, verbatim. Never parsed: its pattern
-    /// language is its own (`Bash(npm install:*)`), and reimplementing it is how
-    /// the two drift apart.
+    /// What Claude Code offers to remember, verbatim.
     public let suggestions: [String]
     public let receivedAt: Date
     /// PID of the `claude` process, when the socket could name it.
@@ -59,11 +43,6 @@ public struct PermissionRequestModel: Sendable, Equatable, Identifiable {
     }
 
     /// What the request is asking for, by kind rather than by tool name.
-    ///
-    /// Two tools that ask the same thing get the same case: `Edit` and
-    /// `MultiEdit` are both a diff, `Write` and `NotebookEdit` are both a file
-    /// being replaced. The view draws the kind; the tool's name is shown as a
-    /// label beside it.
     public enum Summary: Sendable, Equatable {
         /// A command line, and the description Claude wrote for it.
         case shell(command: String, description: String?)
@@ -74,8 +53,8 @@ public struct PermissionRequestModel: Sendable, Equatable, Identifiable {
         /// Reading a file, which asks for a path and nothing else.
         case read(path: String)
         case url(String)
-        /// `AskUserQuestion` and `ExitPlanMode`: the agent is waiting on a
-        /// person, and the hook has no channel to answer with. See RFC-007 §3.
+        /// `AskUserQuestion` and `ExitPlanMode`: the agent is waiting on a person, and
+        /// the hook has no channel to answer with.
         case question(prompt: String, options: [String])
         /// Anything this app has never heard of, kept as it came.
         case other(fields: [Field])
@@ -91,15 +70,7 @@ public struct PermissionRequestModel: Sendable, Equatable, Identifiable {
     }
 }
 
-// MARK: - Parsing
-
 public extension PermissionRequestModel {
-
-    /// Builds a request from what the hook forwarded.
-    ///
-    /// `nil` only when the payload is not a JSON object at all — anything else,
-    /// however unexpected, comes back as a request. A permission the app fails
-    /// to render is a permission the user never sees, and Claude waits.
     static func parse(_ request: HookRequest, from pid: pid_t? = nil,
                       at now: Date = Date()) -> PermissionRequestModel? {
         guard let root = (try? JSONSerialization.jsonObject(with: request.payload))
@@ -124,9 +95,6 @@ public extension PermissionRequestModel {
     }
 
     /// `permission_suggestions` as strings, whatever shape it arrives in.
-    ///
-    /// Seen as a list of strings and as a list of objects carrying a rule; both
-    /// are accepted, and anything else is dropped rather than guessed at.
     static func suggestions(from root: [String: Any]) -> [String] {
         guard let raw = root["permission_suggestions"] as? [Any] else { return [] }
         return raw.compactMap { entry in
@@ -149,8 +117,8 @@ public extension PermissionRequestModel {
                 description: input["description"] as? String)
 
         case "Edit", "MultiEdit", "StrReplace":
-            // A `MultiEdit` carries its pairs in `edits`; the first one is what
-            // the panel shows, and the count is in the tool's own label.
+            // A `MultiEdit` carries its pairs in `edits`; the first one is what the
+            // panel shows, and the count is in the tool's own label.
             if let edits = input["edits"] as? [[String: Any]], let first = edits.first {
                 return .diff(
                     path: (input["file_path"] as? String) ?? "",
@@ -184,12 +152,6 @@ public extension PermissionRequestModel {
     }
 
     /// The prompt and its options, out of a shape that has changed before.
-    ///
-    /// Accepts `questions[0]`, a bare `question`, and a `plan`; options as
-    /// objects keyed `label`, `value` or `text`, or as plain strings. Tolerant
-    /// on purpose: this is the one tool whose payload the app has already seen
-    /// arrive in more than one shape, and a missed option is an answer the user
-    /// cannot give.
     static func question(from input: [String: Any]) -> (prompt: String, options: [String]) {
         var scope = input
         if let questions = input["questions"] as? [[String: Any]], let first = questions.first {
@@ -210,9 +172,7 @@ public extension PermissionRequestModel {
         return (prompt.cut(to: fieldLimit), options.map { $0.cut(to: 200) })
     }
 
-    /// An unknown tool's input, flattened. Sorted, because a dictionary has no
-    /// order and a panel that reshuffles its own fields between two frames is
-    /// a panel nobody can read.
+    /// An unknown tool's input, flattened.
     static func fields(from input: [String: Any]) -> [Summary.Field] {
         input.keys.sorted().prefix(unknownFieldLimit).map { key in
             let value = input[key]
@@ -230,9 +190,6 @@ public extension PermissionRequestModel {
 
 extension String {
     /// At most `limit` characters, with what was dropped said out loud.
-    ///
-    /// The count matters: « 4 000 premiers caractères sur 180 000 » is the
-    /// difference between a panel that summarises and a panel that hides.
     func cut(to limit: Int) -> String {
         guard count > limit else { return self }
         let kept = prefix(limit)

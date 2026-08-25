@@ -2,9 +2,7 @@ import Foundation
 
 /// Named `Agent`, not `Claude`: v1 is Claude-only by explicit decision (risk R11).
 public struct AgentSession: Sendable, Equatable, Identifiable {
-
-    /// Primary key. `cwd` is a secondary index only — two agents can share a directory,
-    /// and matching on `cwd` is what pairs a session with the wrong process.
+    /// Primary key.
     public let id: String
     public let provider: AgentProvider
     public let cwd: String
@@ -13,7 +11,7 @@ public struct AgentSession: Sendable, Equatable, Identifiable {
     public let effort: String
     public let startedAt: Date
     public let lastActivity: Date
-    /// Language-neutral key for the running tool. Views translate it via `Strings.label(for:)`.
+    /// Language-neutral key for the running tool.
     public let status: ToolLabel?
     public let action: ToolAction
     public let permissionMode: String
@@ -83,8 +81,7 @@ public enum ToolAction: String, Sendable, Equatable, CaseIterable {
     case planning
 }
 
-/// Untranslated key for the running tool. Finer than `ToolAction`: `Read` and `Grep`
-/// share `.reading` but must not read the same on a row.
+/// Untranslated key for the running tool.
 public enum ToolLabel: Sendable, Equatable {
     case shell
     case editing
@@ -98,6 +95,6 @@ public enum ToolLabel: Sendable, Equatable {
     case planning
     case notebook
     case question
-    /// A tool we do not know, carrying its own name. Never translated.
+    /// A tool we do not know, carrying its own name.
     case other(String)
 }

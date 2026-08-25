@@ -5,9 +5,8 @@ import VibeHookProtocol
 
 @Suite("Installing the hook")
 struct HookInstallerTests {
-
-    /// A settings file with keys we must not touch, in an order we must not
-    /// change, and a hook of the user's own.
+    /// A settings file with keys we must not touch, in an order we must not change, and
+    /// a hook of the user's own.
     static let userFile = """
     {
       "$schema": "https://json.schemastore.org/claude-code-settings.json",
@@ -30,8 +29,6 @@ struct HookInstallerTests {
         try OrderedJSON.parse(Data(text.utf8))
     }
 
-    // MARK: - Installing
-
     @Test("every event we register ends up in the file")
     func registersEveryEvent() throws {
         let after = HookInstaller.installing(try Self.parsed(Self.userFile), hookPath: "/A/vibe-hook")
@@ -52,8 +49,8 @@ struct HookInstallerTests {
         let once = HookInstaller.installing(try Self.parsed(Self.userFile), hookPath: "/A/vibe-hook")
         let twice = HookInstaller.installing(once, hookPath: "/A/vibe-hook")
         #expect(twice == once)
-        // Byte-for-byte, not just structurally equal: `mutate` compares values,
-        // but what lands on disk is the encoding.
+        // Byte-for-byte, not just structurally equal: `mutate` compares values, but
+        // what lands on disk is the encoding.
         #expect(twice.encoded() == once.encoded())
     }
 
@@ -130,8 +127,6 @@ struct HookInstallerTests {
         #expect(inner.first?["command"] == .string("/usr/local/bin/mine.sh"))
     }
 
-    /// The marker is what makes an entry ours. A path is not enough — the app
-    /// moves — but a hand edit can drop the marker, and the entry is still ours.
     @Test("an entry is recognised by its marker, or failing that by its name")
     func recognisesOurEntries() {
         #expect(HookInstaller.isOurs(.object([
@@ -143,16 +138,14 @@ struct HookInstallerTests {
         #expect(!HookInstaller.isOurs(.object([("command", .string("/opt/vibe-hook-wrapper"))])))
     }
 
-    // MARK: - Uninstalling
-
     @Test("uninstalling leaves exactly what was there before installing")
     func uninstallIsTheInverse() throws {
         let before = try Self.parsed(Self.userFile)
         let installed = HookInstaller.installing(before, hookPath: "/A/vibe-hook")
         #expect(installed != before)
         let removed = HookInstaller.removing(installed)
-        // The exit criterion of T9, expressed the way the criterion is worded:
-        // a diff against the file we started from is empty.
+        // The exit criterion of T9, expressed the way the criterion is worded: a diff
+        // against the file we started from is empty.
         #expect(removed.encoded() == before.encoded())
     }
 
@@ -185,11 +178,7 @@ struct HookInstallerTests {
         #expect(HookInstaller.removing(before) == before)
     }
 
-    // MARK: - Refusals
-
-    /// The file is the user's. Anything we do not understand is left alone
-    /// rather than reinterpreted — that is what keeps a wrong guess from
-    /// becoming a wrong write.
+    /// The file is the user's.
     @Test("a \"hooks\" key that is not an object is left alone")
     func refusesNonObjectHooks() throws {
         let odd = try Self.parsed(#"{ "hooks": "off" }"#)
@@ -203,8 +192,6 @@ struct HookInstallerTests {
         let after = HookInstaller.installing(odd, hookPath: "/A/vibe-hook")
         #expect(after["hooks"]?["Stop"] == .string("nope"))
     }
-
-    // MARK: - Through the writer, on a real file
 
     @Test("installing writes once and then leaves the file's date alone")
     func writesOnceThroughTheWriter() throws {
@@ -224,10 +211,8 @@ struct HookInstallerTests {
         #expect(try installer.uninstall() == true)
         #expect(try installer.uninstall() == false)
 
-        // And what is on disk is what we started from: same keys, same order,
-        // same values. Not the same bytes — the writer re-serialises with one
-        // key per line, so an object the user had written inline comes back
-        // expanded. Order is what D6 protects; layout is not.
+        // And what is on disk is what we started from: same keys, same order, same
+        // values.
         let final = try OrderedJSON.parse(
             #require(FileManager.default.contents(atPath: path)))
         #expect(final == (try Self.parsed(Self.userFile)))

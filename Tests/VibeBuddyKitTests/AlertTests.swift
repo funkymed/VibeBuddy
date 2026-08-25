@@ -18,7 +18,6 @@ private func session(
 
 @Suite("SessionAlert policy")
 struct AlertPolicyTests {
-
     private func alert(_ id: String = "s1", _ kind: SessionAlert.Kind = .finished) -> SessionAlert {
         SessionAlert(sessionID: id, projectName: "notch", kind: kind, at: Date())
     }
@@ -29,9 +28,9 @@ struct AlertPolicyTests {
         #expect(policy.admit(alert(), now: Date(), hostingTerminalIsFrontmost: false).allowed)
     }
 
-    // The suppression that matters most: notifying someone about the window
-    // they are already staring at is the fastest way to teach them to ignore
-    // notifications entirely.
+    // The suppression that matters most: notifying someone about the window they are
+    // already staring at is the fastest way to teach them to ignore notifications
+    // entirely.
     @Test("nothing is said about a terminal the user is already looking at")
     func frontmostSuppresses() {
         var policy = AlertPolicy()
@@ -83,7 +82,6 @@ struct AlertPolicyTests {
 @Suite("SessionAlert tracker")
 @MainActor
 struct AlertTrackerTests {
-
     @Test("a finished session produces one attributed alert")
     func oneAlert() {
         let bus = AlertBus()
@@ -105,8 +103,8 @@ struct AlertTrackerTests {
         #expect(total == 1)
     }
 
-    // Watching several agents at once is the point; a single "current session"
-    // notion would lose all but the newest.
+    // Watching several agents at once is the point; a single "current session" notion
+    // would lose all but the newest.
     @Test("three sessions keep three independent states")
     func independentStates() {
         let bus = AlertBus()
@@ -156,7 +154,6 @@ struct AlertTrackerTests {
 
 @Suite("Session grouping")
 struct SessionGroupTests {
-
     private func session(
         _ id: String, cwd: String, live: Bool = true, ago: TimeInterval = 0
     ) -> AgentSession {
@@ -169,8 +166,7 @@ struct SessionGroupTests {
         )
     }
 
-    // Five runs in one directory is an ordinary afternoon. Shown flat, the
-    // session actually running is buried under its own history.
+    // Five runs in one directory is an ordinary afternoon.
     @Test("runs in one directory collapse to one row")
     func collapsesHistory() {
         let groups = SessionGroup.group([
@@ -228,7 +224,6 @@ struct SessionGroupTests {
 /// Grouping folds history, never running agents.
 @Suite("Live sessions are never folded")
 struct LiveGroupingTests {
-
     private func session(
         _ id: String, cwd: String, live: Bool, activity: Date = Date()
     ) -> AgentSession {
@@ -239,8 +234,8 @@ struct LiveGroupingTests {
             contextTokens: 0, contextWindow: 200_000, pid: nil, isLive: live)
     }
 
-    // Four agents in one folder used to collapse into a single row: the app
-    // exists to watch several at once.
+    // Four agents in one folder used to collapse into a single row: the app exists to
+    // watch several at once.
     @Test("every live session gets its own row")
     func liveSessionsAreNotFolded() {
         let rows = SessionGroup.group([
@@ -264,8 +259,8 @@ struct LiveGroupingTests {
         #expect(rows.first?.count == 3)
     }
 
-    // The badge says "there is history here", once per folder rather than on
-    // every sibling.
+    // The badge says "there is history here", once per folder rather than on every
+    // sibling.
     @Test("history rides on the first live row only")
     func historyRidesOnOneRow() {
         let rows = SessionGroup.group([
@@ -295,7 +290,6 @@ struct LiveGroupingTests {
 @Suite("First sight of a session")
 @MainActor
 struct FirstSightTests {
-
     private func finished(_ id: String) -> AgentSession {
         AgentSession(
             id: id, cwd: "/p/notch", projectName: "notch", model: "",
@@ -332,8 +326,8 @@ struct FirstSightTests {
     func perSession() {
         let tracker = AlertTracker(bus: AlertBus())
         _ = tracker.ingest([working("a")])
-        // "b" appears already finished: new to us, so no alert for it — while
-        // "a" finishing in the same snapshot is a real transition.
+        // "b" appears already finished: new to us, so no alert for it — while "a"
+        // finishing in the same snapshot is a real transition.
         let alerts = tracker.ingest([finished("a"), finished("b")])
         #expect(alerts.map(\.sessionID) == ["a"])
     }

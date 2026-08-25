@@ -2,10 +2,10 @@ import Foundation
 import Darwin
 
 /// Thin wrappers over `libproc`: macOS has no `/proc`, so these are the only way to
-/// enumerate processes and read their name, path and cwd. From Notch-Pilot (MIT).
+/// enumerate processes and read their name, path and cwd.
 public enum ProcessLookup {
-
-    /// Retried once: the count can grow between sizing and filling, and a short read drops.
+    /// Retried once: the count can grow between sizing and filling, and a short read
+    /// drops.
     public static func allPIDs() -> [pid_t] {
         var capacity = 4096
         for _ in 0..<2 {
@@ -22,8 +22,7 @@ public enum ProcessLookup {
         return []
     }
 
-    /// `p_comm`, the 16-character accounting name. Do not rely on `proc_name` alone:
-    /// it is privilege-gated and returns nothing for setuid `login`.
+    /// `p_comm`, the 16-character accounting name.
     public static func name(of pid: pid_t) -> String? {
         var buffer = [CChar](repeating: 0, count: Int(MAXPATHLEN))
         let r = buffer.withUnsafeMutableBufferPointer {
@@ -66,8 +65,7 @@ public enum ProcessLookup {
         return String(decoding: bytes, as: UTF8.self)
     }
 
-    /// Do not use `proc_pidinfo(PROC_PIDTBSDINFO)`: it fails without privileges. Measured
-    /// chain `claude → zsh → login → iTerm2` stops two hops short at setuid `login`.
+    /// Do not use `proc_pidinfo(PROC_PIDTBSDINFO)`: it fails without privileges.
     public static func parent(of pid: pid_t) -> pid_t? {
         var mib: [Int32] = [CTL_KERN, KERN_PROC, KERN_PROC_PID, pid]
         var info = kinfo_proc()
@@ -93,8 +91,7 @@ public enum ProcessLookup {
         return short.isEmpty ? nil : "/dev/" + short
     }
 
-    /// Working directory, via `PROC_PIDVNODEPATHINFO`. The load-bearing call: a fresh
-    /// transcript timestamp proves nothing, a running process's cwd cannot lie.
+    /// Working directory, via `PROC_PIDVNODEPATHINFO`.
     public static func cwd(of pid: pid_t) -> String? {
         var info = proc_vnodepathinfo()
         let size = Int32(MemoryLayout<proc_vnodepathinfo>.size)
@@ -119,8 +116,7 @@ public enum ProcessLookup {
         return s
     }
 
-    /// Live agent processes, grouped by normalised cwd. Match on executable name *or*
-    /// path (`…/claude/versions/…`). Do not match `node`: it catches unrelated processes.
+    /// Live agent processes, grouped by normalised cwd.
     public static func agentPIDs(provider: AgentProvider = .claudeCode) -> [String: [pid_t]] {
         var result: [String: [pid_t]] = [:]
         for pid in allPIDs() {

@@ -1,31 +1,11 @@
 import Foundation
 
 /// One believable request per kind of summary, for `--simulate-permission`.
-///
-/// The alternative is judging a panel by running Claude Code and hoping it asks
-/// for the right kind of thing. Six kinds, six chances of waiting a long while
-/// for the one you wanted to look at — and `AskUserQuestion` in particular
-/// arrives when the model decides to, not when you are ready to look.
-///
-/// In the Kit rather than in the app so the tests can use the same fixtures the
-/// eye judges. A sample that has drifted from what the parser produces is a
-/// rehearsal of the wrong play.
 public enum PermissionSamples {
-
     public static let kinds = ["shell", "diff", "write", "read", "url",
                                "question", "plan", "other"]
 
-    /// A **queue** of questions, oldest first, for `--simulate-questions`.
-    ///
-    /// One sample shows a panel; only several show the thing the queue was
-    /// written for. Answering the head must reveal the next one, the « +N en
-    /// attente » counter must count down, and the window must resize between
-    /// two questions of different lengths — none of which a single request can
-    /// demonstrate, and none of which had ever been looked at.
-    ///
-    /// Deliberately uneven: a one-line question, a long one, a plan. Three
-    /// questions of the same size would prove the panel keeps its height, not
-    /// that it follows.
+    /// A queue of questions, oldest first, for `--simulate-questions`.
     public static func questions(_ count: Int, at now: Date = Date()) -> [PermissionRequestModel] {
         let asks: [(String, [String])] = [
             ("Le curseur « Taille de la pastille » doit devenir quoi ?",
@@ -49,8 +29,8 @@ public enum PermissionSamples {
         ]
 
         return (0..<max(0, count)).map { index in
-            // Its own id per entry: the queue finds an entry by id, and two
-            // samples sharing one would answer each other's request.
+            // Its own id per entry: the queue finds an entry by id, and two samples
+            // sharing one would answer each other's request.
             let ask = asks[index % asks.count]
             return PermissionRequestModel(
                 id: "sim-q\(index)", toolName: "AskUserQuestion", sessionID: "simulation",
@@ -60,7 +40,7 @@ public enum PermissionSamples {
         }
     }
 
-    /// - Parameter kind: one of `kinds`. Anything else gives the shell one.
+    /// - Parameter kind: one of `kinds`.
     public static func model(_ kind: String, at now: Date = Date()) -> PermissionRequestModel {
         let common: (String, String, PermissionRequestModel.Summary, [String])
             -> PermissionRequestModel = { id, tool, summary, suggestions in
@@ -108,12 +88,11 @@ public enum PermissionSamples {
                           "Garder couplé, corriger le débordement"]), [])
 
         case "plan":
-            // `ExitPlanMode` is a question with **no options**: its prompt is
-            // the plan itself, and the panel's own Deny / Allow bar says the
-            // two things there are to say about one. Its own sample because it
-            // is the tallest thing the panel ever draws — long enough here to
-            // pass the 260 pt ceiling and prove the block scrolls instead of
-            // pushing the decision bar off the bottom.
+            // `ExitPlanMode` is a question with no options: its prompt is the plan
+            // itself, and the panel's own Deny / Allow bar says the two things there
+            // are to say about one. Its own sample because it is the tallest thing the
+            // panel ever draws — long enough here to pass the 260 pt ceiling and prove
+            // the block scrolls instead of pushing the decision bar off the bottom.
             return common("sim-plan", "ExitPlanMode", .question(
                 prompt: """
                     ## Ajuster la hauteur du panneau à son contenu
@@ -155,8 +134,8 @@ public enum PermissionSamples {
             ]), [])
 
         default:
-            // A command with teeth: the panel has to read well when the answer
-            // matters, not only when it is `ls`.
+            // A command with teeth: the panel has to read well when the answer matters,
+            // not only when it is `ls`.
             return common("sim-shell", "Bash", .shell(
                 command: "rm -rf .build dist && swift build -c release",
                 description: "Repartir d'un build propre"), ["Bash(rm:*)", "Bash"])

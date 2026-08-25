@@ -1,11 +1,7 @@
 import AppKit
 
 /// Where the notch is, resolved once.
-///
-/// Do not resolve it from `NSScreen.main`: that follows keyboard focus, not
-/// hardware, so the pill jumps screens when the user types on a second display.
 public struct NotchGeometry: Equatable, Sendable {
-
     public let screenID: CGDirectDisplayID
     public let screenFrame: CGRect
     public let notchSize: CGSize?
@@ -19,8 +15,6 @@ public struct NotchGeometry: Equatable, Sendable {
         self.screenFrame = screenFrame
         self.notchSize = notchSize
     }
-
-    // MARK: - Resolution
 
     @MainActor
     public static func resolve(preferredScreenID: CGDirectDisplayID? = nil) -> NotchGeometry? {
@@ -49,10 +43,6 @@ public struct NotchGeometry: Equatable, Sendable {
     }
 
     /// Notch size for a screen, or nil if it has none.
-    ///
-    /// Do not test `safeAreaInsets.top` alone: it also matches displays with a
-    /// rounded-corner inset and no notch. The notch is the gap between the two
-    /// auxiliary menu-bar areas.
     @MainActor
     public static func notchSize(of screen: NSScreen) -> CGSize? {
         let topInset = screen.safeAreaInsets.top

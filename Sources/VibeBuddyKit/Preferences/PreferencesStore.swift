@@ -2,18 +2,11 @@ import Foundation
 import Observation
 
 /// Reads and writes preferences, and never writes more than it has to.
-///
-/// A change marks a key dirty and schedules one flush; writing straight from
-/// `didSet` costs one synchronous write per frame while a window is dragged. The
-/// delay is a one-shot `asyncAfter`, not a repeating timer — D3 forbids a second
-/// clock. See RFC-001, "Notes d'implémentation".
 @MainActor
 public final class PreferencesStore {
-
-    /// How long a burst accumulates before it lands. `flush()` also runs on quit.
+    /// How long a burst accumulates before it lands.
     public static let coalescingDelay: TimeInterval = 0.25
 
-    /// Current schema. Bump when a key changes meaning, and add a migration.
     public static let schema = 4
     static let schemaKey = "vibebuddy.schema"
 
@@ -21,11 +14,6 @@ public final class PreferencesStore {
     static let prefix = "vibebuddy."
 
     /// Domains this app wrote to before, newest first.
-    ///
-    /// An unbundled binary keys `UserDefaults.standard` on the executable name,
-    /// a bundle keys it on its identifier — so both spellings hold real
-    /// settings. Packaging the app moved the domain a second time, and reading
-    /// only the oldest one restored values from two renames ago.
     public static let legacyDomains = ["VibeBuddy", "NotchBuddy"]
 
     private let defaults: UserDefaults
@@ -45,8 +33,6 @@ public final class PreferencesStore {
         self.previousDomains = previous
         migrate()
     }
-
-    // MARK: - Reading
 
     public func bool(_ key: String, default fallback: Bool) -> Bool {
         if let pendingValue = pending[key] as? Bool { return pendingValue }
@@ -69,8 +55,6 @@ public final class PreferencesStore {
         if let pendingValue = pending[key] as? Data { return pendingValue }
         return defaults.data(forKey: key)
     }
-
-    // MARK: - Writing
 
     public func set(_ value: Any, forKey key: String) {
         pending[key] = value
@@ -98,10 +82,7 @@ public final class PreferencesStore {
         }
     }
 
-    // MARK: - Migration
-
-    /// Schema 2 renames every key's prefix. No file holds a copy of these values,
-    /// so copy before deleting, and delete only what was copied.
+    /// Schema 2 renames every key's prefix.
     private func migrate() {
         let stored = defaults.integer(forKey: Self.schemaKey)
         guard stored != Self.schema else { return }
@@ -109,8 +90,8 @@ public final class PreferencesStore {
         if stored < 4 {
             for key in Self.allKeys where key.hasPrefix(Self.prefix) {
                 let legacy = Self.legacyPrefix + key.dropFirst(Self.prefix.count)
-                // This domain under the old prefix first, then each previous
-                // domain in order of recency, under either prefix.
+                // This domain under the old prefix first, then each previous domain in
+                // order of recency, under either prefix.
                 var value = defaults.object(forKey: legacy)
                 if value == nil {
                     for domain in previousDomains {
@@ -119,9 +100,9 @@ public final class PreferencesStore {
                     }
                 }
                 guard let value else { continue }
-                // Schema 4 overwrites what schema 3 wrote: that pass read the
-                // oldest domain only, so a value already present here can be two
-                // renames stale.
+                // Schema 4 overwrites what schema 3 wrote: that pass read the oldest
+                // domain only, so a value already present here can be two renames
+                // stale.
                 if stored == 3 || defaults.object(forKey: key) == nil {
                     defaults.set(value, forKey: key)
                 }
@@ -132,8 +113,7 @@ public final class PreferencesStore {
         defaults.set(Self.schema, forKey: Self.schemaKey)
     }
 
-    /// Every key this app owns, for "reset everything". Listed, not derived: the
-    /// domain also holds system keys a wipe would take with it.
+    /// Every key this app owns, for "reset everything".
     public static let allKeys: [String] = [
         schemaKey,
         AppearancePrefs.Keys.buddyID,

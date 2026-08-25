@@ -2,11 +2,9 @@ import Foundation
 
 /// Flattens a manifest — file and override layer already merged — back into one
 /// self-contained `.buddy`.
-/// See RFC-005, "Notes d'implémentation".
 public enum BuddyExportWriter {
-
-    /// Keep the expression order the enum's, never the dictionary's: a
-    /// dictionary has no order and two exports would differ by shuffling alone.
+    /// Keep the expression order the enum's, never the dictionary's: a dictionary has no
+    /// order and two exports would differ by shuffling alone.
     public static func text(for manifest: BuddyManifest, name: String? = nil) -> String {
         var lines = [
             "# \(name ?? manifest.name) — exporté par \(AppName.display)",
@@ -58,9 +56,7 @@ public enum BuddyExportWriter {
         }
     }
 
-    /// The inverse of `BuddyFile.applyPose`. Every key is written, including
-    /// the ones left at their default: an export is meant to be edited by hand,
-    /// and a key that is absent is a key nobody discovers.
+    /// The inverse of `BuddyFile.applyPose`.
     public static func poseLines(_ eye: EyeSpec) -> [String] {
         var lines = ["eye " + keys(eye.pose.eye) + " gap:" + number(Double(eye.pose.gap))]
         if let mouth = eye.pose.mouth { lines.append("mouth " + keys(mouth)) }

@@ -6,7 +6,6 @@ import VibeBuddyKit
 /// multi-megabyte audio engine on first use, and the preference is off by default.
 @MainActor
 final class VoiceAnnouncer {
-
     /// Two identical alerts inside this window are one announcement.
     static let debounce: TimeInterval = 4
 
@@ -28,8 +27,7 @@ final class VoiceAnnouncer {
     }
 }
 
-/// A tap on the trackpad. No hardware check needed: `NSHapticFeedbackManager`
-/// resolves to a no-op performer without a Force Touch trackpad.
+/// A tap on the trackpad.
 enum Haptics {
     @MainActor
     static func tap() {

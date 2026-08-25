@@ -2,12 +2,11 @@ import Testing
 import Foundation
 @testable import VibeBuddyKit
 
-// The scheduling rule is the whole point of WakeCoordinator, so it is tested as
-// pure arithmetic rather than by waiting on real timers.
+// The scheduling rule is the whole point of WakeCoordinator, so it is tested as pure
+// arithmetic rather than by waiting on real timers.
 
 @Suite("Cadence")
 struct CadenceTests {
-
     @Test("off never wakes")
     func offHasNoInterval() {
         #expect(Cadence.off.interval == nil)
@@ -28,7 +27,6 @@ struct CadenceTests {
 
 @Suite("WakeCoordinator scheduling")
 struct WakeSchedulingTests {
-
     @Test("no clients means no timer")
     func emptyIsSilent() {
         #expect(WakeCoordinator.effectiveInterval(for: []) == nil)
@@ -46,17 +44,17 @@ struct WakeSchedulingTests {
         #expect(WakeCoordinator.effectiveInterval(for: [.lazy, .off]) == 30)
     }
 
-    // The budget in RFC-001 is < 2 wakeups/s at rest. Ten lazy clients must
-    // still cost one wakeup every 30 s, not ten — that is the entire reason the
-    // coordinator exists rather than each subsystem owning a timer.
+    // The budget in is < 2 wakeups/s at rest. Ten lazy clients must still cost one
+    // wakeup every 30 s, not ten — that is the entire reason the coordinator exists
+    // rather than each subsystem owning a timer.
     @Test("many lazy clients still cost one timer")
     func lazyClientsShareOneTimer() {
         let many = Array(repeating: Cadence.lazy, count: 10)
         #expect(WakeCoordinator.effectiveInterval(for: many) == 30)
     }
 
-    // Every cadence is now a resting cadence: hover went event-driven, so
-    // nothing wants a rate finer than 1 Hz any more.
+    // Every cadence is now a resting cadence: hover went event-driven, so nothing wants
+    // a rate finer than 1 Hz any more.
     @Test("the worst resting cadence stays inside the budget")
     func worstRestingCaseWithinBudget() {
         let interval = WakeCoordinator.effectiveInterval(for: Cadence.resting)!
@@ -68,7 +66,6 @@ struct WakeSchedulingTests {
 @Suite("WakeCoordinator lifecycle")
 @MainActor
 struct WakeLifecycleTests {
-
     @Test("registering a client starts the timer")
     func registerStartsTimer() {
         let wake = WakeCoordinator()

@@ -2,22 +2,14 @@ import SwiftUI
 import VibeBuddyKit
 
 /// The settings window: a sidebar, and one section at a time.
-///
-/// See RFC-010, "Notes d'implémentation".
 struct SettingsShell: View {
-
     @Bindable var l10n: Localisation
     let appearance: AppearancePrefs
     let layout: LayoutPrefs
     let notifications: NotificationPrefs
     let onLanguageChange: () -> Void
     let onReset: () -> Void
-    /// Which pane is showing. Owned by `SettingsWindow` rather than by this
-    /// view: the window is reused across openings — `show()` brings the
-    /// existing one to the front instead of building a new one — so a `@State`
-    /// here survives from one visit to the next and the window reopens wherever
-    /// it was left. Held outside, it can be reset each time the window is
-    /// shown, which is the whole point.
+    /// Which pane is showing.
     @Bindable var navigation: SettingsNavigation
 
     enum Tab: String, CaseIterable, Identifiable {

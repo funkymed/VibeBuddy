@@ -1,7 +1,6 @@
 import Foundation
 
-/// Which language the interface speaks. `.system` stores the case, not the
-/// resolved value, so the app follows a system language change.
+/// Which language the interface speaks.
 public enum AppLanguage: String, Sendable, Equatable, CaseIterable, Codable {
     case system
     case french = "fr"
@@ -15,8 +14,7 @@ public enum AppLanguage: String, Sendable, Equatable, CaseIterable, Codable {
         }
     }
 
-    /// The concrete language this resolves to. Anything that is not French falls
-    /// back to English rather than to a partial match.
+    /// The concrete language this resolves to.
     public func resolved(preferred: [String] = Locale.preferredLanguages) -> AppLanguage {
         switch self {
         case .french, .english: return self
@@ -26,8 +24,8 @@ public enum AppLanguage: String, Sendable, Equatable, CaseIterable, Codable {
         }
     }
 
-    /// Locale for dates and numbers, so a French interface does not print
-    /// "August 23" underneath "semaine".
+    /// Locale for dates and numbers, so a French interface does not print "August 23"
+    /// underneath "semaine".
     public var locale: Locale {
         switch resolved() {
         case .french: return Locale(identifier: "fr_FR")

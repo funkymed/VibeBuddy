@@ -4,18 +4,9 @@ import Foundation
 
 /// End-to-end: real transcript files on disk, through `SessionStore`, into
 /// `AlertTracker`, out as alerts.
-///
-/// This exists because the path cannot be verified by hand. Watching it from
-/// inside a live session fails twice over: the observing session is itself busy
-/// running the check, so it never looks finished; and its terminal is frontmost,
-/// so the policy correctly suppresses anything that did fire. Both behaviours
-/// are right, and together they make manual verification impossible.
-///
-/// Hence a temporary project root and an injected liveness source.
 @Suite("Alert pipeline", .serialized)
 @MainActor
 struct AlertPipelineTests {
-
     private func makeRoot() throws -> URL {
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent("vibebuddy-pipeline-\(UUID().uuidString)")
@@ -91,8 +82,8 @@ struct AlertPipelineTests {
         #expect(alerts.first?.kind == .failed)
     }
 
-    // The reason to watch more than one agent at all: three finishing in three
-    // projects must produce three attributed alerts, not one.
+    // The reason to watch more than one agent at all: three finishing in three projects
+    // must produce three attributed alerts, not one.
     @Test("three projects finishing are three attributed alerts")
     func threeProjects() async throws {
         let root = try makeRoot()
@@ -119,9 +110,9 @@ struct AlertPipelineTests {
                           + finished(cwd: cwd, session: "s\(i)"))
         }
 
-        // The rate limiter deliberately collapses a simultaneous burst, so the
-        // states are asserted rather than the deliveries — three sessions must
-        // each be recognised as finished even when only one interruption is shown.
+        // The rate limiter deliberately collapses a simultaneous burst, so the states
+        // are asserted rather than the deliveries — three sessions must each be
+        // recognised as finished even when only one interruption is shown.
         let sessions = await store.refresh()
         let published = tracker.ingest(sessions)
         #expect(sessions.count == 3)
@@ -132,8 +123,7 @@ struct AlertPipelineTests {
         #expect(published.count == 1, "a simultaneous burst is one interruption")
     }
 
-    // A dead session must stay silent: the process is gone, so the user already
-    // knows. Without this, restarting the app would re-alert every old transcript.
+    // A dead session must stay silent: the process is gone, so the user already knows.
     @Test("a finished transcript with no live process alerts nothing")
     func deadSessionSilent() async throws {
         let root = try makeRoot()

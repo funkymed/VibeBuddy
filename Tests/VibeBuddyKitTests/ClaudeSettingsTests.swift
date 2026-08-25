@@ -4,7 +4,6 @@ import Testing
 
 @Suite("JSON that keeps its order")
 struct OrderedJSONTests {
-
     static let document = """
     {
       "$schema": "https://example.invalid/schema.json",
@@ -31,8 +30,7 @@ struct OrderedJSONTests {
         #expect(try #require(again.objectPairs).map(\.key) == keys)
     }
 
-    /// `JSONSerialization` turns `1.0` into `1` and loses digits off a large
-    /// integer. Keeping the literal text costs nothing and preserves both.
+    /// `JSONSerialization` turns `1.0` into `1` and loses digits off a large integer.
     @Test("numbers keep the text they were written with")
     func numbersKeepTheirLiteral() throws {
         let parsed = try OrderedJSON.parse(Data(Self.document.utf8))
@@ -78,8 +76,7 @@ struct OrderedJSONTests {
         #expect(throws: (any Error).self) { try OrderedJSON.parse(Data(text.utf8)) }
     }
 
-    /// The real thing, when it is there. Eleven kilobytes of hand-edited
-    /// settings is a better fixture than anything invented here.
+    /// The real thing, when it is there.
     @Test("the user's own settings.json round-trips unchanged")
     func realFileRoundTrips() throws {
         let path = (NSHomeDirectory() as NSString).appendingPathComponent(".claude/settings.json")
@@ -96,7 +93,6 @@ struct OrderedJSONTests {
 
 @Suite("Writing the user's settings")
 struct ClaudeSettingsWriterTests {
-
     private func scratch() -> (writer: ClaudeSettingsWriter, path: String, backups: String) {
         let root = NSTemporaryDirectory() + "vb-settings-\(UUID().uuidString)"
         let path = root + "/settings.json"
@@ -153,8 +149,7 @@ struct ClaudeSettingsWriterTests {
         #expect(try FileManager.default.contentsOfDirectory(atPath: backups).count == 1)
     }
 
-    /// An install that is already correct must not touch the file. Otherwise
-    /// every launch looks like an edit to anything watching it.
+    /// An install that is already correct must not touch the file.
     @Test("a change that changes nothing writes nothing")
     func noOpDoesNotWrite() throws {
         let (writer, path, backups) = scratch()

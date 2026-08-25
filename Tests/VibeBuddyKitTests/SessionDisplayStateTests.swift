@@ -23,7 +23,6 @@ private func session(
 
 @Suite("Session display state")
 struct SessionDisplayStateTests {
-
     @Test("a question outranks an error and a running tool")
     func questionWins() {
         let s = session(action: .shell, error: true, awaiting: true)
@@ -98,11 +97,10 @@ struct SessionDisplayStateTests {
     }
 }
 
-/// The face on the collapsed pill, which is not the same question as "what is
-/// the most urgent thing happening".
+/// The face on the collapsed pill, which is not the same question as "what is the most
+/// urgent thing happening".
 @Suite("The face on the pill")
 struct PillFaceTests {
-
     @Test("something running takes the face")
     func workingWins() {
         let states = SessionDisplayState.onThePill(of: [
@@ -112,8 +110,7 @@ struct PillFaceTests {
         #expect(states == .working)
     }
 
-    /// The concession that matters. With nothing running, the question is the
-    /// most important thing on the machine — objective n°1 of the product.
+    /// The concession that matters.
     @Test("with nothing running, a question takes the face back")
     func awaitingWinsWhenIdle() {
         #expect(SessionDisplayState.onThePill(of: [

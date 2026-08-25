@@ -4,12 +4,11 @@ import Foundation
 
 @Suite("Usage parsing")
 struct ClaudeUsageTests {
-
-    /// Trimmed from the live response on 2026-08-19, including the windows this
-    /// build has never heard of.
-    // A function rather than a stored property: [String: Any] is not Sendable,
-    // and a shared mutable dictionary across concurrent tests is a real race,
-    // not a compiler complaint.
+    /// Trimmed from the live response on 2026-08-19, including the windows this build
+    /// has never heard of.
+    // A function rather than a stored property: [String: Any] is not Sendable, and a
+    // shared mutable dictionary across concurrent tests is a real race, not a compiler
+    // complaint.
     private static func live() -> [String: Any] { [
         "five_hour": ["utilization": 16.0,
                       "resets_at": "2026-08-19T22:20:00.226366+00:00"],
@@ -17,7 +16,7 @@ struct ClaudeUsageTests {
                       "resets_at": "2026-08-23T20:00:00.226390+00:00"],
         "seven_day_opus": NSNull(),
         "seven_day_sonnet": NSNull(),
-        // Real keys from the real response. They are why every field is optional.
+        // Real keys from the real response.
         "tangelo": NSNull(),
         "nimbus_quill": ["utilization": 0.0, "resets_at": NSNull()],
         "omelette_promotional": NSNull(),
@@ -32,9 +31,7 @@ struct ClaudeUsageTests {
         #expect(usage.fiveHour?.resetsAt != nil)
     }
 
-    // The endpoint is not a public contract (risk R5). Verified live: it already
-    // returns windows under codenames this build has never seen. Rejecting the
-    // response over an unknown key would blank the reading the day one appears.
+    // The endpoint is not a public contract (risk R5).
     @Test("unknown windows are ignored, not fatal")
     func unknownKeysIgnored() {
         let usage = ClaudeUsage.parse(Self.live())
@@ -42,8 +39,8 @@ struct ClaudeUsageTests {
         #expect(usage.sevenDayOpus == nil)
     }
 
-    // A missing window must render as "unavailable", never as zero: 0 % looks
-    // like good news, and being wrong in the reassuring direction is worse.
+    // A missing window must render as "unavailable", never as zero: 0 % looks like good
+    // news, and being wrong in the reassuring direction is worse.
     @Test("a null window is absent rather than zero")
     func nullIsNotZero() {
         let usage = ClaudeUsage.parse(["five_hour": NSNull(), "seven_day": NSNull()])
@@ -88,14 +85,13 @@ private struct StubCredentials: CredentialSource {
 @Suite("Usage state")
 @MainActor
 struct UsageStateTests {
-
     @Test("nothing is known before the first reading")
     func startsUnknown() {
         #expect(UsageState().status == .unknown)
     }
 
-    // A five-hour window does not move fast enough to justify steady polling,
-    // and this is the app's only unconditional periodic wake — RFC-001, D3.
+    // A five-hour window does not move fast enough to justify steady polling, and this
+    // is the app's only unconditional periodic wake, D3.
     @Test("the cadence loosens once a reading exists")
     func cadenceAdapts() {
         #expect(UsageState().interval == 10)   // nothing yet: try again soon
@@ -116,8 +112,8 @@ struct UsageStateTests {
             seeded: .ready(good))
 
         await state.refresh(now: Date().addingTimeInterval(3600))
-        // No credentials is a real "we cannot know", so it does replace —
-        // but a network blip would not. Asserted below.
+        // No credentials is a real "we cannot know", so it does replace — but a network
+        // blip would not.
         #expect(state.status == .unavailable("non connecté"))
     }
 

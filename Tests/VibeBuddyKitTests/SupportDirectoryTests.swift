@@ -2,11 +2,10 @@ import Foundation
 import Testing
 @testable import VibeBuddyKit
 
-/// Moving a directory a user edits by hand deserves tests, because the failure
-/// mode is not a crash: it is buddies that quietly stop existing.
+/// Moving a directory a user edits by hand deserves tests, because the failure mode is
+/// not a crash: it is buddies that quietly stop existing.
 @Suite("Support directory")
 struct SupportDirectoryTests {
-
     private func sandbox() throws -> (old: String, new: String) {
         let root = NSTemporaryDirectory() + "support-\(UUID().uuidString)"
         try FileManager.default.createDirectory(
@@ -38,9 +37,7 @@ struct SupportDirectoryTests {
         #expect(FileManager.default.fileExists(atPath: old) == false)
     }
 
-    // The buddies in there are usually links into a working copy. A migration
-    // that resolved them would copy a snapshot and break hot reload: the file
-    // being edited would no longer be the file being read.
+    // The buddies in there are usually links into a working copy.
     @Test("a symbolic link survives as a link")
     func keepsSymlinks() throws {
         let (old, new) = try sandbox()
@@ -55,7 +52,6 @@ struct SupportDirectoryTests {
     }
 
     // Merging two trees is right nine times out of ten and destroys the tenth.
-    // There is no reason to guess when a person can look.
     @Test("two directories are reported, never merged")
     func refusesToMerge() throws {
         let (old, new) = try sandbox()
@@ -80,10 +76,8 @@ struct SupportDirectoryTests {
         #expect(SupportDirectory.path.hasSuffix("/" + AppName.display))
     }
 
-    // macOS volumes are usually case-insensitive, so the same directory answers
-    // to two spellings and moving one onto the other fails. Detecting it by the
-    // file system's own identifier is what keeps that from being reported as a
-    // conflict the user has to resolve.
+    // macOS volumes are usually case-insensitive, so the same directory answers to two
+    // spellings and moving one onto the other fails.
     @Test("two spellings of one directory are not a conflict")
     func caseInsensitiveIsSamePlace() throws {
         let (old, _) = try sandbox()

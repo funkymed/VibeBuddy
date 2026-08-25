@@ -3,27 +3,17 @@ import Testing
 import VibeHookProtocol
 @testable import VibeBuddyKit
 
-/// The `AskUserQuestion` hijack — RFC-007 §1, T6.
-///
-/// It had never run when these were written, and reading the wiring is what
-/// found the defect: the view documented the hijack and the panel sent the bare
-/// option text, so the model got the user's choice as a *refusal reason*. These
-/// tests exist because the compiler had nothing to say about that — the message
-/// builder was never called, and Swift does not warn on a static that nobody
-/// uses.
+/// The `AskUserQuestion` hijack, T6.
 @Suite("Answering a question through a deny")
 @MainActor
 struct QuestionAnswerTests {
-
     @Test("The chosen option appears verbatim in the message")
     func optionIsCarriedWhole() {
         let message = QuestionAnswer.denyMessage(for: "Deux curseurs séparés")
         #expect(message.contains("Deux curseurs séparés"))
     }
 
-    /// The whole point of the wording. A deny reason that is only the option
-    /// reads as a refusal, and the model tries something else — defect #5 of
-    /// 2026-08-21, in a different costume.
+    /// The whole point of the wording.
     @Test("The message says it is an answer, not a refusal")
     func messageFramesItselfAsAnAnswer() {
         let message = QuestionAnswer.denyMessage(for: "Garder couplé")
@@ -32,8 +22,8 @@ struct QuestionAnswerTests {
         #expect(message != "Garder couplé")
     }
 
-    /// Guards the "fix" the doc comment warns about: an `allow` sends nothing
-    /// back, so the model never learns which option was chosen.
+    /// Guards the "fix" the doc comment warns about: an `allow` sends nothing back, so
+    /// the model never learns which option was chosen.
     @Test("The decision is a deny, never an allow")
     func decisionIsADeny() {
         let decision = QuestionAnswer.decision(for: "Curseur = pastille seule")
@@ -82,14 +72,10 @@ struct QuestionAnswerTests {
     }
 }
 
-/// What « always allow » means on a question: nothing, and it must not be
-/// offered. Read in Claude Code 2.1.239 rather than guessed — a tool declaring
-/// `requiresUserInteraction` asks every time, and an `allow` from a hook for
-/// one is discarded.
+/// What « always allow » means on a question: nothing, and it must not be offered.
 @Suite("A question is never granted in advance")
 @MainActor
 struct QuestionIsNeverPreGrantedTests {
-
     private func question(id: String) -> HookRequest {
         HookRequest(event: .permissionRequest, payload: try! JSONSerialization.data(
             withJSONObject: [
@@ -103,8 +89,8 @@ struct QuestionIsNeverPreGrantedTests {
     @Test("A rule naming AskUserQuestion does not silence the panel")
     func ruleDoesNotShortCircuit() async {
         let queue = PermissionQueue()
-        // Whatever put it there — the user's own hand, or an older build of
-        // this app offering « toujours autoriser » on a question.
+        // Whatever put it there — the user's own hand, or an older build of this app
+        // offering « toujours autoriser » on a question.
         queue.alwaysAllowed = { ["AskUserQuestion", "Bash"] }
 
         async let answer = queue.handle(question(id: "q1"), from: nil)
@@ -115,8 +101,8 @@ struct QuestionIsNeverPreGrantedTests {
         _ = await answer
     }
 
-    /// The same rule on a tool that really can be granted still works: the
-    /// guard is about questions, not about turning the feature off.
+    /// The same rule on a tool that really can be granted still works: the guard is
+    /// about questions, not about turning the feature off.
     @Test("A bare rule still short-circuits a runnable tool")
     func ruleStillWorksElsewhere() async {
         let queue = PermissionQueue()

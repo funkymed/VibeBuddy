@@ -6,7 +6,6 @@ import VibeHookProtocol
 @Suite("The permission queue")
 @MainActor
 struct PermissionQueueTests {
-
     static func request(tool: String = "Bash", id: String,
                         command: String = "ls") -> HookRequest {
         HookRequest(
@@ -32,10 +31,8 @@ struct PermissionQueueTests {
         for _ in 0..<4 { await Task.yield() }
     }
 
-    // MARK: - The regression the reference documented
-
-    // One "pending" slot made every new request silently deny the one before
-    // it, and only the last survived. Parallel tool calls are the normal case.
+    // One "pending" slot made every new request silently deny the one before it, and
+    // only the last survived.
     @Test("two requests in flight both survive, and answer independently")
     func parallelRequestsBothSurvive() async {
         let queue = PermissionQueue()
@@ -71,8 +68,6 @@ struct PermissionQueueTests {
         queue.drain()
     }
 
-    // MARK: - Answering, exactly once
-
     @Test("a decision reaches the hook that asked")
     func decisionIsDelivered() async {
         let queue = PermissionQueue()
@@ -103,8 +98,8 @@ struct PermissionQueueTests {
         #expect(queue.isEmpty)
     }
 
-    // Expiry means "no opinion": Claude Code shows its own prompt, which is the
-    // right outcome for a request the user answered in the terminal.
+    // Expiry means "no opinion": Claude Code shows its own prompt, which is the right
+    // outcome for a request the user answered in the terminal.
     @Test("an expired request answers nothing at all")
     func expiryAnswersNil() async {
         let queue = PermissionQueue()
@@ -114,8 +109,8 @@ struct PermissionQueueTests {
         #expect(await asked.value == nil)
     }
 
-    // A queue that dies holding continuations is a Claude Code that waits out
-    // its 120 s timeout, once per request.
+    // A queue that dies holding continuations is a Claude Code that waits out its 120 s
+    // timeout, once per request.
     @Test("draining answers everything, so nothing is left waiting")
     func drainAnswersEverything() async {
         let queue = PermissionQueue()
@@ -129,8 +124,6 @@ struct PermissionQueueTests {
         #expect(queue.isEmpty)
     }
 
-    // MARK: - Always-allow
-
     @Test("a rule already granted never reaches the queue")
     func alwaysAllowShortCircuits() async {
         let queue = PermissionQueue()
@@ -141,9 +134,8 @@ struct PermissionQueueTests {
         #expect(queue.isEmpty)
     }
 
-    // Claude Code's matcher has already run by the time a request reaches us: a
-    // scoped rule that matched would never have asked. Reimplementing its
-    // pattern language here is how the two drift apart.
+    // Claude Code's matcher has already run by the time a request reaches us: a scoped
+    // rule that matched would never have asked.
     @Test("a scoped rule is left to Claude Code's own matcher")
     func scopedRulesAreIgnored() async {
         let queue = PermissionQueue()
@@ -166,8 +158,6 @@ struct PermissionQueueTests {
         _ = await asked.value
     }
 
-    // MARK: - Everything that is not a permission
-
     @Test("an event nobody claimed leaves Claude Code as it found it")
     func otherEventsAreNotQueued() async {
         let queue = PermissionQueue()
@@ -188,10 +178,8 @@ struct PermissionQueueTests {
         #expect(queue.isEmpty)
     }
 
-    // MARK: - Hanging up
-
-    // The server cancels the task when the peer hangs up — the user answered in
-    // the terminal. Someone still has to resume the continuation.
+    // The server cancels the task when the peer hangs up — the user answered in the
+    // terminal.
     @Test("a cancelled request answers, rather than hanging for ever")
     func cancellationAnswers() async {
         let queue = PermissionQueue()
@@ -208,11 +196,10 @@ struct PermissionQueueTests {
     }
 }
 
-/// The three ways a request stops being worth asking about. RFC-007, T3.
+/// The three ways a request stops being worth asking about.
 @Suite("Letting a permission go")
 @MainActor
 struct PermissionExpiryTests {
-
     static let start = Date(timeIntervalSinceReferenceDate: 0)
 
     static func model(id: String = "a", session: String? = "s-1",
@@ -222,8 +209,8 @@ struct PermissionExpiryTests {
             summary: .shell(command: "ls", description: nil), receivedAt: when)
     }
 
-    // The tool call is written to the transcript *before* the permission is
-    // asked, so an entry after it belongs to whatever happened next.
+    // The tool call is written to the transcript *before* the permission is asked, so
+    // an entry after it belongs to whatever happened next.
     @Test("a transcript written to after the grace period has overtaken the request")
     func staleAfterActivity() {
         let request = Self.model()
@@ -316,9 +303,8 @@ struct PermissionExpiryTests {
 @Suite("Rehearsal requests")
 @MainActor
 struct PermissionSampleTests {
-
-    // A sample that has drifted from what the parser produces is a rehearsal of
-    // the wrong play, so every kind must land on the case it claims.
+    // A sample that has drifted from what the parser produces is a rehearsal of the
+    // wrong play, so every kind must land on the case it claims.
     @Test("every kind produces the summary it is named for", arguments: PermissionSamples.kinds)
     func kindsMatchTheirSummary(_ kind: String) {
         let model = PermissionSamples.model(kind)
@@ -335,10 +321,9 @@ struct PermissionSampleTests {
         #expect(!model.toolName.isEmpty)
     }
 
-    /// What separates the two `.question` samples, and the only thing that
-    /// makes `plan` worth its own kind: `AskQuestionView` draws options when
-    /// there are any and the plan alone when there are none, at a taller
-    /// ceiling. A plan that arrived with options would rehearse the wrong one.
+    /// What separates the two `.question` samples, and the only thing that makes `plan`
+    /// worth its own kind: `AskQuestionView` draws options when there are any and the
+    /// plan alone when there are none, at a taller ceiling.
     @Test("the plan sample is a question with no options")
     func planHasNoOptions() {
         let model = PermissionSamples.model("plan")
@@ -351,9 +336,7 @@ struct PermissionSampleTests {
         #expect(prompt.count > 400)
     }
 
-    /// The one thing a queue of samples must get right. The queue finds an
-    /// entry by id, so two samples sharing one would answer each other's
-    /// request — and the rehearsal would prove the opposite of what it claims.
+    /// The one thing a queue of samples must get right.
     @Test("a queue of questions has distinct ids and uneven lengths",
           arguments: [1, 3, 6])
     func questionQueueIsUsable(_ count: Int) {
@@ -368,18 +351,17 @@ struct PermissionSampleTests {
             #expect(!prompt.isEmpty)
             #expect(!options.isEmpty)
         }
-        // Three questions of the same height would prove the panel keeps its
-        // size, not that it follows what it shows.
+        // Three questions of the same height would prove the panel keeps its size, not
+        // that it follows what it shows.
         if count >= 3 {
             #expect(Set(models.map(\.summary.promptLength)).count > 1)
         }
     }
 
-    /// Catches a whole family of mistakes at once, and one that shipped: a
-    /// multi-line literal whose continuations were flattened by the tool that
-    /// wrote the file left thirteen spaces in the middle of every sentence, and
-    /// the panel rendered them faithfully. Nothing in a sample should ever hold
-    /// a run of blanks — it is prose, not layout.
+    /// Catches a whole family of mistakes at once, and one that shipped: a multi-line
+    /// literal whose continuations were flattened by the tool that wrote the file left
+    /// thirteen spaces in the middle of every sentence, and the panel rendered them
+    /// faithfully.
     @Test("no sample text carries stray runs of spaces",
           arguments: PermissionSamples.kinds)
     func samplesHaveNoDoubleSpaces(_ kind: String) {
@@ -442,21 +424,14 @@ struct PermissionSampleTests {
     }
 }
 
-/// The invariant Q3 of RFC-007 calls the most important one: every request that
-/// goes in holds a socket open, and every one of them must come back out.
-/// RFC-007, T10.
+/// The invariant Q3 of calls the most important one: every request that goes in holds a
+/// socket open, and every one of them must come back out.
 @Suite("The queue holds nothing open")
 @MainActor
 struct PermissionLifecycleTests {
-
-    // The descriptor count that used to live here was measured process-wide,
-    // while the rest of the suite ran in parallel: it counted other tests
-    // opening and closing files and failed at −2. Counting fds of a whole
-    // process only means something in a process doing one thing, which is what
-    // the `lsof` recipe in RFC-007 Q3 does against the running app.
-    //
-    // What is left is what this level can actually prove: twenty cycles through
-    // every exit, and nothing held afterwards.
+    // The descriptor count that used to live here was measured process-wide, while the
+    // rest of the suite ran in parallel: it counted other tests opening and closing
+    // files and failed at −2.
     @Test("twenty requests in and out leave nothing behind")
     func noRequestIsLeftHolding() async {
         let queue = PermissionQueue()
@@ -469,16 +444,16 @@ struct PermissionLifecycleTests {
             case 2: queue.expire("r\(index)")
             default: queue.drain()
             }
-            // `value` returning is the proof the hook was answered: an
-            // unresumed continuation would hang here for ever.
+            // `value` returning is the proof the hook was answered: an unresumed
+            // continuation would hang here for ever.
             _ = await asked.value
         }
         #expect(queue.isEmpty)
     }
 
     // Every request must be answered exactly once, whichever exit it takes: a
-    // continuation resumed twice traps, and one never resumed is a Claude Code
-    // that waits out its 120 s timeout.
+    // continuation resumed twice traps, and one never resumed is a Claude Code that
+    // waits out its 120 s timeout.
     @Test("every exit answers, and none answers twice")
     func everyExitAnswersOnce() async {
         for exit in ["allow", "deny", "expire", "drain", "cancel"] {
@@ -493,8 +468,8 @@ struct PermissionLifecycleTests {
             case "drain": queue.drain()
             default: asked.cancel()
             }
-            // Answered — and the second call, which a stale panel would make,
-            // changes nothing.
+            // Answered — and the second call, which a stale panel would make, changes
+            // nothing.
             _ = await asked.value
             queue.allow("a")
             await PermissionQueueTests.settle()
@@ -503,17 +478,13 @@ struct PermissionLifecycleTests {
     }
 }
 
-/// Which session a request belongs to, and what happens when we cannot tell.
-///
-/// Measured on 2026-08-21 against a running app: a permission asked in a folder
-/// where **another** session was working died in 3,6 s, because the fallback
-/// matched any session sharing the `cwd`. That is the normal case — an agent
-/// asks for a permission in the repository its user is already working in — so
-/// the panel was dismissed almost every time.
+/// Which session a request belongs to, and what happens when we cannot tell. Measured on
+/// 2026-08-21 against a running app: a permission asked in a folder where another
+/// session was working died in 3,6 s, because the fallback matched any session sharing
+/// the `cwd`.
 @Suite("Whose activity is it")
 @MainActor
 struct PermissionOwnershipTests {
-
     static let start = Date(timeIntervalSinceReferenceDate: 0)
     /// Late enough to expire anything it is compared against.
     static let late = start.addingTimeInterval(PermissionExpiry.staleAfter + 1)
@@ -524,9 +495,9 @@ struct PermissionOwnershipTests {
             summary: .shell(command: "ls", description: nil), receivedAt: start)
     }
 
-    /// The rule `HookService` applies, kept here as a value so it can be tested
-    /// without an app: session id first, no fallback when it is unknown, `cwd`
-    /// only when a single session can be meant.
+    /// The rule `HookService` applies, kept here as a value so it can be tested without
+    /// an app: session id first, no fallback when it is unknown, `cwd` only when a
+    /// single session can be meant.
     static func activity(
         for model: PermissionRequestModel, sessions: [(id: String, cwd: String, at: Date)]
     ) -> Date? {
@@ -571,8 +542,8 @@ struct PermissionOwnershipTests {
 }
 
 private extension PermissionRequestModel.Summary {
-    /// Length of whatever text this summary leads with, for the tests that
-    /// care that two samples do not draw to the same height.
+    /// Length of whatever text this summary leads with, for the tests that care that two
+    /// samples do not draw to the same height.
     var promptLength: Int {
         if case let .question(prompt, _) = self { return prompt.count }
         return 0
