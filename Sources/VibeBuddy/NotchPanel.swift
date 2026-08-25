@@ -56,6 +56,9 @@ final class NotchPanel: NSPanel {
     /// Which request is on screen, which consent is pending, and in what order the two
     /// get answered and written.
     private let permissions = PermissionRouter()
+    /// Owned here so it survives the view rebuilds: a loader recreated per rebuild has
+    /// an empty cache, which is the defect this task exists to remove.
+    private let timelines = SessionTimelineLoader()
 
     /// Kept on the panel so its owner never learns about the router: the coordinator
     /// sets these on the window it built.
@@ -140,9 +143,11 @@ final class NotchPanel: NSPanel {
         host.onHoverChange = { [weak self] hovering in
             guard let self else { return }
             self.logHover(source: "zone", hovering: hovering)
+            if !hovering { self.dismissedAnAsk = false }
             if let next = PanelStateMachine.nextState(
                 from: self.state, hovering: hovering,
-                opening: self.opening, holdingAnAsk: self.isHoldingAnAsk) {
+                opening: self.opening, holdingAnAsk: self.isHoldingAnAsk,
+                dismissedAnAsk: self.dismissedAnAsk) {
                 self.setState(next)
             }
         }
@@ -150,9 +155,11 @@ final class NotchPanel: NSPanel {
         hover.onChange = { [weak self] hovering in
             guard let self else { return }
             self.logHover(source: "sonde", hovering: hovering)
+            if !hovering { self.dismissedAnAsk = false }
             if let next = PanelStateMachine.nextState(
                 from: self.state, hovering: hovering,
-                opening: self.opening, holdingAnAsk: self.isHoldingAnAsk) {
+                opening: self.opening, holdingAnAsk: self.isHoldingAnAsk,
+                dismissedAnAsk: self.dismissedAnAsk) {
                 self.setState(next)
             }
         }
@@ -162,6 +169,10 @@ final class NotchPanel: NSPanel {
         refreshGeometry()
         rebuildContent()
     }
+
+    /// Set when an ask closes the panel, cleared when the pointer leaves. See
+    /// `PanelStateMachine.nextState`.
+    private var dismissedAnAsk = false
 
     /// Whether the panel is holding something that waits on a person.
     private var isHoldingAnAsk: Bool { permissions.isHoldingAnAsk }
@@ -418,7 +429,7 @@ final class NotchPanel: NSPanel {
                        l10n: l10n, locale: locale,
                        onSettings: onSettings, onQuit: onQuit,
                        onJump: onJump, onSelect: { [weak self] in self?.select($0) },
-                       jumpNote: jumpNote,
+                       jumpNote: jumpNote, timelines: timelines,
                        gaze: gaze,
                        permission: permissions.permission,
                        permissionWaiting: permissions.waiting,
@@ -458,6 +469,9 @@ final class NotchPanel: NSPanel {
                 resizeToContent(animated: true)
             }
         } else if verdict.wasShowingSomething {
+            // The pointer is on the button that was just clicked, so without this the
+            // hover reopens the panel on the sessions list a frame later.
+            dismissedAnAsk = true
             setState(.pill)
         } else {
             rebuildContent()

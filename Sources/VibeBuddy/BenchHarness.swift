@@ -17,10 +17,22 @@ enum BenchHarness {
         case hidden
         /// Scenario C.
         case interaction
+        /// The real `NotchPanel` holding a permission request nobody answers: what the
+        /// panel costs while it waits for a person, which is its longest-lived state.
+        case waiting
         /// The session pipeline alone: FSEvents plus the lazy liveness poll.
         case sessions
         /// The whole app, coordinator included.
         case app
+    }
+
+    /// Which genre `waiting` holds open. `question` by default: it is the tallest of the
+    /// six and the one a person really does leave on screen while thinking.
+    static var benchWaitingKind: String {
+        let args = CommandLine.arguments
+        guard let index = args.firstIndex(of: "--bench-kind"), index + 1 < args.count
+        else { return "question" }
+        return PermissionSamples.kinds.contains(args[index + 1]) ? args[index + 1] : "question"
     }
 
     static func run(mode: Mode, seconds: Double, label: String) -> Never {
@@ -36,10 +48,16 @@ enum BenchHarness {
             break
         case .panel:
             panel = makeEmptyPanel()
-        case .pill, .hidden, .interaction:
+        case .pill, .hidden, .interaction, .waiting:
             let wake = WakeCoordinator()
             let n = NotchPanel(wake: wake, budget: AnimationBudget())
             if mode != .hidden { n.show() }
+            // Straight at the panel rather than through `HookService`: the point is what
+            // the panel costs while it waits, and a socket with nobody on the far end
+            // would only add its own descriptor to the measurement.
+            if mode == .waiting {
+                n.setPermission(PermissionSamples.model(benchWaitingKind), waiting: 0)
+            }
             notch = n
         case .app:
             // Delegate only: `NSApp.run()` posts the launch notification itself, and

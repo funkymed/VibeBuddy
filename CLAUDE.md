@@ -101,8 +101,8 @@ Conséquence pratique : l'app ne porte pas de notice MIT, parce qu'elle n'a rien
 | [004](docs/rfc/done/RFC-004-usage-live.md) | Utilisation live : Keychain + endpoint OAuth | **done** | **100 %** | v1 | ✔ |
 | [005](docs/rfc/done/RFC-005-rendu-buddy.md) | Buddy : visage, format `.buddy`, rendu | **done** | **100 %** | v1 | ✔ |
 | [006](docs/rfc/done/RFC-006-pont-hook.md) | Pont hook Claude Code : binaire dédié + socket Unix | **done** | **100 %** | v1 | ✔ |
-| [007](docs/rfc/RFC-007-interception-permissions.md) | Interception des permissions : file, rendu, décisions | **in-progress** | **95 %** | v1 | 0,5 j |
-| [008](docs/rfc/RFC-008-vue-sessions.md) | Vue sessions et saut vers le terminal hôte | **in-progress** | **80 %** | v1.1 | 1-2 j |
+| [007](docs/rfc/done/RFC-007-interception-permissions.md) | Interception des permissions : file, rendu, décisions | **done** | **100 %** | v1 | ✔ |
+| [008](docs/rfc/RFC-008-vue-sessions.md) | Vue sessions et saut vers le terminal hôte | **in-progress** | **90 %** | v1.1 | 0,5-1 j |
 | [009](docs/rfc/RFC-009-index-activite.md) | Index d'activité persistant (heatmap et historique) | todo | 0 % | v1.2 | 3-4 j |
 | [010](docs/rfc/done/RFC-010-preferences-apparence.md) | Préférences, réglages segmentés et **aperçu de buddy** | **done** | **100 %** | v1 | ✔ |
 | [011](docs/rfc/RFC-011-build-distribution.md) | Build, empaquetage, signature, distribution | **in-progress** | **95 %** | v1 | 0,5 j |
@@ -112,8 +112,9 @@ Conséquence pratique : l'app ne porte pas de notice MIT, parce qu'elle n'a rien
 | [015](docs/rfc/RFC-015-son-du-buddy.md) | **Le son du buddy** — paquet de sons rechargeable à chaud | todo | 0 % | v1.1 | 1-2 j |
 | [016](docs/rfc/RFC-016-ponts-agents-terminaux.md) | **Ponts agents et terminaux** — `AgentBridge`, `TerminalBridge`, opencode, tmux | todo | 0 % | v1.2 | 4-6 j |
 
-**Reste pour le v1 : 1,5-4,5 j-h** (001, 003, 005 et **012** faites ; 002, 004 et
-**006** à 95 %, 010 et **013** à 90 % ; spike keychain fait) · plan complet restant : 15,5-24 j-h. Dev solo en parallèle d'autres projets →
+**Reste pour le v1 : 0,5 j-h**, et c'est RFC-011 T9 — le perfcheck de release sur
+une machine propre. Dix RFC sont closes, **007 comprise depuis le 2026-08-25** ·
+plan complet restant : 11-18 j-h. Dev solo en parallèle d'autres projets →
 tabler sur un facteur calendaire ×2 à ×3.
 
 ## Gantt
@@ -126,15 +127,15 @@ Ordre = ordre de réalisation, pas ordre de numérotation.
 #   RFC      Titre                                          Avancement            %    Reste   Jalon
 2   —        Spike keychain + oauth-usage                    ████████████████████ 100 %   ✔      v1
 3   —        Spike contrat de hook ← **prouvé en réel**      ████████████████████ 100 %   ✔      v1
-5   RFC-007  Interception des permissions ← prouvée en réel  ███████████████████░  95 %   0,5 j  v1
 6   RFC-011  Build, signature, distribution                  ███████████████████░  95 %   0,5 j  v1
-7   RFC-008  Vue sessions + saut terminal/tmux               ████████████████░░░░  80 %   1-2 j  v1.1
+7   RFC-008  Vue sessions + saut terminal/tmux               ██████████████████░░  90 %   0,5-1 j v1.1
 8   RFC-014  Célébration de fin de tâche                     ░░░░░░░░░░░░░░░░░░░░   0 %   1-2 j  v1.1
 9   RFC-015  Le son du buddy (paquet rechargeable)           ░░░░░░░░░░░░░░░░░░░░   0 %   1-2 j  v1.1
 10  RFC-009  Index d'activité (heatmap + historique)         ░░░░░░░░░░░░░░░░░░░░   0 %   3-4 j  v1.2
 11  RFC-016  Ponts agents et terminaux (opencode, tmux)      ░░░░░░░░░░░░░░░░░░░░   0 %   4-6 j  v1.2
 
 ── DONE ──
+—   RFC-007  Interception des permissions ← 6 cas sur 6      ████████████████████ 100 %   —      v1
 —   RFC-006  Pont hook + socket Unix                         ████████████████████ 100 %   —      v1
 —   RFC-002  Fenêtre notch (NSPanel, click-through)          ████████████████████ 100 %   —      v1
 —   RFC-010  Réglages segmentés + aperçu de buddy            ████████████████████ 100 %   —      v1
@@ -146,11 +147,13 @@ Ordre = ordre de réalisation, pas ordre de numérotation.
 —   RFC-003  Collecte de sessions (source de vérité unique)  ████████████████████ 100 %   —      v1
 ```
 
-**Chemin critique : 007.** RFC-006 est **close** depuis le 2026-08-25 : transport,
-installateur, désinstallation, contrat prouvé en réel, et T11 — l'intermittence
-du socket — réglée, ses deux causes étant dans le harnais de test. RFC-007 est
-désormais le seul gros morceau du v1, et il ne lui manque que du terrain : quatre
-des six cas de permission n'ont jamais été joués contre un vrai Claude Code.
+**Le v1 n'a plus de chemin critique.** RFC-006 et RFC-007 sont closes depuis le
+2026-08-25 : transport, installateur, contrat prouvé en réel, et les **six cas de
+permission joués contre un vrai Claude Code** — `Bash`, `Edit` et
+`AskUserQuestion`, autorisés et refusés. Le détournement `AskUserQuestion` tient,
+et le panneau qui attend une personne coûte 0,144 réveil/s pour un budget de 2
+(scénario D, `docs/perf/20260825-2158-007-D.csv`). Il ne reste que RFC-011 T9, un
+perfcheck de release sur une machine propre.
 
 RFC-003 a établi que **quatre des signaux que RFC-012 devait prendre au hook sont
 déjà dans le transcript** : mode de permission, fin de tour, cycle de vie des

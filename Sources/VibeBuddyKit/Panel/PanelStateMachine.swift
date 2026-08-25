@@ -79,10 +79,16 @@ public final class PanelStateMachine {
     }
 
     /// Both hover sources arbitrate here, and nowhere else.
+    ///
+    /// `dismissedAnAsk` is the pointer's own doing: answering the last question collapses
+    /// the panel under a cursor that has not moved, and hover would reopen it on the
+    /// sessions list a frame later. The click is not a request to see the list. The flag
+    /// clears the moment the pointer leaves, so hovering back in works as it always did.
     public static func nextState(
-        from state: PanelState, hovering: Bool, opening: Bool, holdingAnAsk: Bool
+        from state: PanelState, hovering: Bool, opening: Bool, holdingAnAsk: Bool,
+        dismissedAnAsk: Bool = false
     ) -> PanelState? {
-        if hovering, state == .pill { return .panel }
+        if hovering, state == .pill, !dismissedAnAsk { return .panel }
         if !hovering, state == .panel, !opening, !holdingAnAsk { return .pill }
         return nil
     }

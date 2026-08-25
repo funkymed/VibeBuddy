@@ -25,6 +25,10 @@ public actor SessionStore {
     /// Sessions never shrink back; flip-flopping the denominator makes the gauge jump.
     private var stickyWindow: [String: Int] = [:]
     private var windows = ContextWindowResolver()
+    private var modes = PermissionModeResolver()
+    /// Sticky like the token count, and for the same reason: the tail is 80 lines, and a
+    /// long tool run pushes the last `permission-mode` entry out of it.
+    private var stickyMode: [String: String] = [:]
 
     private var current: [AgentSession] = []
 
@@ -110,6 +114,11 @@ public actor SessionStore {
         // They can only disagree one way — no session holds more than its window.
         let window = max(stickyWindow[sessionID] ?? 0, windows.window(forProject: cwd))
 
+        // What the session says, then what it last said, then what the settings declare.
+        // Empty only when no source has one, and the row keeps its column either way.
+        if let seen = tail.permissionMode, !seen.isEmpty { stickyMode[sessionID] = seen }
+        let mode = stickyMode[sessionID] ?? modes.mode(forProject: cwd)
+
         return AgentSession(
             id: sessionID,
             cwd: cwd,
@@ -120,7 +129,7 @@ public actor SessionStore {
             lastActivity: tail.lastTimestamp ?? candidate.modified,
             status: tail.turnEnded ? nil : tail.status,
             action: tail.action,
-            permissionMode: tail.permissionMode ?? "",
+            permissionMode: mode,
             contextTokens: tokens,
             contextWindow: window,
             pid: pid,
@@ -130,7 +139,8 @@ public actor SessionStore {
             lastResultWasError: tail.lastResultWasError,
             subagentsRunning: tail.subagentsRunning,
             awaitingAnswer: tail.awaitingQuestion,
-            question: tail.question
+            question: tail.question,
+            transcriptPath: candidate.path
         )
     }
 

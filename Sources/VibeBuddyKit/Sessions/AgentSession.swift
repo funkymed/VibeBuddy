@@ -28,6 +28,9 @@ public struct AgentSession: Sendable, Equatable, Identifiable {
     public let awaitingAnswer: Bool
     public let question: String?
     public let isLive: Bool
+    /// Where the transcript lives, so the timeline can be read without walking the
+    /// corpus again. Empty for a session built by a test.
+    public let transcriptPath: String
 
     public init(
         id: String, provider: AgentProvider = .claudeCode, cwd: String,
@@ -37,7 +40,8 @@ public struct AgentSession: Sendable, Equatable, Identifiable {
         contextTokens: Int, contextWindow: Int, pid: pid_t?, isLive: Bool,
         subject: String? = nil, turnEnded: Bool = false,
         lastResultWasError: Bool = false, subagentsRunning: Int = 0,
-        awaitingAnswer: Bool = false, question: String? = nil
+        awaitingAnswer: Bool = false, question: String? = nil,
+        transcriptPath: String = ""
     ) {
         self.id = id; self.provider = provider; self.cwd = cwd
         self.projectName = projectName; self.model = model; self.effort = effort
@@ -51,6 +55,7 @@ public struct AgentSession: Sendable, Equatable, Identifiable {
         self.subagentsRunning = subagentsRunning
         self.awaitingAnswer = awaitingAnswer
         self.question = question
+        self.transcriptPath = transcriptPath
     }
 
     public var contextFraction: Double {

@@ -31,6 +31,21 @@ public struct Strings: Sendable {
     public let jumpNoTerminal: String
     public let jumpFailed: @Sendable (String) -> String
 
+    // Session timeline
+    public let timelineTitle: String
+    public let timelineOpen: String
+    public let timelineBack: String
+    public let timelineEmpty: String
+    /// The transcript could not be read, which is not the same as a session with
+    /// nothing in it.
+    public let timelineUnreadable: String
+    public let timelinePrompt: String
+    public let timelineResult: String
+    public let timelineResultFailed: String
+    public let timelineTurnEnd: @Sendable (String) -> String
+    public let timelineSubagentStarted: String
+    public let timelineSubagentFinished: String
+
     // Usage
     public let usageTitle: String
     public let usageSession: String
@@ -123,6 +138,17 @@ public struct Strings: Sendable {
         jumpNoTab: "Terminal activé — onglet introuvable (tmux ?)",
         jumpNoTerminal: "Aucun terminal trouvé pour cette session",
         jumpFailed: { "Saut impossible : \($0)" },
+        timelineTitle: "HISTORIQUE",
+        timelineOpen: "Voir l'historique de cette session",
+        timelineBack: "Retour",
+        timelineEmpty: "Rien à montrer pour cette session.",
+        timelineUnreadable: "Transcript illisible.",
+        timelinePrompt: "message",
+        timelineResult: "résultat",
+        timelineResultFailed: "échec",
+        timelineTurnEnd: { "fin de tour · \($0)" },
+        timelineSubagentStarted: "sous-agent lancé",
+        timelineSubagentFinished: "sous-agent terminé",
         usageTitle: "CONSOMMATION",
         usageSession: "session",
         usageWeek: "semaine",
@@ -196,6 +222,17 @@ public struct Strings: Sendable {
         jumpNoTab: "Terminal activated — tab not found (tmux?)",
         jumpNoTerminal: "No terminal found for this session",
         jumpFailed: { "Jump failed: \($0)" },
+        timelineTitle: "HISTORY",
+        timelineOpen: "Show this session's history",
+        timelineBack: "Back",
+        timelineEmpty: "Nothing to show for this session.",
+        timelineUnreadable: "Transcript unreadable.",
+        timelinePrompt: "message",
+        timelineResult: "result",
+        timelineResultFailed: "failed",
+        timelineTurnEnd: { "turn ended · \($0)" },
+        timelineSubagentStarted: "subagent started",
+        timelineSubagentFinished: "subagent finished",
         usageTitle: "USAGE",
         usageSession: "session",
         usageWeek: "week",

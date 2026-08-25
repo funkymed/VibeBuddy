@@ -186,6 +186,11 @@ perf-panel: build-release
 	./scripts/perfcheck.sh C $(or $(seconds),90) $(or $(rfc),001)
 .PHONY: perf-panel
 
+## Scenario D — a permission panel waiting for a person, 300 s
+perf-waiting: build-release
+	./scripts/perfcheck.sh D $(or $(seconds),300) $(or $(rfc),007)
+.PHONY: perf-waiting
+
 # The tap is its own repository — github.com/funkymed/homebrew-vibebuddy.
 # This writes the file; pushing it is a separate decision, because releasing a
 # version and pointing the tap at it are two acts, and doing them as one is how

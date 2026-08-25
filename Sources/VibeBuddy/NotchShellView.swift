@@ -23,6 +23,8 @@ struct NotchShellView: View {
     var onJump: (pid_t) -> Void = { _ in }
     var onSelect: ((String) -> Void)?
     var jumpNote: String?
+    /// Passed down rather than built here: see `NotchPanel.timelines`.
+    var timelines = SessionTimelineLoader()
     var gaze: PointerGaze?
     /// The request on screen, if there is one.
     var permission: PermissionRequestModel?
@@ -122,6 +124,7 @@ struct NotchShellView: View {
                 budget: budget, usage: usage, l10n: l10n, locale: locale,
                 onSettings: onSettings, onQuit: onQuit,
                 onJump: onJump, onSelect: onSelect, jumpNote: jumpNote,
+                timelines: timelines,
                 groupByDirectory: groupByDirectory,
                 jumpOnClick: jumpOnClick, showUsage: showUsage
             )

@@ -8,6 +8,7 @@
 #   A  rest        no Claude session, pill collapsed, machine on battery
 #   B  activity    three live `claude` sessions in three projects
 #   C  interaction panel open, cursor moving continuously
+#   D  waiting     a permission panel open, waiting for a person who never answers
 #
 # Writes docs/perf/<date>-<rfc>-<scenario>.csv and prints a verdict against the
 # budget. A regression of more than 10 % on any metric blocks closing the RFC.
@@ -46,7 +47,11 @@ case "$SCENARIO" in
   A) BUDGET_CPU=$BUDGET_CPU_REST;  BUDGET_WAKES=$BUDGET_IDLE_WAKES_REST; MODE=pill ;;
   B) BUDGET_CPU=$BUDGET_CPU_BUSY; BUDGET_WAKES=$BUDGET_IDLE_WAKES_BUSY; MODE=app ;;
   C) BUDGET_CPU=$BUDGET_CPU_BUSY; BUDGET_WAKES=$BUDGET_IDLE_WAKES_BUSY; MODE=interaction ;;
-  *) echo "unknown scenario: $SCENARIO (expected A, B or C)" >&2; exit 2 ;;
+  # A panel holding a request is idle by construction: nobody is moving a cursor
+  # over it, and the thing it waits for is a person. It answers to the rest
+  # budget, not to the interaction one.
+  D) BUDGET_CPU=$BUDGET_CPU_REST; BUDGET_WAKES=$BUDGET_IDLE_WAKES_REST; MODE=waiting ;;
+  *) echo "unknown scenario: $SCENARIO (expected A, B, C or D)" >&2; exit 2 ;;
 esac
 
 [ -x "$BIN" ] || {

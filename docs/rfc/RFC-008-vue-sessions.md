@@ -2,10 +2,10 @@
 
 | | |
 |---|---|
-| **Status** | in-progress (80 %) — liste, groupement, saut hors tmux et filtre de process livrés ; tmux et vue détail à écrire |
+| **Status** | **in-progress (90 %)** — liste, groupement, saut hors tmux, filtre de process **et vue détail** livrés ; il ne reste que tmux (T6, T7), non éprouvable ici : `tmux` n'est pas installé sur la machine |
 | **Author** | Cyril Pereira |
 | **Created** | 2026-08-19 |
-| **Updated** | 2026-08-20 (soir) |
+| **Updated** | 2026-08-25 |
 | **Phase** | 5 — Confort · la liste est arrivée avec le panneau de RFC-002 |
 | **Depends on** | RFC-002, RFC-003 |
 | **Related** | RFC-006 (mapping PID) · R8 |
@@ -117,14 +117,43 @@ c'est précisément le cas simple qui n'existe plus.
 | T1 | `SessionListView` + `SessionRowView` `Equatable` | **done** | **100** |
 | T2 | Filtre texte | **done** | **100** |
 | T9 | Groupement par répertoire + défilement de la liste | **done** | **100** |
-| T3 | `SessionTimelineLoader` (actor + cache), hors `body` | todo | 0 |
-| T4 | `SessionDetailView` | todo | 0 |
+| T3 | `SessionTimelineLoader` (actor + cache), hors `body` | **done** | **100** — 6 tests |
+| T4 | `SessionDetailView` | **done** | **100** — 7 tests |
 | T5 | `TerminalJumper` : tty + chaîne parent + repli activation | **done** | **100** |
 | T5b | Ligne cliquable, message de résultat, i18n | **done** | **100** |
 | T6 | `selectTmuxPane` + `findTmux` + PATH enrichi | todo | 0 |
 | T7 | `TmuxPaneIndex` avec invalidation sur changement de frontmost | todo | 0 |
 | T8 | Unification du filtre de process claude (suppression du cas `node`) | **done** | **100** |
 | T10 | **Les sessions vivantes ne sont plus repliées** — le groupement ne masque que l'historique | **done** | **100** |
+
+### T3 et T4 — l'historique d'une session, le 2026-08-25
+
+`TimelineParser` rend une liste d'événements ; `SessionTimelineLoader` est un
+actor qui lit la queue du transcript sur 256 Ko, quatre fois la fenêtre de
+`JSONLTailReader` — celle-ci répond « que fait cette session maintenant », celle-là
+doit montrer une histoire. Le cache est clé sur `mtime` **et** taille, pour la même
+raison que l'autre : une compaction réécrit un fichier sans changer sa taille.
+
+Trois choses qui ne se devinent pas :
+
+- **Un `tool_result` est une entrée `user`.** Se fier au type de l'entrée le fait
+  lire comme une invite, et la timeline montre alors l'utilisateur qui tape après
+  chaque appel d'outil. Un test le verrouille.
+- **Le texte est coupé à l'analyse, pas au rendu.** Garder des invites entières en
+  mémoire est la façon dont le budget transcript se multiplie (R2). 140 caractères,
+  retours à la ligne aplatis : une ligne de timeline fait une ligne de haut.
+- **Le chevron est en dehors du bouton de la ligne.** `SessionRow` est déjà un
+  bouton quand la session est vivante ; en imbriquer un second donne à SwiftUI deux
+  cibles qui se recouvrent, et l'intérieure gagne de façon dépendante du cadre.
+
+Le chargeur est détenu par `NotchPanel`, pas construit dans la vue : un chargeur
+recréé à chaque reconstruction a un cache vide, ce qui est précisément le défaut
+que T3 devait supprimer.
+
+L'historique **remplace la liste**, il n'ouvre pas de fenêtre : le panneau garde sa
+taille, son en-tête et sa consommation. Une session qui meurt pendant qu'on lit son
+historique referme la vue, sans quoi le bouton « Retour » est la seule sortie d'un
+cul-de-sac.
 
 ### T10 — le groupement masquait ce qu'il devait montrer
 

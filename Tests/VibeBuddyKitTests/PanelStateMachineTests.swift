@@ -188,7 +188,7 @@ struct PanelStateMachineTests {
 
     private static let allStates: [PanelState] = [.hidden, .pill, .speech, .panel]
 
-    @Test("Hovering opens the panel from the pill, whatever else is going on")
+    @Test("Hovering opens the panel from the pill, unless an ask was just dismissed")
     func hoverOpensFromPill() {
         for opening in [false, true] {
             for ask in [false, true] {
@@ -211,6 +211,25 @@ struct PanelStateMachineTests {
                 }
             }
         }
+    }
+
+    // Answering the last question collapses the panel under a cursor that has not
+    // moved. Without this the hover reopens it on the sessions list a frame later, and
+    // the click reads as a request to see a list nobody asked for.
+    @Test("Hovering does not reopen the pill while an ask was just dismissed")
+    func dismissedAnAskHoldsThePill() {
+        for opening in [false, true] {
+            #expect(PanelStateMachine.nextState(
+                from: .pill, hovering: true, opening: opening,
+                holdingAnAsk: false, dismissedAnAsk: true) == nil)
+        }
+    }
+
+    @Test("The hold is on opening only: leaving still closes a panel")
+    func dismissedAnAskDoesNotBlockClosing() {
+        #expect(PanelStateMachine.nextState(
+            from: .panel, hovering: false, opening: false,
+            holdingAnAsk: false, dismissedAnAsk: true) == .pill)
     }
 
     @Test("Leaving closes an open panel that is neither growing nor holding an ask")

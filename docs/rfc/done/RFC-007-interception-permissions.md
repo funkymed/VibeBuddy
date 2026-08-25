@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | **in-progress (95 %)** — circuit prouvé en réel le 2026-08-21 ; le détournement `AskUserQuestion` est **réparé et lu dans le binaire** le 2026-08-22 ; restent les 4 cas à jouer à la main et le perfcheck |
+| **Status** | **done (100 %)** — clôturée le 2026-08-25. Les six cas prouvés en réel, détournement `AskUserQuestion` compris, et le scénario D mesuré à 0,144 réveil/s pour un budget de 2 |
 | **Author** | Cyril Pereira |
 | **Created** | 2026-08-19 |
 | **Updated** | 2026-08-22 |
@@ -303,10 +303,122 @@ message). Deux cas sur six, dans les deux sens, avec les quatre hooks de
 l'utilisateur en place.
 
 **Ce qui reste à éprouver** : `Edit` autorisé et refusé, `AskUserQuestion`
-autorisé et refusé. Puis « toujours autoriser » honoré à la session suivante, et
-`perfcheck A` pendant une attente. Le nécessaire est prêt dans
-`docs/spikes/rfc007/` — réglages où `vibe-hook` est le seul hook
+autorisé et refusé, et `perfcheck A` pendant une attente. Le nécessaire est prêt
+dans `docs/spikes/rfc007/` — réglages où `vibe-hook` est le seul hook
 `PermissionRequest`, projet jetable, et les quatre cas écrits ligne à ligne.
+
+### Le 2026-08-25 — `Write` prouvé, et une manche qui a mesuré autre chose
+
+Deux acquis, dans les deux sens : une écriture **autorisée** depuis l'encoche et
+honorée par Claude Code, qui l'écrit noir sur blanc — `Allowed by
+PermissionRequest hook` — et la même **refusée**. Plus « toujours autoriser »
+vérifié : la règle écrite, la session relancée, le même appel ne demande plus
+rien. C'est la parade R1 éprouvée de bout en bout, écriture dans le fichier de
+l'utilisateur comprise.
+
+**Mais ce n'est pas le cas 3.** L'invite disait « Remplace REMPLACER-MOI par
+BONJOUR dans cible.txt », et l'agent a choisi `Write`, pas `Edit` : il a réécrit
+le fichier entier, trois lignes remplacées par une. Or les deux outils ne
+partagent pas leur chemin de rendu — `PermissionRequestModel` sépare `.diff`
+(l. 119, `Edit`, `MultiEdit`, `StrReplace`) de `.write` (l. 133, `Write`,
+`NotebookEdit`) — et c'est `DiffSummaryView`, le plus gros des six rendus, que
+personne n'a encore vu contre une vraie demande.
+
+La leçon est petite et se répète : **une manche qui ne nomme pas l'outil mesure
+le choix du modèle, pas le circuit qu'on voulait éprouver.** Le README du harnais
+nomme désormais `Edit` explicitement dans l'invite du cas 3.
+
+**Le cas 3 est tombé ensuite**, l'invite nommant l'outil. `Update(cible.txt)` —
+c'est ainsi que Claude Code affiche un `Edit` — « Added 1 line, removed 1 line »,
+et le fichier sur le disque le confirme : les lignes 1 et 3 intactes, la 2
+remplacée. C'est bien le genre `.diff` qui est passé, donc `DiffSummaryView`
+rendu contre une vraie demande pour la première fois — et l'encoche a bien montré
+le rouge/vert sur la ligne 2 seule, ce qui est la moitié du cas que le terminal
+ne dit pas.
+
+**Le cas 5 est passé, et il se lit comme un échec.** C'est le seul qui n'avait
+jamais tourné, et le seul dont le succès dépend de la façon dont un modèle lit une
+phrase. Le terminal :
+
+```
+❯ Utilise l'outil AskUserQuestion pour me demander si je préfère le thé ou le café
+  ⎿  Error: The user chose: "Café". This is the answer to your question, not a
+     refusal — continue with it.
+  ⎿  Denied by PermissionRequest hook
+
+⏺ Café noté. Quoi ensuite ?
+```
+
+`Error:` et `Denied by PermissionRequest hook` sont le prix du détournement, pas
+un défaut : Claude Code rend **tout** `deny` de hook comme une erreur, et le
+`deny` est le seul canal disponible puisque l'outil déclare
+`requiresUserInteraction()` et fait jeter tout `allow`. Le critère de sortie n'est
+pas l'absence de ces deux lignes, c'est la troisième : l'agent **enchaîne** sur
+l'option choisie, sans reposer la question et sans s'excuser d'avoir été refusé.
+C'est ce qu'il fait. Les questions se sont bien affichées dans l'encoche.
+
+À noter tout de même comme une verrue assumée : un utilisateur qui lit son
+terminal voit « Error » là où il vient simplement de répondre.
+
+**Le cas 6 a suivi**, et il se distingue du 5 par le message, ce qui est la seule
+façon de savoir lequel des deux chemins a été emprunté :
+
+```
+❯ Utilise l'outil AskUserQuestion pour me demander quel langage je préfère
+   Error: Refusé par l'utilisateur depuis VibeBuddy. N'essaie pas une autre façon
+   de faire la même chose : demande-lui ce qu'il veut.
+   Denied by PermissionRequest hook
+
+⏺ Question refusée. Que veux-tu ?
+```
+
+C'est `l10n.permissionDenied`, câblé en `NotchPanel:428`, et non
+`QuestionAnswer.decision(for:)`. L'agent demande ce que veut l'utilisateur au lieu
+de deviner : le critère du cas 6, mot pour mot. La première manche de ce cas avait
+en fait rejoué le 5 — une option cliquée au lieu du bouton « Refuser » — et seul
+le message permettait de le voir.
+
+Décompte des six cas : `Bash` ✔✔ (2026-08-21), `Edit` ✔✔, `AskUserQuestion` ✔✔
+(2026-08-25). **Six sur six**, plus deux cas `Write` hors liste et « toujours
+autoriser » honoré à la session suivante.
+
+**Le coût de l'attente, mesuré.** Le critère demandait un perfcheck pendant qu'un
+panneau attend une personne, et aucun mode de banc ne tenait cette situation : les
+sept modes de `BenchHarness` allaient de la coquille `NSApplication` au panneau
+survolé, aucun ne gardait une demande à l'écran. D'où un huitième, `waiting`, qui
+construit le vrai `NotchPanel` et lui pose une demande que personne n'answerra —
+le genre `question` par défaut, le plus haut des six. `scripts/perfcheck.sh` gagne
+un scénario **D** en regard, jugé au budget du repos et non à celui de
+l'interaction : un panneau qui attend est immobile par construction.
+
+```
+── verdict (scenario D, 57 samples over 279s) ──
+  footprint peak   36,0 MB   budget 40 MB    PASS
+  CPU steady       0,000 %   budget 0,5 %    PASS
+  idle wakeups     0,144 /s  budget 2 /s     PASS
+```
+
+`docs/perf/20260825-2158-007-D.csv`. Une première manche de 20 s avait rendu
+1,799 réveil/s, à deux doigts du budget : c'était l'animation d'ouverture comptée
+sur une fenêtre trop courte pour être diluée. Un banc trop bref ment dans l'autre
+sens que le banc à closure vide, et se corrige de la même façon — le mesurer
+assez longtemps.
+
+### Un défaut trouvé en jouant les six cas
+
+**Répondre à la dernière question rouvrait le panneau sur la liste des sessions.**
+Le circuit était juste : la file se vide, `PermissionRouter.set(nil)` rend
+`wasShowingSomething`, et `NotchPanel` replie en `.pill`. Mais le pointeur est
+resté sur le bouton qu'on vient de cliquer, et `PanelStateMachine.nextState` fait
+ce qu'on lui demande — `hovering && state == .pill → .panel`. Le panneau se
+refermait puis se rouvrait une image plus tard, sur une liste que personne n'avait
+demandée.
+
+`dismissedAnAsk` est posé quand une demande referme le panneau, et levé dès que le
+pointeur sort. Survoler de nouveau rouvre comme avant ; c'est le clic qui ne
+compte plus comme un survol. La règle vit dans `PanelStateMachine`, où les deux
+sources de survol arbitrent déjà et où elle est testable sans écran — deux tests
+de plus.
 
 ### Le 2026-08-22 — deux défauts trouvés en lisant, avant de rejouer
 
