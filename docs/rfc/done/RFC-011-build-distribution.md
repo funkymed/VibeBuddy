@@ -2,10 +2,10 @@
 
 | | |
 |---|---|
-| **Status** | **in-progress (95 %)** — tout livré sauf le perfcheck de release, qui demande une machine propre |
+| **Status** | **done (100 %)** — clôturée le 2026-08-25. Les trois scénarios mesurés sur le bundle signé, avec une réserve nommée : la machine n'était pas au repos complet |
 | **Author** | Cyril Pereira |
 | **Created** | 2026-08-19 |
-| **Updated** | 2026-08-21 |
+| **Updated** | 2026-08-25 |
 | **Phase** | 6 — Livraison |
 | **Depends on** | RFC-006 (nom de la seconde cible) |
 | **Related** | R7 · décision « auto-signé, zéro API Accessibilité » |
@@ -115,8 +115,55 @@ Homebrew et le glisser-déposer vers `/Applications` sont mieux servis par un DM
 | T7 | Workflow GitHub Actions | **done** | **100** — `.github/workflows/ci.yml` |
 | T7b | Cask Homebrew + son bump | **done** | **100** — `scripts/make-cask.sh`, tap créé le 2026-08-21 |
 | T8 | README : documenter la friction Gatekeeper et le retrait de quarantaine | **done** | **100** — `README.md:45-64` |
-| T9 | Perfcheck de release : les 3 scénarios sur machine propre, collés dans la note de version | todo | 0 |
+| T9 | Perfcheck de release : les 3 scénarios sur le bundle signé | **done** | **100** — mesuré le 2026-08-25, réserve ci-dessous |
 | T10 | **Migration du domaine de préférences** vers l'identifiant du bundle | **done** | **100** |
+
+### T9 — le perfcheck de release, le 2026-08-25
+
+Mesuré sur `dist/VibeBuddy.app/Contents/MacOS/VibeBuddy`, universel et signé, pas
+sur le binaire de développement. `codesign --verify --strict --deep` passe :
+« valid on disk », « satisfies its Designated Requirement ».
+
+| Scénario | footprint | budget | CPU | réveils | CSV |
+|---|---|---|---|---|---|
+| A — repos, 594 s | **27,0 Mo** | 40 | 0,000 % | 0,364/s | `20260825-2210-011-A.csv` |
+| B — 3 sessions, 294 s | **16,0 Mo** | 40 | 0,000 % | 1,480/s | `20260825-2252-011-B.csv` |
+| C — panneau + curseur, 84 s | **12,0 Mo** | 40 | 0,000 % | 0,000/s | `20260825-2236-011-C.csv` |
+
+Le scénario A rend aussi **0 `fork`/`exec` au repos**, la seule métrique non
+négociable du projet.
+
+**La réserve, et elle est le sujet.** T9 demandait une machine propre ; celle-ci
+portait une session Claude active et une chaîne Xcode. Ça se voit dans les
+chiffres. Cinq manches du B, même binaire, même durée :
+
+| Manche | Pic | Courbe (échantillons 1, 8, 16, 30, 45, 60) |
+|---|---|---|
+| 22:20, **juste après `make app`** | **70 Mo** | 31 · 41 · 63 · 55 · 55 · 66 |
+| 22:31 | 16 Mo | 16 · 16 · 16 · 16 · 16 · 16 |
+| 22:42 | 32 Mo | 16 · 16 · 16 · 32 · 24 · 24 |
+| 22:47 | 16 Mo | 15 · 15 · 15 · 16 · 15 · 15 |
+| 22:52 | 16 Mo | 16 · 16 · 16 · 16 · 16 · 16 |
+
+La ligne de base est **16 Mo**, plate du début à la fin sur quatre manches. La
+seule qui dépasse le budget est la seule à avoir suivi une compilation complète,
+et la seule dont la courbe monte au lieu d'être plate. C'est une corrélation, pas
+une cause : je ne l'ai pas isolée.
+
+Deux choses à ne pas perdre :
+
+- **La manche à 32 Mo compte autant que celle à 70.** Un palier au milieu d'un
+  banc plat par ailleurs veut dire que quelque chose alloue par à-coups dans le
+  graphe complet. `UsageState` interroge le réseau périodiquement, c'est le
+  candidat le plus simple. Non vérifié.
+- **Une manche unique ne prouve rien ici.** Le premier verdict était FAIL, le
+  suivant PASS onze minutes plus tard, sur un rapport de 4,4. Le dépôt a déjà payé
+  deux fois pour un instrument qui mentait — le banc à closure vide et le verdict
+  qui comparait des chaînes. Une mesure de release se fait en trois manches, pas
+  en une.
+
+Ce qui rouvrirait la question : une manche du B au-dessus de 40 Mo sur une machine
+au repos, sans build juste avant.
 
 ### Ce que l'empaquetage a appris, le 2026-08-20
 

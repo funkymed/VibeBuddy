@@ -105,17 +105,17 @@ Conséquence pratique : l'app ne porte pas de notice MIT, parce qu'elle n'a rien
 | [008](docs/rfc/RFC-008-vue-sessions.md) | Vue sessions et saut vers le terminal hôte | **in-progress** | **90 %** | v1.1 | 0,5-1 j |
 | [009](docs/rfc/RFC-009-index-activite.md) | Index d'activité persistant (heatmap et historique) | todo | 0 % | v1.2 | 3-4 j |
 | [010](docs/rfc/done/RFC-010-preferences-apparence.md) | Préférences, réglages segmentés et **aperçu de buddy** | **done** | **100 %** | v1 | ✔ |
-| [011](docs/rfc/RFC-011-build-distribution.md) | Build, empaquetage, signature, distribution | **in-progress** | **95 %** | v1 | 0,5 j |
+| [011](docs/rfc/done/RFC-011-build-distribution.md) | Build, empaquetage, signature, distribution | **done** | **100 %** | v1 | ✔ |
 | [012](docs/rfc/done/RFC-012-detection-etat-alertes.md) | **Détection d'état et alertes** — depuis le transcript, sans hook | **done** | **100 %** | v1 | ✔ |
 | [013](docs/rfc/done/RFC-013-buddy-interactif.md) | **Buddy interactif** — regard, chasse, rire, icône | **done** | **100 %** | v1 | ✔ |
 | [014](docs/rfc/RFC-014-celebration-fin-de-tache.md) | **Célébration de fin de tâche** — mini-panneau, pouce, confettis | todo | 0 % | v1.1 | 1-2 j |
 | [015](docs/rfc/RFC-015-son-du-buddy.md) | **Le son du buddy** — paquet de sons rechargeable à chaud | todo | 0 % | v1.1 | 1-2 j |
 | [016](docs/rfc/RFC-016-ponts-agents-terminaux.md) | **Ponts agents et terminaux** — `AgentBridge`, `TerminalBridge`, opencode, tmux | todo | 0 % | v1.2 | 4-6 j |
 
-**Reste pour le v1 : 0,5 j-h**, et c'est RFC-011 T9 — le perfcheck de release sur
-une machine propre. Dix RFC sont closes, **007 comprise depuis le 2026-08-25** ·
-plan complet restant : 11-18 j-h. Dev solo en parallèle d'autres projets →
-tabler sur un facteur calendaire ×2 à ×3.
+**Le v1 est complet.** Onze RFC closes, **007 et 011 comprises depuis le
+2026-08-25**. Ce qui reste appartient au v1.1 et au-delà : 008 à 90 %, puis 014,
+015, 009 et 016 · plan complet restant : 10,5-17 j-h. Dev solo en parallèle
+d'autres projets → tabler sur un facteur calendaire ×2 à ×3.
 
 ## Gantt
 
@@ -125,9 +125,6 @@ Ordre = ordre de réalisation, pas ordre de numérotation.
 ```
 ── EN COURS ──
 #   RFC      Titre                                          Avancement            %    Reste   Jalon
-2   —        Spike keychain + oauth-usage                    ████████████████████ 100 %   ✔      v1
-3   —        Spike contrat de hook ← **prouvé en réel**      ████████████████████ 100 %   ✔      v1
-6   RFC-011  Build, signature, distribution                  ███████████████████░  95 %   0,5 j  v1
 7   RFC-008  Vue sessions + saut terminal/tmux               ██████████████████░░  90 %   0,5-1 j v1.1
 8   RFC-014  Célébration de fin de tâche                     ░░░░░░░░░░░░░░░░░░░░   0 %   1-2 j  v1.1
 9   RFC-015  Le son du buddy (paquet rechargeable)           ░░░░░░░░░░░░░░░░░░░░   0 %   1-2 j  v1.1
@@ -135,6 +132,9 @@ Ordre = ordre de réalisation, pas ordre de numérotation.
 11  RFC-016  Ponts agents et terminaux (opencode, tmux)      ░░░░░░░░░░░░░░░░░░░░   0 %   4-6 j  v1.2
 
 ── DONE ──
+2   —        Spike keychain + oauth-usage                    ████████████████████ 100 %   ✔      v1
+3   —        Spike contrat de hook ← **prouvé en réel**      ████████████████████ 100 %   ✔      v1
+—   RFC-011  Build, signature, distribution ← v1 livré       ████████████████████ 100 %   —      v1
 —   RFC-007  Interception des permissions ← 6 cas sur 6      ████████████████████ 100 %   —      v1
 —   RFC-006  Pont hook + socket Unix                         ████████████████████ 100 %   —      v1
 —   RFC-002  Fenêtre notch (NSPanel, click-through)          ████████████████████ 100 %   —      v1
@@ -152,8 +152,11 @@ Ordre = ordre de réalisation, pas ordre de numérotation.
 permission joués contre un vrai Claude Code** — `Bash`, `Edit` et
 `AskUserQuestion`, autorisés et refusés. Le détournement `AskUserQuestion` tient,
 et le panneau qui attend une personne coûte 0,144 réveil/s pour un budget de 2
-(scénario D, `docs/perf/20260825-2158-007-D.csv`). Il ne reste que RFC-011 T9, un
-perfcheck de release sur une machine propre.
+(scénario D, `docs/perf/20260825-2158-007-D.csv`). RFC-011 a suivi le même jour :
+les trois scénarios mesurés sur le bundle signé, 27 · 16 · 12 Mo pour un budget de
+40, avec une réserve nommée dans la fiche — la machine n'était pas au repos
+complet, et une manche du B sur cinq est montée à 70 Mo juste après une
+compilation.
 
 RFC-003 a établi que **quatre des signaux que RFC-012 devait prendre au hook sont
 déjà dans le transcript** : mode de permission, fin de tour, cycle de vie des
