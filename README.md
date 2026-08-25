@@ -16,7 +16,7 @@ pointer and laughs when you poke it.
 
 <p align="center">
   <video
-    src="https://raw.githubusercontent.com/funkymed/VibeBuddy/main/docs/video.mp4"
+    src="https://raw.githubusercontent.com/funkymed/VibeBuddy/develop/docs/video.mp4"
     poster="./docs/video-poster.png"
     width="720" controls muted playsinline></video>
 </p>
