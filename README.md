@@ -74,18 +74,13 @@ the suite. Field-test the thing.
 `make` on its own prints this list.
 
 ```sh
-make run                # debug build, straight from source
-make stop               # kill every instance and unlink the socket
-make test               # 494 tests, 79 suites
-make app                # dist/VibeBuddy.app, universal, signed
-make info               # screens, geometry, buddy, sessions, usage
-make simulate kind=diff # a fake permission panel, no Claude needed
-make perf               # scenario A, at rest, 10 min
-make install-hook       # register vibe-hook, shows the diff and asks
+make app                      # dist/VibeBuddy.app, universal, signed
+make dmg                      # dist/VibeBuddy-<version>.dmg
+make run                      # debug build, straight from source
+make stop                     # kill every instance and unlink the socket
+make test                     # 494 tests, 79 suites
+make publish version=0.1.0    # sign, package, tag, release
 ```
-
-Run `make perf` in the foreground. Launched detached the process gets reaped and
-the run stops early, with contradictory verdicts.
 
 Permission interception needs a hook registered in `~/.claude/settings.json`. The
 app never writes that file on its own: `make install-hook` shows the exact diff
