@@ -305,7 +305,7 @@ l'utilisateur en place.
 **Ce qui reste à éprouver** : `Edit` autorisé et refusé, `AskUserQuestion`
 autorisé et refusé. Puis « toujours autoriser » honoré à la session suivante, et
 `perfcheck A` pendant une attente. Le nécessaire est prêt dans
-`docs/spikes/hook/rfc007/` — réglages où `vibe-hook` est le seul hook
+`docs/spikes/rfc007/` — réglages où `vibe-hook` est le seul hook
 `PermissionRequest`, projet jetable, et les quatre cas écrits ligne à ligne.
 
 ### Le 2026-08-22 — deux défauts trouvés en lisant, avant de rejouer

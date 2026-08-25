@@ -365,10 +365,8 @@ pas de cette réponse : RFC-012 tire ses quatre signaux du transcript.
 Ce qu'il faut pour conclure, et qui demande une main humaine :
 
 ```sh
-cd docs/spikes/hook/project
-claude --settings ../settings.json --permission-mode manual
-# puis : « Lis le fichier /etc/hosts »
-# → si le hook fonctionne, le refus porte « REFUS-SPIKE-7f3a »
+# Harnais supprimé le 2026-08-25, le contrat étant prouvé en réel le 2026-08-21.
+# Ce bloc décrivait un hook espion qui refusait avec « REFUS-SPIKE-7f3a ».
 ```
 
 ```sh

@@ -111,12 +111,9 @@ Une manche interactive, une minute, pour voir le hook partir en vrai. Elle ne
 conditionne plus la faisabilité : elle confirme un contrat déjà lisible dans le
 binaire.
 
-```sh
-cd docs/spikes/hook/project
-claude --settings ../settings.json --permission-mode manual
-# puis, dans la session : « Exécute la commande shell : echo bonjour-spike »
-# → le refus doit porter « REFUS-SPIKE-7f3a », et received.jsonl exister
-```
+Elle a eu lieu le 2026-08-21 et a réussi. Le harnais espion qui l'a portée a
+été supprimé le 2026-08-25, le contrat étant établi ; celui de RFC-007 vit
+dans `docs/spikes/rfc007/`.
 
 Choisir un outil qui **demande vraiment** — un `Bash`, pas une lecture hors du
 répertoire, qui est refusée en amont par un autre contrôle.

@@ -15,7 +15,7 @@ prompts from the notch. An animated *buddy* carries the state, follows your
 pointer and laughs when you poke it.
 
 <p align="center">
-  <img src="./docs/preview.gif" alt="VibeBuddy answering a permission prompt in the notch" width="480" />
+  <img src="./docs/preview.gif" alt="VibeBuddy answering a permission prompt in the notch" width="800" />
 </p>
 
 ## 1. Install
@@ -95,9 +95,7 @@ and waits.
 | File | Contents |
 |---|---|
 | [`CLAUDE.md`](CLAUDE.md) | The rules: product goals, structural decisions, Gantt, conventions |
-| [`docs/hook.md`](docs/hook.md) | The state of the code and its traps, including the `.buddy` format and the hook bridge |
 | [`docs/rfc/`](docs/rfc/) | One RFC per subject, with its action plan and percentages |
-| [`docs/perf/`](docs/perf/) | The measurements, as dated CSVs |
 
 Lightness comes before features. The app is on screen permanently, so every
 needless wakeup is paid for in battery life: the budget is under 2 idle wakeups

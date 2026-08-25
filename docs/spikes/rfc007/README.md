@@ -29,7 +29,7 @@ make build-release                       # vibe-hook doit être à jour
 make stop                                # une seule instance, cf. défaut #2
 make run-release &                       # l'app qui écoute
 
-cd docs/spikes/hook/rfc007/project
+cd docs/spikes/rfc007/project
 claude --settings ../settings.json --permission-mode manual
 ```
 
