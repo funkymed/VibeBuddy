@@ -15,9 +15,7 @@ prompts from the notch. An animated *buddy* carries the state, follows your
 pointer and laughs when you poke it.
 
 <p align="center">
-  <a href="https://github.com/funkymed/VibeBuddy/blob/develop/docs/video.mp4">
-    <img src="./docs/video-poster.png" alt="VibeBuddy answering a permission prompt in the notch" width="720" />
-  </a>
+  <img src="./docs/preview.gif" alt="VibeBuddy answering a permission prompt in the notch" width="480" />
 </p>
 
 ## 1. Install
