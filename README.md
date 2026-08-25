@@ -14,6 +14,13 @@ sessions at once grouped by project, and answers Claude Code's permission
 prompts from the notch. An animated *buddy* carries the state, follows your
 pointer and laughs when you poke it.
 
+<p align="center">
+  <video
+    src="https://raw.githubusercontent.com/funkymed/VibeBuddy/main/docs/video.mp4"
+    poster="./docs/video-poster.png"
+    width="720" controls muted playsinline></video>
+</p>
+
 ## 1. Install
 
 ```sh
