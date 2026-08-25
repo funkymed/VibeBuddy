@@ -50,7 +50,7 @@ brew uninstall --zap --cask vibebuddy
 ```sh
 git clone https://github.com/funkymed/VibeBuddy.git && cd VibeBuddy
 make run                      # debug build, straight from source
-make test                     # 507 tests, 81 suites
+make test                     # 516 tests, 82 suites
 ```
 
 Signing needs a one-time identity, created in your login keychain and never
@@ -82,7 +82,7 @@ make app                      # dist/VibeBuddy.app, universal, signed
 make dmg                      # dist/VibeBuddy-<version>.dmg
 make run                      # debug build, straight from source
 make stop                     # kill every instance and unlink the socket
-make test                     # 507 tests, 81 suites
+make test                     # 516 tests, 82 suites
 make publish version=0.1.0    # sign, package, tag, release
 ```
 
