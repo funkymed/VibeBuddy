@@ -56,6 +56,13 @@ enum Diagnostics {
     static func run() -> Never {
         _ = NSApplication.shared  // needed for NSScreen
 
+        // Preferences go through the store, never `UserDefaults.standard`.
+        // An unbundled binary keys its domain on the executable name and a
+        // bundle keys it on its identifier, so a direct read can land on a
+        // domain that never saw the value; `PreferencesStore.legacyDomains`
+        // is the ordered chain that reconciles them. See docs/hook.md.
+        let appearance = AppearancePrefs(store: PreferencesStore())
+
         // Read-only, and that is the point: `SMAppService.status` answers
         // without registering anything. A bare binary has no bundle identifier
         // and gets `.notFound`; the signed bundle gets `.notRegistered`. That
@@ -132,7 +139,7 @@ enum Diagnostics {
             print("\n── disposition de la pastille ──")
         if let g = NotchGeometry.resolve() {
             var loader = BuddyLoader()
-            let buddy = loader.load(id: UserDefaults.standard.string(forKey: "vibebuddy.buddy") ?? BuiltInBuddy.id).manifest
+            let buddy = loader.load(id: appearance.buddyID).manifest
             for (label, count, alert) in [("repos", 0, String?.none), ("2 sessions", 2, nil),
                                           ("10 sessions", 10, nil),
                                           ("alerte", 2, "notch terminé")] {
@@ -249,7 +256,7 @@ enum Diagnostics {
             value == value.rounded() ? String(Int(value)) : String(value)
         }
         let installed = BuddyLoader.available()
-        let active = UserDefaults.standard.string(forKey: "vibebuddy.buddy") ?? BuiltInBuddy.id
+        let active = appearance.buddyID
         for manifest in installed {
             let mark = manifest.id == active ? "●" : "○"
             let plate = manifest.face

@@ -12,9 +12,12 @@ enum HoverDiagnostics {
 
         let panel = NotchPanel(wake: WakeCoordinator(), budget: AnimationBudget())
         // The pill's width comes from these: a bare panel measures nothing real.
+        // The id goes through the store, never `UserDefaults.standard`: this
+        // binary is unbundled, so its own domain is keyed on the executable
+        // name and not on the bundle identifier the packaged app writes to.
+        let appearance = AppearancePrefs(store: PreferencesStore())
         var loader = BuddyLoader()
-        panel.setBuddy(loader.load(
-            id: UserDefaults.standard.string(forKey: "vibebuddy.buddy") ?? BuiltInBuddy.id).manifest)
+        panel.setBuddy(loader.load(id: appearance.buddyID).manifest)
         panel.setSessionCount(2)
         panel.show()
         settle(0.4)

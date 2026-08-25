@@ -95,7 +95,6 @@ final class AppCoordinator: NSObject, NSApplicationDelegate {
             appearance: appearance,
             layout: layout,
             notifications: notifications,
-            onBuddyChange: { [weak self] id in self?.loadBuddy(id) },
             onLanguageChange: { [weak self] in
                 guard let self else { return }
                 self.panel?.setLanguage(self.l10n.strings, locale: self.l10n.locale)
@@ -434,7 +433,7 @@ final class AppCoordinator: NSObject, NSApplicationDelegate {
         // preference, which is what made two sources of truth for one face.
         var loader = BuddyLoader()
         let loaded = loader.load(id: id)
-        panel?.setBuddy(appearance.resolved(loaded.manifest))
+        panel?.setBuddy(loaded.manifest)
         for problem in loader.problems {
             PerfProbe.log.error("buddy: \(problem, privacy: .public)")
         }

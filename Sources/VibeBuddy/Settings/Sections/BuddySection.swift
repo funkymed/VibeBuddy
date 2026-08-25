@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 import VibeBuddyKit
 
-/// Choose a buddy, and look at every one of its expressions.
+/// Look at every expression of the buddy, and click one to see it move.
 ///
 /// **The editor was removed on 2026-08-21.** It let the user change an eye's
 /// shape, size and colour from here, and those edits lived in `UserDefaults`
@@ -15,12 +15,16 @@ import VibeBuddyKit
 /// The **preview stays**. It is the fastest way to see the six faces of a
 /// manifest without launching anything — including while debugging one that is
 /// being written. See RFC-010, "Notes d'implémentation".
+///
+/// **The picker was removed on 2026-08-24.** There is exactly one buddy — `eve`,
+/// embedded in the binary — so the control offered a choice of one, which reads
+/// as a promise the product does not keep. The `.buddy` format stays for what it
+/// actually earns: hot reload while a face is being drawn, no relaunch and no
+/// recompilation. Dropping a second file in the folder still works; the day
+/// there is one, the picker comes back.
 struct BuddySection: View {
     @Bindable var l10n: Localisation
     @Bindable var appearance: AppearancePrefs
-    /// The pill reloads when the choice changes; without it the notch only
-    /// catches up when the settings window closes.
-    let onBuddyChange: (String?) -> Void
 
     @State private var available: [BuddyManifest] = []
     @State private var selectedExpression: BuddyExpression = .idle
@@ -28,15 +32,20 @@ struct BuddySection: View {
     private var s: SettingsStrings { l10n.settings }
 
     /// The manifest as it will be drawn.
+    ///
+    /// Looked up by id rather than taken as « the first one »: the id is what
+    /// `AppearancePrefs` has stored and what the pill loads, so reading it here
+    /// keeps the preview and the notch on the same file even when the folder
+    /// holds several.
     private var manifest: BuddyManifest? {
         guard let base = available.first(where: { $0.id == appearance.buddyID })
+            ?? available.first
         else { return nil }
-        return appearance.resolved(base)
+        return base
     }
 
     var body: some View {
         SettingsPage {
-            picker
             if let manifest {
                 BuddyPreviewStrip(
                     manifest: manifest, expressions: declared(in: manifest),
@@ -46,30 +55,11 @@ struct BuddySection: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
-            Button(s.openBuddyFolder) {
-                NSWorkspace.shared.open(URL(fileURLWithPath: BuddyLoader.searchPath))
-            }
-            .controlSize(.small)
         }
         .onAppear(perform: reload)
     }
 
     // MARK: - Pieces
-
-    private var picker: some View {
-        SettingsGroup(title: s.activeBuddy) {
-            SettingsRow(title: s.activeBuddy) {
-                Picker(s.activeBuddy, selection: $appearance.buddyID) {
-                    ForEach(available, id: \.id) { manifest in
-                        Text(manifest.name).tag(manifest.id)
-                    }
-                }
-                .labelsHidden()
-                .frame(width: 200)
-                .onChange(of: appearance.buddyID) { onBuddyChange(appearance.buddyID) }
-            }
-        }
-    }
 
     private func reload() {
         available = BuddyLoader.available()

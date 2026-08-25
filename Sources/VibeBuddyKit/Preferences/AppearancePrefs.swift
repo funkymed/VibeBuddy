@@ -51,11 +51,4 @@ public final class AppearancePrefs {
     }
 
 
-    /// The manifest as it will be drawn — which is the manifest, unchanged.
-    ///
-    /// Kept as a seam rather than inlined at the call sites: it was the edit
-    /// layer's hook, and it is where a per-company buddy override would go if
-    /// one is ever wanted. Empty is the honest state, not a placeholder.
-    public func resolved(_ manifest: BuddyManifest) -> BuddyManifest { manifest }
-
 }

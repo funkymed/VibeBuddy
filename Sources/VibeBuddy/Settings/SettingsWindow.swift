@@ -9,6 +9,8 @@ import VibeBuddyKit
 final class SettingsWindow {
 
     private var window: NSWindow?
+    /// Survives the view, so it can be reset on every `show()`.
+    private let navigation = SettingsNavigation()
     private var closeObserver: NSObjectProtocol?
     /// Told when the window opens and closes, so the panel can hold itself open.
     var onVisibilityChange: ((Bool) -> Void)?
@@ -16,7 +18,6 @@ final class SettingsWindow {
     private let appearance: AppearancePrefs
     private let layout: LayoutPrefs
     private let notifications: NotificationPrefs
-    private var onBuddyChange: (String?) -> Void
     private var onLanguageChange: () -> Void
     private var onReset: () -> Void
 
@@ -25,7 +26,6 @@ final class SettingsWindow {
         appearance: AppearancePrefs,
         layout: LayoutPrefs,
         notifications: NotificationPrefs,
-        onBuddyChange: @escaping (String?) -> Void,
         onLanguageChange: @escaping () -> Void,
         onReset: @escaping () -> Void
     ) {
@@ -33,13 +33,17 @@ final class SettingsWindow {
         self.appearance = appearance
         self.layout = layout
         self.notifications = notifications
-        self.onBuddyChange = onBuddyChange
         self.onLanguageChange = onLanguageChange
         self.onReset = onReset
     }
 
+    /// Every opening starts on the first pane.
+    ///
+    /// Reset here rather than in the view: the window is reused, so the view is
+    /// only built once and anything it holds persists between visits.
     func show() {
         onVisibilityChange?(true)
+        navigation.tab = .general
         if let window {
             bringToFront(window)
             return
@@ -50,9 +54,9 @@ final class SettingsWindow {
             appearance: appearance,
             layout: layout,
             notifications: notifications,
-            onBuddyChange: onBuddyChange,
             onLanguageChange: onLanguageChange,
-            onReset: onReset
+            onReset: onReset,
+            navigation: navigation
         )
         let hosting = NSHostingController(rootView: view)
         let window = NSWindow(contentViewController: hosting)

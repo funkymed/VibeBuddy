@@ -10,9 +10,15 @@ struct SettingsShell: View {
     let appearance: AppearancePrefs
     let layout: LayoutPrefs
     let notifications: NotificationPrefs
-    let onBuddyChange: (String?) -> Void
     let onLanguageChange: () -> Void
     let onReset: () -> Void
+    /// Which pane is showing. Owned by `SettingsWindow` rather than by this
+    /// view: the window is reused across openings — `show()` brings the
+    /// existing one to the front instead of building a new one — so a `@State`
+    /// here survives from one visit to the next and the window reopens wherever
+    /// it was left. Held outside, it can be reset each time the window is
+    /// shown, which is the whole point.
+    @Bindable var navigation: SettingsNavigation
 
     enum Tab: String, CaseIterable, Identifiable {
         case general, buddy, notifications, sessions, display, permissions, advanced, about
@@ -35,12 +41,8 @@ struct SettingsShell: View {
         }
     }
 
-    @AppStorage("vibebuddy.settings.tab") private var selectedRaw: String = Tab.general.rawValue
-
     private var selection: Binding<Tab> {
-        Binding(
-            get: { Tab(rawValue: selectedRaw) ?? .general },
-            set: { selectedRaw = $0.rawValue })
+        Binding(get: { navigation.tab }, set: { navigation.tab = $0 })
     }
 
     var body: some View {
@@ -76,8 +78,7 @@ struct SettingsShell: View {
         case .general:
             GeneralSection(l10n: l10n, onLanguageChange: onLanguageChange)
         case .buddy:
-            BuddySection(
-                l10n: l10n, appearance: appearance, onBuddyChange: onBuddyChange)
+            BuddySection(l10n: l10n, appearance: appearance)
         case .notifications:
             NotificationsSection(l10n: l10n, prefs: notifications)
         case .sessions:
@@ -89,7 +90,7 @@ struct SettingsShell: View {
         case .advanced:
             AdvancedSection(l10n: l10n, onReset: onReset)
         case .about:
-            AboutSection(l10n: l10n, appearance: appearance)
+            AboutSection(l10n: l10n)
         }
     }
 }

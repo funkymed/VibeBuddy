@@ -40,7 +40,6 @@ public struct SettingsStrings: Sendable {
     public let language: String
 
     // Buddy
-    public let activeBuddy: String
     public let expressions: String
     public let colour: String
     public let motion: String
@@ -53,6 +52,7 @@ public struct SettingsStrings: Sendable {
     public let duplicate: String
     public let newBuddy: String
     public let deleteBuddy: String
+    public let openBuddyFolder: String
     public let buddyFolder: String
     public let inherited: String
 
@@ -79,11 +79,9 @@ public struct SettingsStrings: Sendable {
     // Advanced
     public let resetEverything: String
     public let resetEverythingHint: String
-    public let openBuddyFolder: String
 
     // About
     public let credits: String
-    public let creditsBody: String
     public let author: String
 
     public static let french = SettingsStrings(
@@ -106,7 +104,6 @@ public struct SettingsStrings: Sendable {
         startAtLogin: "Ouvrir à l'ouverture de session",
         startAtLoginUnavailable: "Indisponible tant que l'app n'est pas empaquetée (RFC-011)",
         language: "Langue de l'app",
-        activeBuddy: "Buddy actif",
         expressions: "Expressions",
         colour: "Couleur",
         motion: "Mouvement",
@@ -119,6 +116,7 @@ public struct SettingsStrings: Sendable {
         duplicate: "Dupliquer",
         newBuddy: "Nouveau buddy",
         deleteBuddy: "Supprimer",
+        openBuddyFolder: "Ouvrir le dossier",
         buddyFolder: "Les fichiers .buddy vivent dans le dossier ci-dessous. Les modifications faites ici sont enregistrées à part et n'y touchent pas.",
         inherited: "hérité du fichier",
         alertOnFinished: "Quand un tour se termine",
@@ -137,9 +135,7 @@ public struct SettingsStrings: Sendable {
         showPillWithoutSession: "Garder la pastille visible sans session",
         resetEverything: "Réinitialiser tous les réglages",
         resetEverythingHint: "Supprime les préférences et les modifications de buddy. Les fichiers .buddy ne sont pas touchés.",
-        openBuddyFolder: "Ouvrir le dossier",
         credits: "Crédits",
-        creditsBody: "Inspired by Notch-Pilot & VibeIsland",
         author: "Auteur"
     )
 
@@ -163,7 +159,6 @@ public struct SettingsStrings: Sendable {
         startAtLogin: "Open at login",
         startAtLoginUnavailable: "Unavailable until the app is packaged (RFC-011)",
         language: "App language",
-        activeBuddy: "Active buddy",
         expressions: "Expressions",
         colour: "Colour",
         motion: "Motion",
@@ -176,6 +171,7 @@ public struct SettingsStrings: Sendable {
         duplicate: "Duplicate",
         newBuddy: "New buddy",
         deleteBuddy: "Delete",
+        openBuddyFolder: "Open the folder",
         buddyFolder: "The .buddy files live in the folder below. Edits made here are stored separately and never touch them.",
         inherited: "inherited from the file",
         alertOnFinished: "When a turn ends",
@@ -194,9 +190,7 @@ public struct SettingsStrings: Sendable {
         showPillWithoutSession: "Keep the pill visible with no session",
         resetEverything: "Reset every setting",
         resetEverythingHint: "Removes preferences and buddy edits. The .buddy files are left alone.",
-        openBuddyFolder: "Open the folder",
         credits: "Credits",
-        creditsBody: "Inspired by Notch-Pilot & VibeIsland",
         author: "Author"
     )
 }

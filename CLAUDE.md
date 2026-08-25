@@ -86,7 +86,8 @@ l'empirisme, et leur colonne `fichier:ligne` désigne le dépôt de référence,
 le nôtre.
 
 Conséquence pratique : l'app ne porte pas de notice MIT, parce qu'elle n'a rien
-à couvrir. L'écran « À propos » dit *Inspired by Notch-Pilot & VibeIsland*.
+à couvrir. L'écran « À propos » ne porte plus de mention d'inspiration non plus
+(retirée le 2026-08-25) : rien n'étant emprunté, il n'y avait rien à créditer.
 
 ## Liste des RFC
 
@@ -186,7 +187,7 @@ Le détail et les alternatives vivent dans la RFC qui applique chaque décision.
 | # | Décision | Statut |
 |---|---|---|
 | D1 | `actor SessionStore` unique. Process = liveness, jsonl = contenu, hook = mode et PID. Clé primaire `sessionID`. | tranchée |
-| D2 | `@Observable` (Observation) plutôt que Combine. **Aucune vue ne dépasse 200 lignes.** | tranchée |
+| D2 | `@Observable` (Observation) plutôt que Combine. **Une vue SwiftUI — un `struct: View` — reste sous 200 lignes**, `body` et sous-vues comprises. Les `NSView`, les représentables et les bancs de mesure ne sont pas concernés. | tranchée |
 | D3 | **Un seul `WakeCoordinator`.** Un `Timer` créé ailleurs est un échec de revue. | tranchée |
 | D4 | Deux cibles exécutables : `vibebuddy` et `vibe-hook` (Foundation-only). Le hook ne lie jamais AppKit. | tranchée |
 | D5 | **SwiftUI retenu**, pastille en `NSHostingView`. Budget mesuré en `phys_footprint`, pas en RSS. | tranchée 2026-08-19 |
@@ -194,6 +195,34 @@ Le détail et les alternatives vivent dans la RFC qui applique chaque décision.
 | D7 | Pastille visible sans session : **off par défaut**, rendu statique 0 Hz si épinglée. | tranchée |
 | D8 | Latence contractuelle : 1 s en activité, 30 s au repos. | tranchée |
 | — | Signature **auto-signée à CN stable**, et **aucune API Accessibilité en v1** (pas de raccourcis globaux, pas de détection plein-écran par AX). | tranchée |
+
+### D2 — ce que la règle vise, et la dette qu'elle laisse
+
+Ce qui se relit mal, c'est un `body` : une vue SwiftUI est un `struct: View` dont
+le corps et les sous-vues doivent tenir sous les yeux d'un seul coup. La règle
+porte donc sur la déclaration de la vue, pas sur le fichier qui la contient, et
+pas sur les types qui n'ont pas de `body`. Trois fichiers dépassent 200 lignes
+sans relever de D2 : `Sources/VibeBuddy/ClickThroughHostView.swift` (223, une
+`NSView`), `Sources/VibeBuddy/BenchHarness.swift` (214, un banc de mesure),
+`Sources/VibeBuddy/Panel/PointingHandCursor.swift` (205, deux classes AppKit, un
+`NSViewRepresentable` et un `ViewModifier`).
+
+Mesuré le 2026-08-24 (`wc -l` pour le fichier, étendue de la déclaration pour la
+vue) — dette reconnue, pas règle tacitement violée :
+
+| Fichier | Lignes | Plus grosse vue | Dépasse D2 |
+|---|---|---|---|
+| `NotchShellView.swift` | 333 | `NotchShellView` **326** (l. 8-333) | **oui**, ×1,6 |
+| `Panel/SessionRow.swift` | 215 | `SessionRow` **208** (l. 8-215) | **oui**, de peu |
+| `Buddy/EyesFaceView.swift` | 240 | `EyesFaceView` 95, `FaceScreen` 87 | non — 4 types dans le fichier |
+| `Panel/Permission/PermissionPanelView.swift` | 205 | `PermissionPanelView` 191 (l. 15-205) | non — 14 lignes d'en-tête |
+| `Buddy/BuddyView.swift` | 204 | `BuddyView` 157 (l. 5-161) | non — 2 `extension Color` en fin de fichier |
+
+Deux vues sont en infraction, pas cinq. `NotchShellView` est la seule dette
+sérieuse : à découper au prochain passage sur le shell. `SessionRow` repasse sous
+la barre avec RFC-008. Aucune autre vue du dépôt n'atteint 200 lignes ; les plus
+proches sont `PermissionPanelView` (191), `VibeButton` (171) et `DiffSummaryView`
+(169).
 
 ## Risques ouverts
 

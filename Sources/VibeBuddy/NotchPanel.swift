@@ -65,17 +65,25 @@ final class NotchPanel: NSPanel {
     /// Clicking a live session row. The pid is the agent's, not the terminal's.
     var onJump: (pid_t) -> Void = { _ in }
     private var jumpNote: String?
-    /// The permission on screen, and what answering it does. Held as plain
-    /// values like the rest of the panel's inputs: observing the queue would
-    /// re-evaluate this view on every change to it.
-    private var permission: PermissionRequestModel?
-    private var permissionWaiting = 0
-    var onPermissionDecision: ((String, HookDecision?) -> Void)?
-    /// Asked to build the consent for a request, and to write it once confirmed.
-    /// Held as closures so the panel never learns the shape of the settings file.
-    var onPermissionAlwaysAllowAsked: ((PermissionRequestModel) -> PermissionConsent?)?
-    var onConsentConfirmed: ((PermissionConsent) -> Void)?
-    private var consent: PermissionConsent?
+    /// Which request is on screen, which consent is pending, and in what order
+    /// the two get answered and written. Lives in the Kit, where it is testable
+    /// without a window; the panel only performs what it decides.
+    private let permissions = PermissionRouter()
+
+    /// Kept on the panel so its owner never learns about the router: the
+    /// coordinator sets these on the window it built.
+    var onPermissionDecision: ((String, HookDecision?) -> Void)? {
+        get { permissions.onDecision }
+        set { permissions.onDecision = newValue }
+    }
+    var onPermissionAlwaysAllowAsked: ((PermissionRequestModel) -> PermissionConsent?)? {
+        get { permissions.onAlwaysAllowAsked }
+        set { permissions.onAlwaysAllowAsked = newValue }
+    }
+    var onConsentConfirmed: ((PermissionConsent) -> Void)? {
+        get { permissions.onConsentConfirmed }
+        set { permissions.onConsentConfirmed = newValue }
+    }
     /// Panel-facing preferences (RFC-010), held as plain values: observing the
     /// models would re-evaluate the view on every preference write.
     private var groupByDirectory = true
@@ -115,9 +123,15 @@ final class NotchPanel: NSPanel {
     private(set) var geometry: NotchGeometry?
     private var anchorFraction: CGFloat = 0.5
 
-    private(set) var state: PanelState = .hidden {
-        didSet { if state != oldValue { applyState() } }
-    }
+    /// State, re-entry guard and frame generation live in the Kit, where they
+    /// are testable without a window. Initialised on the declaration line:
+    /// `canBecomeKey` reads through it, and AppKit asks early — before `init`
+    /// is done setting anything up.
+    private let machine = PanelStateMachine()
+
+    var state: PanelState { machine.state }
+
+    private func setState(_ next: PanelState) { machine.move(to: next) }
 
     private static let expandCurve = CAMediaTimingFunction(name: .easeOut)
 
@@ -170,38 +184,32 @@ final class NotchPanel: NSPanel {
         host.onHoverChange = { [weak self] hovering in
             guard let self else { return }
             self.logHover(source: "zone", hovering: hovering)
-            if hovering, state == .pill { state = .panel }
-            else if !hovering, state == .panel, !self.opening, !self.isHoldingAnAsk {
-                state = .pill
+            if let next = PanelStateMachine.nextState(
+                from: self.state, hovering: hovering,
+                opening: self.opening, holdingAnAsk: self.isHoldingAnAsk) {
+                self.setState(next)
             }
         }
 
         hover.onChange = { [weak self] hovering in
             guard let self else { return }
             self.logHover(source: "sonde", hovering: hovering)
-            if hovering, state == .pill { state = .panel }
-            else if !hovering, state == .panel, !self.opening, !self.isHoldingAnAsk {
-                state = .pill
+            if let next = PanelStateMachine.nextState(
+                from: self.state, hovering: hovering,
+                opening: self.opening, holdingAnAsk: self.isHoldingAnAsk) {
+                self.setState(next)
             }
         }
+
+        machine.onApply = { [weak self] pass in self?.applyEffects(pass) }
 
         refreshGeometry()
         rebuildContent()
     }
 
-    /// Whether the panel is holding something that waits on a **person**.
-    ///
-    /// A panel opened by hovering closes when the pointer leaves — that is what
-    /// hovering means. A panel that opened by itself to ask a question did not
-    /// come from the pointer, and it does not go with it: the user reads the
-    /// question, looks away, goes back to their terminal to check something,
-    /// and comes back. Closing under them mid-thought is the same mistake as
-    /// the « terminal au premier plan » expiry of 2026-08-21 — an alert may be
-    /// withdrawn, a question may not. It leaves when it is answered, and by no
-    /// other route.
-    ///
-    /// The pointer can still open the panel; only the closing is held.
-    private var isHoldingAnAsk: Bool { permission != nil || consent != nil }
+    /// Whether the panel is holding something that waits on a **person**. See
+    /// `PermissionRouter.isHoldingAnAsk`, where the reasoning lives.
+    private var isHoldingAnAsk: Bool { permissions.isHoldingAnAsk }
 
     /// **Key while the panel is open, never while it is a pill.**
     ///
@@ -223,12 +231,12 @@ final class NotchPanel: NSPanel {
 
     func show() {
         guard state == .hidden else { return }
-        state = .pill
+        setState(.pill)
     }
 
     func hide() {
         guard state != .hidden else { return }
-        state = .hidden
+        setState(.hidden)
     }
 
     /// Size of the drawn pill, from the same `PillLayout` the content uses.
@@ -242,8 +250,6 @@ final class NotchPanel: NSPanel {
             sessionCount: sessionCount, alertText: alertText)
         return CGSize(width: layout.totalWidth, height: layout.height)
     }
-
-    private var frameGeneration = 0
 
     /// The region that absorbs clicks and arms the hover, per state.
     private func hitRegion(for state: PanelState) -> Host.HitRegion {
@@ -272,7 +278,7 @@ final class NotchPanel: NSPanel {
     }
 
     /// Takes the key status on the next run-loop turn, if the panel still wants
-    /// it by then. See the note in `applyState`.
+    /// it by then. See the note in `applyEffects`.
     private func scheduleKeyIfDeployed() {
         guard !keyRequestPending else { return }
         keyRequestPending = true
@@ -290,46 +296,16 @@ final class NotchPanel: NSPanel {
 
     private var keyRequestPending = false
 
-    /// Guards against `applyState` being re-entered while it runs.
+    /// Everything a state change does to the window.
     ///
-    /// It sets `host.hitRegion`, which rebuilds the tracking area, which can
-    /// report hover, which changes `state`, whose `didSet` calls back in here.
-    /// The inner call is deferred rather than run: the outer one has already
-    /// computed a size and a target for the state it was leaving, and letting
-    /// the two interleave is what left the panel stuck black. Once the outer
-    /// call finishes, the deferred one runs against whatever the state is by
-    /// then, so it converges.
-    private var applying = false
-    private var needsReapply = false
-    private var reapplyDepth = 0
-
-    private func applyState(animated: Bool = true) {
-        if applying { needsReapply = true; return }
-        applying = true
-        defer {
-            applying = false
-            if needsReapply {
-                needsReapply = false
-                // **Bounded.** The deferred replay converges because the state
-                // settles, but « converges » was an assumption, and an
-                // assumption that is wrong here does not misdraw — it hangs the
-                // main thread with a beachball, which is what happened. Ten is
-                // far more than any real transition needs; reaching it means
-                // something is oscillating, and stopping leaves the panel in a
-                // state `finishStateChange` will correct.
-                reapplyDepth += 1
-                if reapplyDepth < 10 {
-                    applyState(animated: animated)
-                }
-            }
-            if !applying { reapplyDepth = 0 }
-        }
-
-        // Shadowed once so the whole body agrees with itself even if something
-        // it calls changes the state underneath it.
-        let state = self.state
-        frameGeneration += 1
-        let generation = frameGeneration
+    /// Driven by `machine.onApply`, never called directly: the re-entry guard
+    /// and the frame stamp are the machine's, and the pass carries the state
+    /// this body must agree with from end to end — even if something it calls
+    /// changes the state underneath it.
+    private func applyEffects(_ pass: PanelStateMachine.Pass) {
+        let state = pass.state
+        let animated = pass.animated
+        let generation = pass.generation
         let size = state == .panel ? panelSize : pillSize
         let carrier = CGSize(width: Self.carrierWidth, height: size.height)
 
@@ -377,7 +353,7 @@ final class NotchPanel: NSPanel {
         // Not while the settings own the screen either, or this panel would
         // pull the focus back from the window the user just opened.
         //
-        // **Deferred, and never from inside `applyState`.** Taking the key
+        // **Deferred, and never from inside `applyEffects`.** Taking the key
         // status makes AppKit send notifications, which reach the hover path,
         // which changes `state`, whose `didSet` re-enters here — and the
         // re-entry guard below faithfully replays the call, which takes the key
@@ -472,14 +448,14 @@ final class NotchPanel: NSPanel {
 
     private func finishStateChange(generation: Int? = nil) {
         // A superseded animation's completion describes a frame already left.
-        if let generation, generation != frameGeneration { return }
+        guard machine.isCurrent(generation) else { return }
 
         // Last line of defence: both hover regions are read from the frame.
         if state != .hidden, let target = targetFrame(for: state), frame != target {
             setFrameImmediately(target)
         }
 
-        // Re-assert on the settled frame: `applyState` set it before the resize.
+        // Re-assert on the settled frame: `applyEffects` set it before the resize.
         host.hitRegion = hitRegion(for: state)
         host.refreshTrackingNow()
 
@@ -529,7 +505,7 @@ final class NotchPanel: NSPanel {
     /// What the view really paints, scanned from its own bitmap.
     var debugPaintedRect: CGRect { HoverDiagnostics.paintedRect(of: host) }
     var debugPolledRect: CGRect { hover.pillRect }
-    func debugSetState(_ next: PanelState) { state = next }
+    func debugSetState(_ next: PanelState) { setState(next) }
     var debugState: String { String(describing: state) }
 
     /// Screen-space rect of the visible pill, which is narrower than the window.
@@ -560,12 +536,13 @@ final class NotchPanel: NSPanel {
                        onJump: onJump, onSelect: { [weak self] in self?.select($0) },
                        jumpNote: jumpNote,
                        gaze: gaze,
-                       permission: permission, permissionWaiting: permissionWaiting,
+                       permission: permissions.permission,
+                       permissionWaiting: permissions.waiting,
                        onPermissionDeny: { [weak self] in self?.answerPermission(.deny(message: self?.l10n.permissionDenied ?? "")) },
                        onPermissionAllow: { [weak self] in self?.answerPermission(.allow) },
                        onPermissionAlwaysAllow: { [weak self] in self?.alwaysAllowPermission() },
                        onPermissionAnswer: { [weak self] in self?.answerPermission(QuestionAnswer.decision(for: $0)) },
-                       consent: consent,
+                       consent: permissions.consent,
                        onConsentCancel: { [weak self] in self?.cancelConsent() },
                        onConsentConfirm: { [weak self] in self?.confirmConsent() },
                        groupByDirectory: groupByDirectory,
@@ -587,15 +564,10 @@ final class NotchPanel: NSPanel {
     /// back to the session list — the user did not ask for that list, a
     /// permission put the panel on screen.
     func setPermission(_ model: PermissionRequestModel?, waiting: Int) {
-        let had = permission != nil
-        guard model?.id != permission?.id || waiting != permissionWaiting else { return }
-        permission = model
-        permissionWaiting = waiting
-
-        // The request went away under the consent screen — expired, or
-        // answered in the terminal. There is nothing left to grant.
-        let hadConsent = consent != nil
-        if model == nil, hadConsent { consent = nil }
+        let verdict = permissions.set(model, waiting: waiting)
+        // Nothing changed: not even a remeasure, or the same request would pay
+        // for an off-screen layout and an animation on every repeat.
+        guard verdict.changed else { return }
 
         // Measured once everything the panel shows has settled, and
         // **unconditionally**. Left over from a request that is gone, it would
@@ -604,22 +576,22 @@ final class NotchPanel: NSPanel {
         // height of the question instead of its own. `nil` is what puts the
         // full box back, and only measuring on the way in never produces it.
         //
-        // Before the state moves, too: `applyState` reads `panelSize`, so the
+        // Before the state moves, too: `applyEffects` reads `panelSize`, so the
         // panel opens at the right height rather than opening at the full box
         // and shrinking into place.
         measuredPanelHeight = measurePermissionHeight()
 
-        if model != nil {
+        if verdict.hasRequest {
             if state != .panel {
-                state = .panel
+                setState(.panel)
             } else {
                 // Already open on another request. Swap the content, then move
                 // the frame to what the new one needs.
                 rebuildContent()
                 resizeToContent(animated: true)
             }
-        } else if hadConsent || had {
-            state = .pill
+        } else if verdict.wasShowingSomething {
+            setState(.pill)
         } else {
             rebuildContent()
         }
@@ -640,7 +612,7 @@ final class NotchPanel: NSPanel {
         let previous = measuredPanelHeight
         measuredPanelHeight = measurePermissionHeight()
         guard measuredPanelHeight != previous else { return }
-        guard state == .panel else { return }  // the next `applyState` will use it
+        guard state == .panel else { return }  // the next `applyEffects` will use it
         resizeToContent(animated: animated)
     }
 
@@ -670,14 +642,14 @@ final class NotchPanel: NSPanel {
             onSettings: {}, onQuit: {})
 
         let content: AnyView
-        if let consent {
+        if let consent = permissions.consent {
             content = AnyView(PermissionConsentView(
                 rule: consent.rule, diff: consent.diff,
                 backupDirectory: consent.backupDirectory, l10n: l10n,
                 onCancel: {}, onConfirm: {}))
-        } else if let permission {
+        } else if let permission = permissions.permission {
             content = AnyView(PermissionPanelView(
-                model: permission, waiting: permissionWaiting, measuring: true,
+                model: permission, waiting: permissions.waiting, measuring: true,
                 l10n: l10n, onDeny: {}, onAllow: {}, onAlwaysAllow: {}, onAnswer: { _ in }))
         } else {
             // The sessions view is laid out against the full box; it does not
@@ -699,7 +671,7 @@ final class NotchPanel: NSPanel {
     /// Animates the window to the height the content asked for, without
     /// disturbing anything else about the state.
     ///
-    /// Deliberately **not** a call to `applyState`: that one hides the content
+    /// Deliberately **not** a call to `machine.apply()`: that one hides the content
     /// and schedules it back in, which is right when the panel opens and wrong
     /// here — a second request arriving while the first is on screen would make
     /// the whole panel blink. What it does borrow is the two things that must
@@ -709,8 +681,7 @@ final class NotchPanel: NSPanel {
     /// frame.
     private func resizeToContent(animated: Bool) {
         guard let target = targetFrame(for: .panel) else { return }
-        frameGeneration += 1
-        let generation = frameGeneration
+        let generation = machine.nextGeneration()
         hover.pillRect = hoverRect(for: .panel)
 
         let reduceMotion = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
@@ -729,39 +700,29 @@ final class NotchPanel: NSPanel {
     }
 
     private func answerPermission(_ decision: HookDecision?) {
-        guard let id = permission?.id else { return }
-        onPermissionDecision?(id, decision)
+        permissions.answer(decision)
     }
 
-    /// « Toujours autoriser » is a decision **and** a write to the user's own
-    /// settings. The two are separated on purpose: this shows the exact diff
-    /// and waits (T8). Nothing is written until it comes back confirmed.
-    ///
-    /// When there is nothing to write — the rule is already granted — it is
-    /// simply an allow, with no screen in the way.
+    /// Draws the consent screen when the router says there is one to show. When
+    /// there is nothing to write it has already answered `.allow`, and there is
+    /// no screen to put in the way.
     private func alwaysAllowPermission() {
-        guard let model = permission,
-              let pending = onPermissionAlwaysAllowAsked?(model)
-        else { answerPermission(.allow); return }
-        consent = pending
+        guard permissions.alwaysAllow() else { return }
         rebuildContent()
         refreshPanelHeight(animated: true)
     }
 
     private func cancelConsent() {
-        consent = nil
+        permissions.cancelConsent()
         rebuildContent()
         refreshPanelHeight(animated: true)
     }
 
-    /// Writes, then answers. In that order: an allow that reached Claude Code
-    /// before the rule was on disk would be granted once and asked again next
-    /// time, which reads as the button not working.
+    /// No visual effect of its own: the write and the answer both happen in the
+    /// router, and the queue comes back through `setPermission` with whatever
+    /// is next.
     private func confirmConsent() {
-        guard let pending = consent else { return }
-        consent = nil
-        onConsentConfirmed?(pending)
-        answerPermission(.allow)
+        permissions.confirmConsent()
     }
 
     /// Identifier of the buddy currently loaded.
@@ -769,13 +730,13 @@ final class NotchPanel: NSPanel {
 
     func setBuddy(_ manifest: BuddyManifest) {
         buddy = manifest
-        applyState(animated: false)
+        machine.apply(animated: false)
     }
 
     func setLanguage(_ strings: Strings, locale: Locale) {
         self.l10n = strings
         self.locale = locale
-        applyState(animated: false)
+        machine.apply(animated: false)
     }
 
     func setLayoutPrefs(groupByDirectory: Bool, jumpOnClick: Bool, showUsage: Bool) {
@@ -847,7 +808,7 @@ final class NotchPanel: NSPanel {
         guard count != sessionCount else { return }
         sessionCount = count
         // The counter feeds the pill width: `×9` and `×10` differ.
-        applyState(animated: false)
+        machine.apply(animated: false)
     }
 
     /// Called by the coordinator with the aggregate. Remembered, then applied
@@ -952,14 +913,14 @@ final class NotchPanel: NSPanel {
         guard state == .pill || state == .speech else { return }
         alertDismissal?.cancel()
         currentAlert = alert
-        state = .speech
+        setState(.speech)
         rebuildContent()
 
         let dismissal = DispatchWorkItem { [weak self] in
             MainActor.assumeIsolated {
                 guard let self, self.state == .speech else { return }
                 self.currentAlert = nil
-                self.state = .pill
+                self.setState(.pill)
             }
         }
         alertDismissal = dismissal
@@ -973,7 +934,7 @@ final class NotchPanel: NSPanel {
         let resolved = NotchGeometry.resolve(preferredScreenID: geometry?.screenID)
         guard resolved != geometry else { return }
         geometry = resolved
-        if state != .hidden { applyState() }
+        if state != .hidden { machine.apply() }
     }
 
     // MARK: - Drag

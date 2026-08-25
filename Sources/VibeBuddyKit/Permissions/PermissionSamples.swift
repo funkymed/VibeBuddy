@@ -128,7 +128,7 @@ public enum PermissionSamples {
                     mesurée une fois par demande sur un `NSHostingView` hors \
                     écran, bornée entre 200 et 460 pt.
                     4. Le redimensionnement passe par `resizeToContent`, pas \
-                    par `applyState` : celui-ci masque le contenu et le \
+                    par `applyEffects` : celui-ci masque le contenu et le \
                     replanifie, ce qui ferait clignoter le panneau à chaque \
                     demande suivante.
                     5. `hover.pillRect` reçoit la destination, jamais le cadre \

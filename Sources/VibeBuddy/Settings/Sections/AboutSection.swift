@@ -4,7 +4,6 @@ import VibeBuddyKit
 /// Which build is reading the files on disk.
 struct AboutSection: View {
     @Bindable var l10n: Localisation
-    @Bindable var appearance: AppearancePrefs
 
     private var s: SettingsStrings { l10n.settings }
 
@@ -20,18 +19,6 @@ struct AboutSection: View {
                     .foregroundStyle(.secondary)
             }
 
-            SettingsGroup(title: s.about.title) {
-                SettingsRow(title: s.activeBuddy) {
-                    Text(appearance.buddyID)
-                        .font(.callout.monospaced())
-                        .foregroundStyle(.secondary)
-                }
-                Divider()
-                SettingsRow(title: s.buddy.title, hint: BuddyLoader.searchPath) {
-                    EmptyView()
-                }
-            }
-
             SettingsGroup(title: s.credits) {
                 SettingsRow(title: s.author) {
                     Text(Self.author)
@@ -39,8 +26,6 @@ struct AboutSection: View {
                         .foregroundStyle(.secondary)
                         .textSelection(.enabled)
                 }
-                Divider()
-                SettingsRow(title: s.creditsBody) { EmptyView() }
             }
         }
     }
