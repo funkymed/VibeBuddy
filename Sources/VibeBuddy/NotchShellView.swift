@@ -22,6 +22,9 @@ struct NotchShellView: View {
     var onQuit: () -> Void = {}
     var onJump: (pid_t) -> Void = { _ in }
     var onSelect: ((String) -> Void)?
+    var onDismissSession: ((AgentSession) -> Void)?
+    var dismissedCount = 0
+    var onRestoreDismissed: (() -> Void)?
     var jumpNote: String?
     /// Passed down rather than built here: see `NotchPanel.timelines`.
     var timelines = SessionTimelineLoader()
@@ -123,7 +126,9 @@ struct NotchShellView: View {
                 expression: expression,
                 budget: budget, usage: usage, l10n: l10n, locale: locale,
                 onSettings: onSettings, onQuit: onQuit,
-                onJump: onJump, onSelect: onSelect, jumpNote: jumpNote,
+                onJump: onJump, onSelect: onSelect,
+                onDismiss: onDismissSession, dismissedCount: dismissedCount,
+                onRestoreDismissed: onRestoreDismissed, jumpNote: jumpNote,
                 timelines: timelines,
                 groupByDirectory: groupByDirectory,
                 jumpOnClick: jumpOnClick, showUsage: showUsage

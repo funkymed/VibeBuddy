@@ -108,12 +108,15 @@ public actor HookSocketServer {
                 return .hungUp
             }
 
+            // The sink always wins the race. A decision is information, a hang-up is an
+            // absence, and `group.next()` hands back whichever finished first — which is
+            // the hang-up on one request in three. Writing into a socket whose peer has
+            // really gone costs nothing (`SO_NOSIGPIPE` is set on every accepted
+            // descriptor); not writing while someone waits costs Claude Code 120 s.
             var answer: HookDecision?
             while let outcome = await group.next() {
-                if case let .decided(value) = outcome {
-                    answer = value
-                    break
-                }
+                guard case let .decided(value) = outcome else { continue }
+                answer = value
                 break
             }
             group.cancelAll()

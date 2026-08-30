@@ -40,6 +40,8 @@ final class AppCoordinator: NSObject, NSApplicationDelegate {
     /// in place rather than replacing them.
     let appearance: AppearancePrefs
     let layout: LayoutPrefs
+    /// Rows the user took off the list, kept across launches.
+    let dismissedSessions: DismissedSessions
     let notifications: NotificationPrefs
     private let voice = VoiceAnnouncer()
     private var settings: SettingsWindow?
@@ -54,6 +56,7 @@ final class AppCoordinator: NSObject, NSApplicationDelegate {
         self.prefs = prefs
         appearance = AppearancePrefs(store: prefs)
         layout = LayoutPrefs(store: prefs)
+        dismissedSessions = DismissedSessions(store: prefs)
         notifications = NotificationPrefs(store: prefs)
         super.init()
     }
@@ -201,6 +204,16 @@ final class AppCoordinator: NSObject, NSApplicationDelegate {
             PerfProbe.log.info("sessions: \(live, privacy: .public) live / \(list.count, privacy: .public)")
         }
         sessions.quietWhenTerminalFrontmost = notifications.quietWhenFrontmost
+        sessions.dismissed = dismissedSessions
+        panel.onDismissSession = { [weak self, weak sessions] session in
+            sessions?.dismiss(session)
+            self.map { $0.panel?.dismissedCount = $0.dismissedSessions.count }
+        }
+        panel.onRestoreDismissed = { [weak self, weak sessions] in
+            sessions?.restoreDismissed()
+            self?.panel?.dismissedCount = 0
+        }
+        panel.dismissedCount = dismissedSessions.count
         sessions.start()
         self.sessions = sessions
 

@@ -52,6 +52,13 @@ final class NotchPanel: NSPanel {
     var onSettings: () -> Void = {}
     /// Clicking a live session row.
     var onJump: (pid_t) -> Void = { _ in }
+    /// Taking a session off the list. Nil hides the control.
+    var onDismissSession: ((AgentSession) -> Void)?
+    var onRestoreDismissed: (() -> Void)?
+    /// How many rows are hidden, so the panel can offer the way back.
+    var dismissedCount = 0 {
+        didSet { if dismissedCount != oldValue, state == .panel { rebuildContent() } }
+    }
     private var jumpNote: String?
     /// Which request is on screen, which consent is pending, and in what order the two
     /// get answered and written.
@@ -165,6 +172,7 @@ final class NotchPanel: NSPanel {
         }
 
         machine.onApply = { [weak self] pass in self?.applyEffects(pass) }
+        pointer.onSample = { [weak self] in self?.pointerDidSample() }
 
         refreshGeometry()
         rebuildContent()
@@ -173,6 +181,8 @@ final class NotchPanel: NSPanel {
     /// Set when an ask closes the panel, cleared when the pointer leaves. See
     /// `PanelStateMachine.nextState`.
     private var dismissedAnAsk = false
+    /// Lowers the frame rate again once a chase has run its course.
+    private var chaseWindDown: DispatchWorkItem?
 
     /// Whether the panel is holding something that waits on a person.
     private var isHoldingAnAsk: Bool { permissions.isHoldingAnAsk }
@@ -378,7 +388,7 @@ final class NotchPanel: NSPanel {
         updateGaze()
         hover.pillRect = pillScreenRect
         hover.setActive(state.isVisible)
-        budget.update(isVisible: state.isVisible, isBusy: state == .panel)
+        refreshAnimationBudget()
     }
     /// Hover opens the panel from `.pill` and from `.speech`.
 
@@ -429,6 +439,9 @@ final class NotchPanel: NSPanel {
                        l10n: l10n, locale: locale,
                        onSettings: onSettings, onQuit: onQuit,
                        onJump: onJump, onSelect: { [weak self] in self?.select($0) },
+                       onDismissSession: onDismissSession,
+                       dismissedCount: dismissedCount,
+                       onRestoreDismissed: onRestoreDismissed,
                        jumpNote: jumpNote, timelines: timelines,
                        gaze: gaze,
                        permission: permissions.permission,
@@ -666,6 +679,38 @@ final class NotchPanel: NSPanel {
         setExpression(next)
     }
 
+    /// Frames the face needs right now.
+    ///
+    /// A chase is the one thing a resting face does that has to be drawn properly: the
+    /// eyes track the pointer and the colour runs to pink, and at the ambient 8 fps of a
+    /// sleeping buddy that reads as a stutter rather than as a chase. So the tier
+    /// follows the mood as well as the expression.
+    private func refreshAnimationBudget() {
+        // Three reasons to draw at full rate, and one place that knows all three. The
+        // state and the expression each had their own call before, so whichever ran
+        // last decided — an open panel dropped to ambient the moment the face went idle.
+        let working = expression != .sleeping && expression != .idle
+        budget.update(
+            isVisible: state.isVisible,
+            isBusy: state == .panel || working || gaze.isAnimating())
+    }
+
+    /// Drops the frame rate back once the pointer has been still long enough for the
+    /// chase to have faded. Re-armed by every sample, so a chase that is still being led
+    /// never lowers it.
+    private func scheduleChaseWindDown() {
+        chaseWindDown?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            MainActor.assumeIsolated { self?.refreshAnimationBudget() }
+        }
+        chaseWindDown = work
+        // The rest delay plus the fade: the exact moment `mood` stops returning
+        // `.chasing`, so the frames stop being needed and not a moment before.
+        DispatchQueue.main.asyncAfter(
+            deadline: .now() + PointerGazeState.restDelay + PointerGazeState.chaseFade,
+            execute: work)
+    }
+
     func setExpression(_ wanted: BuddyExpression) {
         // A panel that is waiting on a person shows an available face. Whatever the
         // sessions are doing behind it, the thing on screen is a question addressed to
@@ -675,7 +720,7 @@ final class NotchPanel: NSPanel {
         let next = isHoldingAnAsk ? .idle : wanted
         guard next != expression else { return }
         expression = next
-        budget.update(isVisible: state.isVisible, isBusy: next != .sleeping && next != .idle)
+        refreshAnimationBudget()
         updateGaze()
         rebuildContent()
     }
@@ -686,14 +731,19 @@ final class NotchPanel: NSPanel {
         let wanted = state.isVisible
         gaze.isEnabled = wanted
         gaze.followsPointer = follows
-        // A face that follows nothing needs far fewer samples; see
-        // `PointerMonitor.sleepingInterval`.
-        pointer.isDormant = !follows && state != .panel
         gaze.anchor = wanted ? buddyScreenRect : .zero
         // The bands are read off the display the face is on, so a second monitor of
         // another size divides in the same places.
         gaze.screen = wanted ? (screen ?? NSScreen.main)?.frame ?? .zero : .zero
         pointer.setActive(wanted)
+    }
+
+    /// A shake reaches every face, `sleeping` included, so the frames have to follow it
+    /// there too.
+    private func pointerDidSample() {
+        guard gaze.isAnimating() else { return }
+        refreshAnimationBudget()
+        scheduleChaseWindDown()
     }
 
     /// Where the face itself is on screen — the ear, not the whole pill, and the

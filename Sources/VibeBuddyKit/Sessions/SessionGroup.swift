@@ -22,7 +22,11 @@ public struct SessionGroup: Sendable, Equatable, Identifiable {
     /// Live first, then most recent — a finished run must never mask a running one.
     public static func group(_ sessions: [AgentSession]) -> [SessionGroup] {
         var byDirectory: [String: [AgentSession]] = [:]
-        for session in sessions {
+        // Two rows carrying the same `id` is not a display bug, it is a vanished row:
+        // `ForEach` keeps one and silently drops the other. A session id can turn up
+        // twice when the same session has written under two working directories.
+        var seen = Set<String>()
+        for session in sessions where seen.insert(session.id).inserted {
             byDirectory[session.cwd, default: []].append(session)
         }
 
@@ -51,9 +55,10 @@ public struct SessionGroup: Sendable, Equatable, Identifiable {
     /// Keyed by session id: two ungrouped rows in one directory must not collide on
     /// `id`, or `ForEach` drops one of them.
     public static func ungrouped(_ sessions: [AgentSession]) -> [SessionGroup] {
-        sessions.sorted(by: byRelevance).map {
-            SessionGroup(cwd: $0.cwd, primary: $0, all: [$0])
-        }
+        var seen = Set<String>()
+        return sessions.sorted(by: byRelevance)
+            .filter { seen.insert($0.id).inserted }
+            .map { SessionGroup(cwd: $0.cwd, primary: $0, all: [$0]) }
     }
 
     static func byRelevance(_ a: AgentSession, _ b: AgentSession) -> Bool {

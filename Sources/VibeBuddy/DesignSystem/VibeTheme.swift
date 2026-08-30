@@ -13,6 +13,11 @@ enum VibeTheme {
         static let interactiveHover = Color.white.opacity(0.10)
         /// Laid over the black of the deployed panel, and nowhere else.
         static let tint = VibeTheme.Accent.deep.opacity(0.05)
+        /// A dialog, lifted clear of what it covers. Opaque on purpose, and the only
+        /// token here that is: every other surface is a wash over the panel's black,
+        /// and a wash lets the rows behind read straight through the text. Judged
+        /// rather than sampled — the mockup has no dialog.
+        static let raised = Color(red: 0.04, green: 0.06, blue: 0.09)
     }
 
     /// VibeBuddy's own colour: what is interactive, never what is a state.

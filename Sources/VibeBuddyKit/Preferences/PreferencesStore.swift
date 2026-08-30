@@ -123,6 +123,7 @@ public final class PreferencesStore {
         NotificationPrefs.Keys.onFinished, NotificationPrefs.Keys.onFailed,
         NotificationPrefs.Keys.onNeedsAttention, NotificationPrefs.Keys.voice,
         NotificationPrefs.Keys.haptics, NotificationPrefs.Keys.quietWhenFrontmost,
+        DismissedSessions.Keys.entries,
         // Ours too, though they bypass this store (schema 3).
         Localisation.storageKey,
         UsageCache.key,

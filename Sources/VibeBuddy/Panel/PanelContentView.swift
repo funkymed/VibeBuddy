@@ -14,6 +14,11 @@ struct PanelContentView: View {
     var onQuit: () -> Void
     var onJump: (pid_t) -> Void = { _ in }
     var onSelect: ((String) -> Void)?
+    /// Takes a session off the list. Nil hides the control entirely.
+    var onDismiss: ((AgentSession) -> Void)?
+    /// How many rows are hidden right now, and the way back.
+    var dismissedCount = 0
+    var onRestoreDismissed: (() -> Void)?
     /// Set only when the last jump has something to say: tab not found, permission
     /// refused.
     var jumpNote: String?
@@ -26,6 +31,9 @@ struct PanelContentView: View {
     /// The session whose history is on screen. Held by id rather than by value so a
     /// refresh that rewrites the session keeps the view open on it.
     @State private var openedID: String?
+    /// The session the dialog is asking about. By value: the row it came from is gone
+    /// from the list the moment it is confirmed.
+    @State private var pendingDismissal: AgentSession?
 
     private var opened: AgentSession? {
         openedID.flatMap { id in sessions.first { $0.id == id } }
@@ -61,10 +69,25 @@ struct PanelContentView: View {
                 UsageSection(state: usage, l10n: l10n, locale: locale)
             }
         }
+        // Over the whole content rather than over the list alone: a dialog that leaves
+        // the usage bar clickable behind it is not a dialog.
+        .overlay {
+            if let pending = pendingDismissal {
+                SessionDismissDialog(
+                    session: pending, l10n: l10n,
+                    onCancel: { pendingDismissal = nil },
+                    onConfirm: {
+                        pendingDismissal = nil
+                        onDismiss?(pending)
+                    })
+            }
+        }
         // A session that ends while its history is open takes the view with it,
         // otherwise the back button is the only way out of a dead end.
         .onChange(of: sessions) { _, now in
             if let id = openedID, !now.contains(where: { $0.id == id }) { openedID = nil }
+            if let pending = pendingDismissal,
+               !now.contains(where: { $0.id == pending.id }) { pendingDismissal = nil }
         }
     }
 
@@ -72,6 +95,19 @@ struct PanelContentView: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 8) {
                 sectionTitle(l10n.sessionsTitle, count: visible.count)
+                // A removal nobody can undo is the thing to avoid, not the removal
+                // itself: this is the whole safety net behind the X.
+                if dismissedCount > 0, let onRestoreDismissed {
+                    Button(action: onRestoreDismissed) {
+                        Text("\(l10n.dismissedCount(dismissedCount)) · \(l10n.dismissedRestore)")
+                            .font(.system(size: 10))
+                            .foregroundStyle(VibeTheme.Accent.primary)
+                            .lineLimit(1)
+                    }
+                    .buttonStyle(.plain)
+                    .contentShape(Rectangle())
+                    .pointingHandCursor { _ in }
+                }
                 if let jumpNote {
                     Text(jumpNote)
                         .font(.system(size: 11))
@@ -89,6 +125,9 @@ struct PanelContentView: View {
                         // SessionGroup.group, not by the view.
                         ForEach(visible) { group in
                             HStack(spacing: 4) {
+                                // Left of the row, mirroring the chevron on the right:
+                                // one control to take the row away, one to open it.
+                                dismissButton(for: group.primary)
                                 SessionRow(
                                     group: group, l10n: l10n,
                                     onJump: jumpOnClick ? onJump : nil,
@@ -104,6 +143,22 @@ struct PanelContentView: View {
                 .scrollIndicators(.visible)
                 .scrollBounceBehavior(.basedOnSize)
             }
+        }
+    }
+
+    @ViewBuilder
+    private func dismissButton(for session: AgentSession) -> some View {
+        if onDismiss != nil {
+            Button { pendingDismissal = session } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(PanelInk.tertiary)
+                    .frame(width: 18, height: 18)
+            }
+            .buttonStyle(.plain)
+            .contentShape(Rectangle())
+            .pointingHandCursor { _ in }
+            .help(l10n.dismissHint)
         }
     }
 

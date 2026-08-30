@@ -130,8 +130,14 @@ public enum ProcessLookup {
     static func matches(pid: pid_t, provider: AgentProvider) -> Bool {
         switch provider {
         case .claudeCode:
+            let path = path(of: pid)?.lowercased()
+            // The desktop app is called Claude too. Measured 2026-08-30:
+            // `/Applications/Claude.app/Contents/MacOS/Claude` matched on its name and
+            // was counted as an agent running in `/`, which is its cwd. It is a chat
+            // window, not a coding agent, and it owns no transcript.
+            if let path, path.contains("/claude.app/") { return false }
             if name(of: pid)?.lowercased() == "claude" { return true }
-            guard let path = path(of: pid)?.lowercased() else { return false }
+            guard let path else { return false }
             return path.contains("/claude/versions/")
                 || path.hasSuffix("/claude")
                 || path.hasSuffix("/bin/claude")

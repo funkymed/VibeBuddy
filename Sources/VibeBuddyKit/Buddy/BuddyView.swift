@@ -44,6 +44,13 @@ public struct BuddyView: View {
     /// as a cut, not as a move.
     private var tier: AnimationBudget.Tier {
         guard budget.tier != .still else { return .still }
+        // The mood needs the clock even when the spec does not: `sleeping` is a face
+        // that cannot move (no blink, no gaze, no motion), and a paused timeline froze
+        // its date — so a chase from sleep borrowed the finished eyes and then rendered
+        // its progress against a date in the past: eyes swapped, zero pink, zero
+        // pursuit. The body is re-evaluated on every gaze revision, so this flips to
+        // lively on the first sample of the gesture and back once the mood has faded.
+        if gaze?.isAnimating() == true { return .lively }
         guard let spec = settings?.eye else { return .still }
         let still = spec.blink == 0 && spec.gaze == .none
             && (settings?.motion ?? MotionKind.none) == MotionKind.none

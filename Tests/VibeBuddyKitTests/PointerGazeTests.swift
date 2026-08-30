@@ -137,6 +137,9 @@ struct PointerGazeTests {
     func secondShakeLaughs() {
         var state = Self.tracker()
         var now = Self.shake(&state, turns: 7, swing: 60)
+        // A second gesture, not the tail of the first: past `wiggleCooldown`, and still
+        // inside `restDelay` so the chase it lands on is the same one.
+        now = now.addingTimeInterval(0.8)
         var x: CGFloat = 900
         for i in 0..<9 {
             x += (i % 2 == 0) ? 60 : -60
@@ -166,8 +169,9 @@ struct PointerGazeTests {
     @Test("a shake spread out over time is not a shake either")
     func slowShakeIsNotAShake() {
         var state = Self.tracker()
-        // Wide legs, enough of them, but one every third of a second.
-        _ = Self.shake(&state, turns: 9, swing: 60, step: 0.3)
+        // Wide legs, enough of them, but one every half-second: three of them no longer
+        // fit inside `wiggleWindow`, which is what tells a shake from a sweep.
+        _ = Self.shake(&state, turns: 9, swing: 60, step: 0.5)
         #expect(!state.isChasing, "une secousse lente a suffi")
     }
 
@@ -323,6 +327,53 @@ struct PointerGazeTests {
                                  eye: FaceFeature(), phase: 0.4)
         #expect(mid.squeeze < base.squeeze)
         #expect(mid.gaze.height < 0)           // up, on the hop
+    }
+}
+
+/// The clock the mood needs, read without advancing anything: `sleeping` renders at
+/// 0 Hz because its spec cannot move, and a paused timeline froze the chase at
+/// progress zero — eyes borrowed, no pink, no pursuit.
+@Suite("The mood keeps the clock alive")
+struct MoodClockTests {
+    @Test("a chase needs frames while the pointer moves, and through the fade")
+    func chaseAnimates() {
+        var state = PointerGazeTests.tracker()
+        state.followsPointer = false     // sleeping
+        let now = PointerGazeTests.shake(&state, turns: 7, swing: 60)
+        #expect(state.isAnimating(at: now))
+        // Through the fade…
+        let fading = now.addingTimeInterval(
+            PointerGazeState.restDelay + PointerGazeState.chaseFade - 0.1)
+        #expect(state.isAnimating(at: fading))
+        // …and not a moment past it: `chasingSince` survives the quiet, the clock must
+        // not.
+        let after = now.addingTimeInterval(
+            PointerGazeState.restDelay + PointerGazeState.chaseFade + 0.1)
+        #expect(state.isChasing)
+        #expect(!state.isAnimating(at: after))
+    }
+
+    @Test("a laugh needs frames until it is over")
+    func laughAnimates() {
+        var state = PointerGazeTests.tracker()
+        state.followsPointer = false
+        let now = Date(timeIntervalSince1970: 1_000_000)
+        state.amuse(at: now)
+        #expect(state.isAnimating(at: now.addingTimeInterval(0.5)))
+        #expect(!state.isAnimating(at: now.addingTimeInterval(
+            PointerGazeState.amusementDuration + 0.1)))
+    }
+
+    @Test("a sleeping face with a quiet pointer asks for nothing")
+    func quietIsStill() {
+        var state = PointerGazeTests.tracker()
+        state.followsPointer = false
+        let now = Date(timeIntervalSince1970: 1_000_000)
+        state.note(CGPoint(x: 900, y: 600), at: now)
+        state.note(CGPoint(x: 960, y: 600), at: now.addingTimeInterval(0.04))
+        // One straight movement: no chase, and a face that does not follow has no
+        // business waking for it.
+        #expect(!state.isAnimating(at: now.addingTimeInterval(0.1)))
     }
 }
 
@@ -546,6 +597,7 @@ struct LaughterEntryPointsTests {
         _ = PointerGazeTests.shake(&again, turns: 7, swing: 60)
         // The second shake, replayed on the same state, lands as a laugh because the
         // chase is already on.
+        now = now.addingTimeInterval(0.8)
         var x: CGFloat = 900
         for i in 0..<9 {
             x += (i % 2 == 0) ? 60 : -60

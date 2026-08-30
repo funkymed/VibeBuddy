@@ -87,11 +87,29 @@ public struct PointerGazeState: Sendable, Equatable {
     /// How long a fit of laughter lasts.
     public static let amusementDuration: TimeInterval = 1.25
     /// What counts as being wiggled at, rather than as ordinary aiming.
-    public static let wiggleWindow: TimeInterval = 0.6
-    public static let wiggleReversals = 5
+    ///
+    /// Measured on synthetic shakes at both sampling rates, 2026-08-30: at five
+    /// reversals inside 0,6 s the gesture had to run at 4 Hz — eight turns a second —
+    /// and nothing slower reached it. Three inside 0,9 s catches a shake from 1,5 Hz up,
+    /// which is what a hand does when it means it.
+    public static let wiggleWindow: TimeInterval = 0.9
+    public static let wiggleReversals = 3
     /// How far the pointer must travel one way before turning back for that turn to
     /// count.
     public static let wiggleSwing: CGFloat = 24
+    /// How much flatter than tall a leg has to be. A shake is side to side; a circle
+    /// reverses horizontally twice a turn, and at the dormant sampling rate its path
+    /// aliases into a zigzag. Without this, swirling the mouse read as a shake — the
+    /// only false positive the sweep found once the count came down.
+    public static let wiggleFlatness: CGFloat = 2
+    /// Quiet a shake owes the one before it. Three reversals inside 0,9 s are reached
+    /// again about twice a second by a hand that keeps shaking, and without this the
+    /// buddy alternated chase and laugh for as long as the shaking went on. A joke is a
+    /// *second* gesture, not the tail of the first.
+    /// Kept under `restDelay`, so the window in which a second shake still lands on a
+    /// live chase — and therefore reads as a joke rather than as a new chase — is a real
+    /// one rather than a sliver.
+    public static let wiggleCooldown: TimeInterval = 0.7
     /// Below this, a "movement" is a hand resting on the trackpad.
     public static let movementThreshold: CGFloat = 1.5
 
@@ -124,8 +142,13 @@ public struct PointerGazeState: Sendable, Equatable {
     /// Sign of the last horizontal travel, and when the reversals happened.
     private var lastSign: CGFloat = 0
     private var reversals: [Date] = []
+    /// When the last shake was recognised, so the next one has to be a fresh gesture.
+    private var wiggledAt: Date?
     /// How far the pointer has run since the last turn.
     private var swing: CGFloat = 0
+    /// How far it went up and down over the same run. A shake is side to side; a circle
+    /// reverses horizontally twice a turn and would otherwise read as one.
+    private var rise: CGFloat = 0
 
     public init() {}
 
@@ -157,24 +180,32 @@ public struct PointerGazeState: Sendable, Equatable {
         // actually goes somewhere.
         let sign: CGFloat = dx > 0 ? 1 : (dx < 0 ? -1 : lastSign)
         if sign != 0, lastSign != 0, sign != lastSign {
-            if swing >= Self.wiggleSwing {
+            if swing >= Self.wiggleSwing, swing >= rise * Self.wiggleFlatness {
                 reversals.append(now)
                 reversals.removeAll { now.timeIntervalSince($0) > Self.wiggleWindow }
                 if reversals.count >= Self.wiggleReversals {
                     // A shake means the same thing to every face, whatever it was
                     // doing: the first one starts the chase, and shaking at a buddy
                     // that is *already* chasing is a joke it gets.
-                    if chasingSince == nil { chasingSince = now } else { amuse(at: now) }
+                    let fresh = wiggledAt.map {
+                        now.timeIntervalSince($0) >= Self.wiggleCooldown
+                    } ?? true
+                    if fresh {
+                        if chasingSince == nil { chasingSince = now } else { amuse(at: now) }
+                        wiggledAt = now
+                    }
                     reversals.removeAll(keepingCapacity: true)
                 }
             } else {
-                // A turn that came too soon breaks the run: five wobbles in a row must
-                // not add up to a shake.
+                // A turn that came too soon, or one that was more up-and-down than
+                // side-to-side, breaks the run: wobbles must not add up to a shake.
                 reversals.removeAll(keepingCapacity: true)
             }
             swing = 0
+            rise = 0
         }
         swing += abs(dx)
+        rise += abs(dy)
         if sign != 0 { lastSign = sign }
     }
 
@@ -232,6 +263,20 @@ public struct PointerGazeState: Sendable, Equatable {
 
     /// Whether a chase is under way.
     public var isChasing: Bool { chasingSince != nil }
+
+    /// Whether the mood needs frames right now. A plain read — unlike `mood(at:)` it
+    /// advances nothing — and time-bounded, unlike `isChasing`: `chasingSince` survives
+    /// the pointer going quiet (only the next run clears it), and a clock keyed on it
+    /// alone would never wind down.
+    public func isAnimating(at now: Date) -> Bool {
+        if let until = amusedUntil, now < until { return true }
+        if chasingSince != nil, let lastMoveAt,
+           now.timeIntervalSince(lastMoveAt) <= Self.restDelay + Self.chaseFade {
+            return true
+        }
+        guard followsPointer, let lastMoveAt else { return false }
+        return now.timeIntervalSince(lastMoveAt) <= Self.restDelay
+    }
 
     /// Records that a double-take has been shown, so the next one is due later.
     public mutating func markStartled(at now: Date) {
@@ -392,6 +437,16 @@ public final class PointerGaze {
     }
 
     public func look() -> PointerLook { state.look() }
+
+    /// Whether a chase is under way. A plain read: unlike `mood(at:)` it advances
+    /// nothing, so the panel can consult it on every pointer sample.
+    public var isChasing: Bool { state.isChasing }
+
+    /// See `PointerGazeState.isAnimating(at:)`.
+    public func isAnimating(at now: Date = Date()) -> Bool {
+        guard isEnabled else { return false }
+        return state.isAnimating(at: now)
+    }
 
     /// Poked.
     public func amuse(at now: Date = Date()) {

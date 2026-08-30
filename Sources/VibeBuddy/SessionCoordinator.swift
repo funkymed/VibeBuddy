@@ -21,6 +21,8 @@ final class SessionCoordinator {
     /// Pushed rather than observed: an `@Observable` read inside the tracker's closure
     /// would tie its lifetime to a preference model.
     var quietWhenTerminalFrontmost = true
+    /// Rows the user took off the list.
+    var dismissed: DismissedSessions?
     /// Alerts the policy chose not to show, with the reason.
     var suppressedAlerts: [(alert: SessionAlert, reason: String)] { tracker.suppressed }
 
@@ -57,8 +59,24 @@ final class SessionCoordinator {
         wake.unregister(id: id)
     }
 
+    /// Takes a session off the list and republishes at once, rather than waiting for
+    /// the next tick to make the click look like it worked.
+    func dismiss(_ session: AgentSession) {
+        dismissed?.dismiss(session)
+        Task { await refresh() }
+    }
+
+    /// Puts every hidden row back.
+    func restoreDismissed() {
+        dismissed?.clear()
+        Task { await refresh() }
+    }
+
     private func refresh(changed: [String]? = nil) async {
-        let updated = await store.refresh(changed: changed)
+        let all = await store.refresh(changed: changed)
+        // Filtered here and nowhere else: the pill's count, the face, the alerts and the
+        // list all read this one array, and two sources for one fact end up disagreeing.
+        let updated = dismissed?.filter(all) ?? all
         guard updated != sessions else { return }
         sessions = updated
 

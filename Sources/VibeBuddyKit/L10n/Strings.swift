@@ -46,6 +46,18 @@ public struct Strings: Sendable {
     public let timelineSubagentStarted: String
     public let timelineSubagentFinished: String
 
+    // Dismissing a session
+    public let dismissTitle: String
+    public let dismissHint: String
+    /// Says what it does and what it does not: nothing on disk is touched.
+    public let dismissBody: @Sendable (String) -> String
+    public let dismissKeepsTranscript: String
+    public let dismissCancel: String
+    public let dismissConfirm: String
+    /// How many rows are hidden, and the way back.
+    public let dismissedCount: @Sendable (Int) -> String
+    public let dismissedRestore: String
+
     // Usage
     public let usageTitle: String
     public let usageSession: String
@@ -149,6 +161,14 @@ public struct Strings: Sendable {
         timelineTurnEnd: { "fin de tour · \($0)" },
         timelineSubagentStarted: "sous-agent lancé",
         timelineSubagentFinished: "sous-agent terminé",
+        dismissTitle: "RETIRER DE LA LISTE",
+        dismissHint: "Retirer cette session de la liste",
+        dismissBody: { "« \($0) » disparaît de la liste. Elle revient si l'agent y écrit de nouveau." },
+        dismissKeepsTranscript: "Rien n'est supprimé sur le disque : le transcript reste intact.",
+        dismissCancel: "Annuler",
+        dismissConfirm: "Retirer",
+        dismissedCount: { $0 == 1 ? "1 session masquée" : "\($0) sessions masquées" },
+        dismissedRestore: "Tout réafficher",
         usageTitle: "CONSOMMATION",
         usageSession: "session",
         usageWeek: "semaine",
@@ -233,6 +253,14 @@ public struct Strings: Sendable {
         timelineTurnEnd: { "turn ended · \($0)" },
         timelineSubagentStarted: "subagent started",
         timelineSubagentFinished: "subagent finished",
+        dismissTitle: "REMOVE FROM THE LIST",
+        dismissHint: "Remove this session from the list",
+        dismissBody: { "\"\($0)\" leaves the list. It comes back if the agent writes to it again." },
+        dismissKeepsTranscript: "Nothing is deleted on disk: the transcript stays intact.",
+        dismissCancel: "Cancel",
+        dismissConfirm: "Remove",
+        dismissedCount: { $0 == 1 ? "1 hidden session" : "\($0) hidden sessions" },
+        dismissedRestore: "Show all",
         usageTitle: "USAGE",
         usageSession: "session",
         usageWeek: "week",
