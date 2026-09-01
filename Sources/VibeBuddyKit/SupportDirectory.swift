@@ -2,6 +2,12 @@ import Foundation
 
 public enum AppName {
     public static let display = "VibeBuddy"
+
+    /// What the bundle says it is. Falls back to `0` outside a bundle — `--info` and the
+    /// benches run from a bare binary, where `Bundle.main` has no version at all.
+    public static var bundleVersion: String {
+        (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String) ?? "0"
+    }
 }
 
 /// Where the app keeps the files a user can edit.

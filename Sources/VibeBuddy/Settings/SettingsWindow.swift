@@ -15,6 +15,7 @@ final class SettingsWindow {
     private let appearance: AppearancePrefs
     private let layout: LayoutPrefs
     private let notifications: NotificationPrefs
+    private let updates: UpdateState
     private var onLanguageChange: () -> Void
     private var onReset: () -> Void
 
@@ -23,6 +24,7 @@ final class SettingsWindow {
         appearance: AppearancePrefs,
         layout: LayoutPrefs,
         notifications: NotificationPrefs,
+        updates: UpdateState,
         onLanguageChange: @escaping () -> Void,
         onReset: @escaping () -> Void
     ) {
@@ -30,6 +32,7 @@ final class SettingsWindow {
         self.appearance = appearance
         self.layout = layout
         self.notifications = notifications
+        self.updates = updates
         self.onLanguageChange = onLanguageChange
         self.onReset = onReset
     }
@@ -48,6 +51,7 @@ final class SettingsWindow {
             appearance: appearance,
             layout: layout,
             notifications: notifications,
+            updates: updates,
             onLanguageChange: onLanguageChange,
             onReset: onReset,
             navigation: navigation

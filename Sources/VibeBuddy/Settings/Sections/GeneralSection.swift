@@ -4,6 +4,7 @@ import VibeBuddyKit
 /// Language, and the login item.
 struct GeneralSection: View {
     @Bindable var l10n: Localisation
+    @Bindable var updates: UpdateState
     let onLanguageChange: () -> Void
 
     @State private var loginItem = StartAtLogin.state()
@@ -47,6 +48,15 @@ struct GeneralSection: View {
                     }
                     .labelsHidden()
                     .frame(width: 190)
+                }
+
+                Divider()
+
+                // An outbound call the user never asked for is a call they get to
+                // refuse. What it does and what it does not are both on the hint.
+                SettingsRow(title: s.updateCheck, hint: s.updateCheckHint) {
+                    Toggle(s.updateCheck, isOn: $updates.isEnabled)
+                        .labelsHidden()
                 }
             }
         }

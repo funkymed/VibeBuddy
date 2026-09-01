@@ -124,6 +124,7 @@ public final class PreferencesStore {
         NotificationPrefs.Keys.onNeedsAttention, NotificationPrefs.Keys.voice,
         NotificationPrefs.Keys.haptics, NotificationPrefs.Keys.quietWhenFrontmost,
         DismissedSessions.Keys.entries,
+        UpdateState.Keys.enabled, UpdateState.Keys.lastCheck,
         // Ours too, though they bypass this store (schema 3).
         Localisation.storageKey,
         UsageCache.key,

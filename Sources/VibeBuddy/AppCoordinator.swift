@@ -42,6 +42,10 @@ final class AppCoordinator: NSObject, NSApplicationDelegate {
     let layout: LayoutPrefs
     /// Rows the user took off the list, kept across launches.
     let dismissedSessions: DismissedSessions
+    /// Whether a newer release exists. Asks, never installs.
+    let updates: UpdateState
+    /// So the first update check can stay out of the way of everything a launch does.
+    private let launchedAt = Date()
     let notifications: NotificationPrefs
     private let voice = VoiceAnnouncer()
     private var settings: SettingsWindow?
@@ -57,6 +61,7 @@ final class AppCoordinator: NSObject, NSApplicationDelegate {
         appearance = AppearancePrefs(store: prefs)
         layout = LayoutPrefs(store: prefs)
         dismissedSessions = DismissedSessions(store: prefs)
+        updates = UpdateState(store: prefs, currentVersion: AppVersion.current)
         notifications = NotificationPrefs(store: prefs)
         super.init()
     }
@@ -90,6 +95,7 @@ final class AppCoordinator: NSObject, NSApplicationDelegate {
             appearance: appearance,
             layout: layout,
             notifications: notifications,
+            updates: updates,
             onLanguageChange: { [weak self] in
                 guard let self else { return }
                 self.panel?.setLanguage(self.l10n.strings, locale: self.l10n.locale)
@@ -203,6 +209,15 @@ final class AppCoordinator: NSObject, NSApplicationDelegate {
             let live = list.filter(\.isLive).count
             PerfProbe.log.info("sessions: \(live, privacy: .public) live / \(list.count, privacy: .public)")
         }
+        // Once, well after launch, then once a day — `UpdateState` owns the interval,
+        // and this rides the session cadence rather than adding a clock of its own (D3).
+        // A check that finds nothing costs one HTTPS round trip a day.
+        wake.register(id: "updates", cadence: .lazy) { [weak self] in
+            guard let self, self.launchedAt.timeIntervalSinceNow < -UpdateState.launchDelay
+            else { return }
+            Task { await self.updates.checkIfDue() }
+        }
+
         sessions.quietWhenTerminalFrontmost = notifications.quietWhenFrontmost
         sessions.dismissed = dismissedSessions
         panel.onDismissSession = { [weak self, weak sessions] session in
@@ -214,6 +229,13 @@ final class AppCoordinator: NSObject, NSApplicationDelegate {
             self?.panel?.dismissedCount = 0
         }
         panel.dismissedCount = dismissedSessions.count
+        panel.onUpdate = { [weak self] in
+            guard let page = self?.updates.available?.page else { return }
+            NSWorkspace.shared.open(page)
+        }
+        // Pushed rather than observed: the panel is an `NSPanel`, not a SwiftUI view,
+        // so nothing invalidates it on its own when the check comes back.
+        publishUpdateNotice()
         sessions.start()
         self.sessions = sessions
 
@@ -410,11 +432,25 @@ final class AppCoordinator: NSObject, NSApplicationDelegate {
     }
 
     /// Delete every preference this app owns, then reload from defaults.
+    /// Re-arms the observation each time: `withObservationTracking` fires once.
+    private func publishUpdateNotice() {
+        panel?.updateAvailable = updates.available?.version.description
+        // No speech bubble: it would sit the panel in `.speech`, where hover no longer
+        // opens it, so the announcement locked the notch shut for its whole duration.
+        // The closed pill wears a glyph instead, and it stays until the update is taken.
+        withObservationTracking {
+            _ = updates.available
+        } onChange: { [weak self] in
+            Task { @MainActor in self?.publishUpdateNotice() }
+        }
+    }
+
     private func resetEverything() {
         for key in PreferencesStore.allKeys { prefs.remove(key) }
         appearance.reload()
         layout.reload()
         notifications.reload()
+        updates.reload()
         applyLayoutPrefs()
         loadBuddy(appearance.buddyID)
         PerfProbe.log.info("réglages réinitialisés")

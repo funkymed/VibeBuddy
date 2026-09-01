@@ -58,6 +58,10 @@ public struct Strings: Sendable {
     public let dismissedCount: @Sendable (Int) -> String
     public let dismissedRestore: String
 
+    /// The panel's own notice. Shorter than the settings one: it sits next to the
+    /// counter, and a sentence there would push the gear off the row.
+    public let updateBadge: @Sendable (String) -> String
+
     // Usage
     public let usageTitle: String
     public let usageSession: String
@@ -169,6 +173,7 @@ public struct Strings: Sendable {
         dismissConfirm: "Retirer",
         dismissedCount: { $0 == 1 ? "1 session masquée" : "\($0) sessions masquées" },
         dismissedRestore: "Tout réafficher",
+        updateBadge: { "v\($0) disponible" },
         usageTitle: "CONSOMMATION",
         usageSession: "session",
         usageWeek: "semaine",
@@ -261,6 +266,7 @@ public struct Strings: Sendable {
         dismissConfirm: "Remove",
         dismissedCount: { $0 == 1 ? "1 hidden session" : "\($0) hidden sessions" },
         dismissedRestore: "Show all",
+        updateBadge: { "v\($0) available" },
         usageTitle: "USAGE",
         usageSession: "session",
         usageWeek: "week",

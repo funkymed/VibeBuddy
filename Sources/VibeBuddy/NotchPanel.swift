@@ -55,6 +55,13 @@ final class NotchPanel: NSPanel {
     /// Taking a session off the list. Nil hides the control.
     var onDismissSession: ((AgentSession) -> Void)?
     var onRestoreDismissed: (() -> Void)?
+    /// Opens the release page. Set by the coordinator, which owns `UpdateState`.
+    var onUpdate: () -> Void = {}
+    /// The newer version, when one exists. Rebuilds the panel only when it changes,
+    /// which is at most once a day.
+    var updateAvailable: String? {
+        didSet { if updateAvailable != oldValue, state == .panel { rebuildContent() } }
+    }
     /// How many rows are hidden, so the panel can offer the way back.
     var dismissedCount = 0 {
         didSet { if dismissedCount != oldValue, state == .panel { rebuildContent() } }
@@ -442,6 +449,7 @@ final class NotchPanel: NSPanel {
                        onDismissSession: onDismissSession,
                        dismissedCount: dismissedCount,
                        onRestoreDismissed: onRestoreDismissed,
+                       updateAvailable: updateAvailable, onUpdate: onUpdate,
                        jumpNote: jumpNote, timelines: timelines,
                        gaze: gaze,
                        permission: permissions.permission,

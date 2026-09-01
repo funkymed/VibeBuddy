@@ -80,6 +80,21 @@ public struct SettingsStrings: Sendable {
     public let credits: String
     public let author: String
 
+    // Updates
+    public let updateCheck: String
+    public let updateCheckHint: String
+    public let updateGroup: String
+    public let updateUpToDate: String
+    public let updateNever: String
+    public let updateChecking: String
+    /// How long ago the last question was asked.
+    public let updateLastCheck: @Sendable (String) -> String
+    public let updateAvailable: @Sendable (String) -> String
+    public let updateOpen: String
+    public let updateCheckNow: String
+    /// Said where it is read: `brew` is the channel, this is only the notice.
+    public let updateHow: String
+
     public static let french = SettingsStrings(
         general: Section(title: "Général", symbol: "gearshape"),
         buddy: Section(title: "Buddy", symbol: "face.smiling"),
@@ -132,7 +147,18 @@ public struct SettingsStrings: Sendable {
         resetEverything: "Réinitialiser tous les réglages",
         resetEverythingHint: "Supprime les préférences et les modifications de buddy. Les fichiers .buddy ne sont pas touchés.",
         credits: "Crédits",
-        author: "Auteur"
+        author: "Auteur",
+        updateCheck: "Chercher les mises à jour",
+        updateCheckHint: "Une fois par jour, auprès de GitHub. Rien n'est téléchargé.",
+        updateGroup: "Mise à jour",
+        updateUpToDate: "À jour",
+        updateNever: "Jamais vérifié",
+        updateChecking: "Vérification…",
+        updateLastCheck: { "Vérifié il y a \($0)" },
+        updateAvailable: { "Version \($0) disponible" },
+        updateOpen: "Voir la version",
+        updateCheckNow: "Vérifier maintenant",
+        updateHow: "Installer : brew upgrade --cask vibebuddy, ou le DMG de la page."
     )
 
     public static let english = SettingsStrings(
@@ -187,6 +213,17 @@ public struct SettingsStrings: Sendable {
         resetEverything: "Reset every setting",
         resetEverythingHint: "Removes preferences and buddy edits. The .buddy files are left alone.",
         credits: "Credits",
-        author: "Author"
+        author: "Author",
+        updateCheck: "Check for updates",
+        updateCheckHint: "Once a day, from GitHub. Nothing is downloaded.",
+        updateGroup: "Update",
+        updateUpToDate: "Up to date",
+        updateNever: "Never checked",
+        updateChecking: "Checking…",
+        updateLastCheck: { "Checked \($0) ago" },
+        updateAvailable: { "Version \($0) available" },
+        updateOpen: "See the release",
+        updateCheckNow: "Check now",
+        updateHow: "To install: brew upgrade --cask vibebuddy, or the DMG on the page."
     )
 }

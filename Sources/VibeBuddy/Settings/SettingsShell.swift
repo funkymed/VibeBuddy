@@ -7,6 +7,7 @@ struct SettingsShell: View {
     let appearance: AppearancePrefs
     let layout: LayoutPrefs
     let notifications: NotificationPrefs
+    let updates: UpdateState
     let onLanguageChange: () -> Void
     let onReset: () -> Void
     /// Which pane is showing.
@@ -68,7 +69,7 @@ struct SettingsShell: View {
     private var detail: some View {
         switch selection.wrappedValue {
         case .general:
-            GeneralSection(l10n: l10n, onLanguageChange: onLanguageChange)
+            GeneralSection(l10n: l10n, updates: updates, onLanguageChange: onLanguageChange)
         case .buddy:
             BuddySection(l10n: l10n, appearance: appearance)
         case .notifications:
@@ -82,7 +83,7 @@ struct SettingsShell: View {
         case .advanced:
             AdvancedSection(l10n: l10n, onReset: onReset)
         case .about:
-            AboutSection(l10n: l10n)
+            AboutSection(l10n: l10n, updates: updates)
         }
     }
 }

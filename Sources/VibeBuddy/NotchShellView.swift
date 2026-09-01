@@ -25,6 +25,9 @@ struct NotchShellView: View {
     var onDismissSession: ((AgentSession) -> Void)?
     var dismissedCount = 0
     var onRestoreDismissed: (() -> Void)?
+    /// The newer version, when one exists.
+    var updateAvailable: String?
+    var onUpdate: () -> Void = {}
     var jumpNote: String?
     /// Passed down rather than built here: see `NotchPanel.timelines`.
     var timelines = SessionTimelineLoader()
@@ -52,7 +55,8 @@ struct NotchShellView: View {
         guard let geometry else { return nil }
         return PillLayout.resolve(
             geometry: geometry, buddy: buddy,
-            sessionCount: sessionCount, alertText: alertText)
+            sessionCount: sessionCount, alertText: alertText,
+            hasUpdate: updateAvailable != nil)
     }
 
     var body: some View {
@@ -89,7 +93,9 @@ struct NotchShellView: View {
     private var panelContent: some View {
         if state == .panel, showPanelContent {
             // One wrapper, one header, three possible bodies.
-            DeployedPanel(header: deployedHeader) { deployedBody }
+            DeployedPanel(
+                header: deployedHeader, updateAvailable: updateAvailable,
+                l10n: l10n, onUpdate: onUpdate) { deployedBody }
         }
     }
 
@@ -262,8 +268,11 @@ struct NotchShellView: View {
                     .font(.system(size: 11, weight: .semibold, design: .monospaced))
                     .foregroundStyle(PanelInk.primary)
                     .lineLimit(1)
+                    // Truncated, never `fixedSize`: a fixed size keeps its natural
+                    // width and overflows the ear leftwards, which is exactly where the
+                    // physical notch is. A cut word is readable; a hidden one is not.
+                    .truncationMode(.tail)
             }
-            .fixedSize()
         } else {
             sessionCounter
         }
@@ -271,13 +280,30 @@ struct NotchShellView: View {
 
     @ViewBuilder
     private var sessionCounter: some View {
-        if sessionCount > 0 {
-            Text(PillLayout.counterText(sessionCount))
-                .font(.system(size: 11, weight: .semibold, design: .monospaced))
-                .foregroundStyle(PanelInk.secondary)
-                .shadow(color: PanelInk.tertiary, radius: 2)
-                .fixedSize()
+        HStack(spacing: PillLayout.updateGlyphGap) {
+            if updateAvailable != nil { updateGlyph }
+            if sessionCount > 0 {
+                Text(PillLayout.counterText(sessionCount))
+                    .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(PanelInk.secondary)
+                    .shadow(color: PanelInk.tertiary, radius: 2)
+                    .fixedSize()
+            }
         }
+    }
+
+    /// A new version, said with one glyph and nothing else.
+    ///
+    /// Deliberately not a button and not a speech bubble. A bubble puts the panel in
+    /// `.speech`, and hover only opens the panel from `.pill` — so announcing a version
+    /// locked the notch shut for as long as it was showing. A glyph is read at a glance,
+    /// blocks nothing, and the panel it opens carries the full chip and the link.
+    private var updateGlyph: some View {
+        Image(systemName: "arrow.triangle.2.circlepath")
+            .font(.system(size: 10, weight: .semibold))
+            .foregroundStyle(VibeTheme.Accent.primary)
+            .frame(width: PillLayout.updateGlyphWidth)
+            .fixedSize()
     }
 
     /// Top corners stay square on a notched display: both states hang off the top edge,
