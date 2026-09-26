@@ -168,6 +168,29 @@ struct PermissionRequestModelTests {
         ]))
     }
 
+    // Only the labels used to be read: the terminal showed a description under each
+    // option and a mock-up beside it, the notch a bare list.
+    @Test("header, descriptions and previews are kept, aligned with the options")
+    func optionDetails() {
+        let model = Self.parsed(tool: "AskUserQuestion", input: [
+            "questions": [[
+                "question": "Quel périmètre ?", "header": "Périmètre",
+                "options": [
+                    ["label": "Les trois", "description": "Un glyphe chacun", "preview": "✓ ✗ ?"],
+                    ["label": "Terminé seul"],
+                ],
+            ]],
+        ])
+        guard case let .question(questions) = model.summary, let q = questions.first else {
+            Issue.record("attendu .question"); return
+        }
+        #expect(q.header == "Périmètre")
+        #expect(q.options == ["Les trois", "Terminé seul"])
+        #expect(q.details == ["Un glyphe chacun", nil])
+        #expect(q.previews == ["✓ ✗ ?", nil])
+        #expect(q.hasPreviews)
+    }
+
     @Test("a click answers only one single-choice question")
     func answersOnClick() {
         #expect([AskedQuestion(prompt: "?", options: ["a"])].answersOnClick)

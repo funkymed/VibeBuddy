@@ -7,7 +7,6 @@ struct NotchShellView: View {
     let geometry: NotchGeometry?
     @Bindable var budget: AnimationBudget
     @Bindable var metrics: PanelMetrics
-    var alert: SessionAlert?
     var buddy: BuddyManifest?
     var expression: BuddyExpression = .sleeping
     /// Zero hides the counter entirely.
@@ -54,7 +53,7 @@ struct NotchShellView: View {
         guard let geometry else { return nil }
         return PillLayout.resolve(
             geometry: geometry, buddy: buddy,
-            sessionCount: sessionCount, alertText: alertText,
+            sessionCount: sessionCount,
             hasUpdate: notices.updateAvailable != nil)
     }
 
@@ -230,12 +229,6 @@ struct NotchShellView: View {
                        y: collapsed.y + (deployed.y - collapsed.y) * e)
     }
 
-    /// Text an alert puts in the right ear, if one is up.
-    private var alertText: String? {
-        guard let alert, state == .speech else { return nil }
-        return "\(alert.projectName) \(Self.label(for: alert.kind, l10n: l10n))"
-    }
-
     /// One word for what happened, per kind.
     static func label(for kind: SessionAlert.Kind, l10n: Strings) -> String {
         switch kind {
@@ -245,36 +238,8 @@ struct NotchShellView: View {
         }
     }
 
-    /// Same vocabulary as `SessionStateStyle`: finished is orange everywhere.
-    static func dot(for kind: SessionAlert.Kind) -> Color {
-        switch kind {
-        case .failed: return .red
-        case .finished: return .orange
-        case .needsAttention: return .blue
-        }
-    }
-
-    /// The right ear: an alert while one is showing, the session count otherwise.
-    @ViewBuilder
-    private var rightSlot: some View {
-        if let alert, let alertText {
-            HStack(spacing: 4) {
-                Circle()
-                    .fill(Self.dot(for: alert.kind))
-                    .frame(width: 5, height: 5)
-                Text(alertText)
-                    .font(.system(size: 11, weight: .semibold, design: .monospaced))
-                    .foregroundStyle(PanelInk.primary)
-                    .lineLimit(1)
-                    // Truncated, never `fixedSize`: a fixed size keeps its natural
-                    // width and overflows the ear leftwards, which is exactly where the
-                    // physical notch is. A cut word is readable; a hidden one is not.
-                    .truncationMode(.tail)
-            }
-        } else {
-            sessionCounter
-        }
-    }
+    /// The right ear: the session count. Alerts hang in the tongue below the notch.
+    private var rightSlot: some View { sessionCounter }
 
     @ViewBuilder
     private var sessionCounter: some View {
@@ -292,9 +257,9 @@ struct NotchShellView: View {
 
     /// A new version, said with one glyph and nothing else.
     ///
-    /// Deliberately not a button and not a speech bubble. A bubble puts the panel in
-    /// `.speech`, and hover only opens the panel from `.pill` — so announcing a version
-    /// locked the notch shut for as long as it was showing. A glyph is read at a glance,
+    /// Deliberately not a button and not a speech bubble. A bubble once put the panel in
+    /// a state hover could not open from — so announcing a version locked the notch
+    /// shut for as long as it was showing. A glyph is read at a glance,
     /// blocks nothing, and the panel it opens carries the full chip and the link.
     private var updateGlyph: some View {
         Image(systemName: "arrow.triangle.2.circlepath")

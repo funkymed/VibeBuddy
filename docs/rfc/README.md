@@ -9,7 +9,7 @@ tranché et quand, et ce qu'on doit encore.
 
 **Le v1 est complet** depuis le 2026-08-25 : onze RFC closes, 007 et 011
 comprises. Ce qui reste appartient au v1.1 et au-delà : 008 à 90 %, puis 017, 014,
-015, 009 et 016 · plan complet restant : 11,5-18,5 j-h. Dev solo en parallèle
+015, 009 et 016 · plan complet restant : 12-19 j-h. Dev solo en parallèle
 d'autres projets → tabler sur un facteur calendaire ×2 à ×3.
 
 **Livré hors RFC le 2026-09-01**, sur demande directe plutôt que sur fiche :

@@ -11,7 +11,7 @@ Ordre = ordre de réalisation, pas ordre de numérotation.
 #   RFC      Titre                                          Avancement            %    Reste    Jalon
 7   RFC-008  Vue sessions + saut terminal/tmux               ██████████████████░░  90 %   0,5-1 j  v1.1
 8   RFC-017  Installer le hook depuis les réglages           ██████████████████░░  90 %   0,5 j    v1.1
-9   RFC-014  Célébration de fin de tâche                     ░░░░░░░░░░░░░░░░░░░░   0 %   1-2 j    v1.1
+9   RFC-014  Excroissance d'alerte sous l'encoche            █████████████████░░░  85 %   0,5 j    v1.1
 10  RFC-015  Le son du buddy (paquet rechargeable)           ░░░░░░░░░░░░░░░░░░░░   0 %   1-2 j    v1.1
 11  RFC-009  Index d'activité (heatmap + historique)         ░░░░░░░░░░░░░░░░░░░░   0 %   3-4 j    v1.2
 12  RFC-016  Ponts agents et terminaux (opencode, tmux)      ░░░░░░░░░░░░░░░░░░░░   0 %   4-6 j    v1.2
@@ -51,7 +51,7 @@ Ordre = ordre de réalisation, pas ordre de numérotation.
 | [011](done/RFC-011-build-distribution.md) | Build, empaquetage, signature, distribution | v1 |
 | [012](done/RFC-012-detection-etat-alertes.md) | Détection d'état et alertes, depuis le transcript | v1 |
 | [013](done/RFC-013-buddy-interactif.md) | Buddy interactif : regard, chasse, rire, icône | v1 |
-| [014](RFC-014-celebration-fin-de-tache.md) | Célébration de fin de tâche : mini-panneau, pouce, confettis | v1.1 |
+| [014](RFC-014-celebration-fin-de-tache.md) | Excroissance d'alerte sous l'encoche : glyphe pixel + projet, jusqu'au survol | v1.1 |
 | [015](RFC-015-son-du-buddy.md) | Le son du buddy : paquet de sons rechargeable à chaud | v1.1 |
 | [016](RFC-016-ponts-agents-terminaux.md) | Ponts agents et terminaux : `AgentBridge`, `TerminalBridge` | v1.2 |
 | [017](RFC-017-hook-depuis-reglages.md) | Installer le hook depuis les réglages | v1.1 |

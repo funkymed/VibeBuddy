@@ -116,7 +116,7 @@ struct PanelStateTests {
 
     @Test("every visible state may animate")
     func visibleStatesAnimate() {
-        for s in [PanelState.pill, .speech, .panel] {
+        for s in [PanelState.pill, .panel] {
             #expect(s.isVisible)
             #expect(s.allowsAnimation)
         }

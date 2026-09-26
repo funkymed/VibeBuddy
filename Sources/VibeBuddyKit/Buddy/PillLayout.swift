@@ -25,12 +25,6 @@ public struct PillLayout: Sendable, Equatable {
     /// past it the buddy is scaled down (`BuddyView`, `fit:`).
     public static let maxSlotWidth: CGFloat = 96
 
-    /// What an ear may grow to while it is carrying a message rather than a counter.
-    /// The counter is two or three characters and 96 is generous for it; a sentence is
-    /// not, and the overflow went *under the notch*, where the hardware hides it. A
-    /// message is transient, so the wider pill is too.
-    public static let maxMessageSlotWidth: CGFloat = 168
-
     /// Room the update glyph takes in the ear, plus the gap before whatever follows it.
     public static let updateGlyphWidth: CGFloat = 13
     public static let updateGlyphGap: CGFloat = 4
@@ -72,7 +66,6 @@ public struct PillLayout: Sendable, Equatable {
         geometry: NotchGeometry,
         buddy: BuddyManifest?,
         sessionCount: Int,
-        alertText: String? = nil,
         hasUpdate: Bool = false,
         counterFontSize: CGFloat = 11
     ) -> PillLayout {
@@ -93,8 +86,7 @@ public struct PillLayout: Sendable, Equatable {
         let clearance = cornerClearance(pillHeight: height, buddyHeight: box.height)
         let left = box.width > 0 ? box.width + clearance * 2 : emptySlotWidth
 
-        // An alert takes the right ear over from the counter, never stacks.
-        let rightText = alertText ?? (sessionCount > 0 ? counterText(sessionCount) : nil)
+        let rightText = sessionCount > 0 ? counterText(sessionCount) : nil
         // The glyph rides in the same ear as the counter, so the ear has to be sized for
         // both: a slot measured on the text alone pushes the overflow left, under the
         // notch, where the hardware hides it.
@@ -105,8 +97,7 @@ public struct PillLayout: Sendable, Equatable {
 
         let natural = max(left, right, emptySlotWidth)
 
-        let cap = alertText == nil ? maxSlotWidth : maxMessageSlotWidth
-        let slot = min(max(natural, emptySlotWidth), cap)
+        let slot = min(max(natural, emptySlotWidth), maxSlotWidth)
 
         // A hand-edited manifest can be wider than any ear we will draw.
         let room = slot - clearance * 2

@@ -79,16 +79,6 @@ struct PillLayoutTests {
         #expect(layout.rightWidth == PillLayout.emptySlotWidth)
     }
 
-    // An alert and the counter say the same kind of thing; stacking them would make the
-    // pill grow twice for one event.
-    @Test("an alert takes the right ear over from the counter")
-    func alertReplacesCounter() {
-        let counter = PillLayout.resolve(geometry: notched, buddy: nil, sessionCount: 3)
-        let alert = PillLayout.resolve(
-            geometry: notched, buddy: nil, sessionCount: 3, alertText: "notch terminé")
-        #expect(alert.rightWidth > counter.rightWidth)
-    }
-
     // Asymmetric ears were geometrically fine — the pill was shifted so its hole still
     // landed on the cutout — and looked wrong: the notch is symmetric, so a shape
     // hanging further out on one side reads as misaligned.

@@ -186,7 +186,7 @@ struct PanelStateMachineTests {
         #expect(!machine.isCurrent(pass?.generation))
     }
 
-    private static let allStates: [PanelState] = [.hidden, .pill, .speech, .panel]
+    private static let allStates: [PanelState] = [.hidden, .pill, .panel]
 
     @Test("Hovering opens the panel from the pill, unless an ask was just dismissed")
     func hoverOpensFromPill() {
@@ -200,9 +200,7 @@ struct PanelStateMachineTests {
 
     @Test("Hovering changes nothing from any state but the pill")
     func hoverDoesNothingElsewhere() {
-        // `.speech` included: the code has only ever opened from `.pill`, and a stale
-        // comment in `NotchPanel` claiming otherwise is not the contract.
-        for state in [PanelState.hidden, .speech, .panel] {
+        for state in [PanelState.hidden, .panel] {
             for opening in [false, true] {
                 for ask in [false, true] {
                     #expect(PanelStateMachine.nextState(
@@ -250,7 +248,7 @@ struct PanelStateMachineTests {
 
     @Test("Leaving changes nothing from any state but the open panel")
     func leavingDoesNothingElsewhere() {
-        for state in [PanelState.hidden, .pill, .speech] {
+        for state in [PanelState.hidden, .pill] {
             for opening in [false, true] {
                 for ask in [false, true] {
                     #expect(PanelStateMachine.nextState(

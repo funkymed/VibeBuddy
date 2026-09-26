@@ -119,11 +119,8 @@ enum Diagnostics {
         if let g = NotchGeometry.resolve() {
             var loader = BuddyLoader()
             let buddy = loader.load(id: appearance.buddyID).manifest
-            for (label, count, alert) in [("repos", 0, String?.none), ("2 sessions", 2, nil),
-                                          ("10 sessions", 10, nil),
-                                          ("alerte", 2, "notch terminé")] {
-                let l = PillLayout.resolve(geometry: g, buddy: buddy,
-                                           sessionCount: count, alertText: alert)
+            for (label, count) in [("repos", 0), ("2 sessions", 2), ("10 sessions", 10)] {
+                let l = PillLayout.resolve(geometry: g, buddy: buddy, sessionCount: count)
                 print(String(format: "  %-12@ gauche %5.1f · encoche %5.1f · droite %5.1f = %6.1f pt · décalage %+.1f · buddy %.1f×%.1f",
                              label as NSString, l.leftWidth, l.notchWidth, l.rightWidth,
                              l.totalWidth, l.notchAlignmentOffset,

@@ -4,8 +4,6 @@ import Foundation
 public enum PanelState: Sendable, Equatable {
     case hidden
     case pill
-    /// The pill, temporarily grown to carry an alert.
-    case speech
     case panel
 
     public var isVisible: Bool { self != .hidden }

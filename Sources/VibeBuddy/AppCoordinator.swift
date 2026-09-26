@@ -25,10 +25,24 @@ final class AppCoordinator: NSObject, NSApplicationDelegate {
         let next = index + 1 < args.count ? Int(args[index + 1]) : nil
         return max(1, next ?? 3)
     }()
-    /// Set by `--simulate-finished`: the end-of-task alert in the pill, which is
-    /// objective n°1 of the product and the one thing that cannot be summoned on demand
-    /// — it arrives when an agent finishes, not when you are ready to look at it.
-    static let simulatesFinished = CommandLine.arguments.contains("--simulate-finished")
+    /// Set by `--simulate-alert <finished|failed|awaiting> [n]` (`--simulate-finished`
+    /// is the first kind): the tongue under the notch, which is objective n°1 of the
+    /// product and the one thing that cannot be summoned on demand — it arrives when an
+    /// agent finishes, not when you are ready to look at it. `n` sessions, so the
+    /// « +N » can be judged too.
+    static let simulatedAlert: (kind: SessionAlert.Kind, count: Int)? = {
+        let args = CommandLine.arguments
+        if args.contains("--simulate-finished") { return (.finished, 1) }
+        guard let index = args.firstIndex(of: "--simulate-alert") else { return nil }
+        let name = index + 1 < args.count ? args[index + 1] : "finished"
+        let kind: SessionAlert.Kind = switch name {
+        case "failed": .failed
+        case "awaiting", "needsAttention": .needsAttention
+        default: .finished
+        }
+        let count = index + 2 < args.count ? Int(args[index + 2]) : nil
+        return (kind, max(1, count ?? 1))
+    }()
     /// The hook socket, and the permission requests it brings in.
     private let hook = HookService()
     let usage = UsageState()
@@ -313,16 +327,17 @@ final class AppCoordinator: NSObject, NSApplicationDelegate {
                 hook.permissions.insertPreview(model)
             }
         }
-        if Self.simulatesFinished {
-            // The pill has to be on screen for an alert to have somewhere to go:
-            // `present` refuses from `.hidden`, and « pastille visible sans session »
-            // is off by default (D7).
+        if let simulated = Self.simulatedAlert {
+            // The pill has to be on screen for the tongue to hang from: « pastille
+            // visible sans session » is off by default (D7).
             panel.show()
-            // Long enough to be looked at rather than caught.
-            panel.present(
-                SessionAlert(sessionID: "simulation", projectName: "notch",
-                             kind: .finished, at: Date()),
-                for: 30)
+            let projects = ["notch", "podcaster", "hykaro", "photobooth"]
+            for index in 0..<simulated.count {
+                panel.present(SessionAlert(
+                    sessionID: "simulation-\(index)",
+                    projectName: projects[index % projects.count],
+                    kind: simulated.kind, at: Date()))
+            }
         }
     }
 

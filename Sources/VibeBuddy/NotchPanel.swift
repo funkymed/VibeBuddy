@@ -38,7 +38,13 @@ final class NotchPanel: NSPanel {
     private var host: Host!
     private let snapPreview = SnapPreviewPanel()
     private let metrics = PanelMetrics()
-    private var currentAlert: SessionAlert?
+    /// Alerts waiting to be seen, shown one at a time in the tongue under the notch.
+    private var alerts = AlertStack()
+    private lazy var tongue: AlertTongueWindow = {
+        let window = AlertTongueWindow()
+        window.onClick = { [weak self] in self?.tongueClicked() }
+        return window
+    }()
     private var buddy: BuddyManifest?
     /// Where the pointer is, and what the face makes of it.
     let gaze = PointerGaze()
@@ -108,7 +114,6 @@ final class NotchPanel: NSPanel {
     private var usage: UsageState.Status = .unknown
     private var l10n: Strings = .french
     private var locale: Locale = .current
-    private var alertDismissal: DispatchWorkItem?
 
     private(set) var geometry: NotchGeometry?
     private var anchorFraction: CGFloat = 0.5
@@ -217,12 +222,8 @@ final class NotchPanel: NSPanel {
     /// Size of the drawn pill, from the same `PillLayout` the content uses.
     var pillSize: CGSize {
         guard let geometry else { return CGSize(width: 300, height: 32) }
-        let alertText = (state == .speech ? currentAlert : nil).map {
-            "\($0.projectName) \(NotchShellView.label(for: $0.kind, l10n: l10n))"
-        }
         let layout = PillLayout.resolve(
-            geometry: geometry, buddy: buddy,
-            sessionCount: sessionCount, alertText: alertText)
+            geometry: geometry, buddy: buddy, sessionCount: sessionCount)
         return CGSize(width: layout.totalWidth, height: layout.height)
     }
 
@@ -231,7 +232,7 @@ final class NotchPanel: NSPanel {
         switch state {
         case .hidden: return .none
         case .panel: return .full
-        case .pill, .speech: return .strip(width: pillSize.width, offsetX: 0)
+        case .pill: return .strip(width: pillSize.width, offsetX: 0)
         }
     }
 
@@ -402,8 +403,10 @@ final class NotchPanel: NSPanel {
         hover.pillRect = pillScreenRect
         hover.setActive(state.isVisible)
         refreshAnimationBudget()
+        // Opening the panel is looking: what the tongue had to say has been seen.
+        if state == .panel { alerts.clear() }
+        refreshTongue()
     }
-    /// Hover opens the panel from `.pill` and from `.speech`.
 
     /// `log stream --predicate 'subsystem == "com.vibebuddy"' --info`
     private func logHover(source: String, hovering: Bool) {
@@ -446,7 +449,7 @@ final class NotchPanel: NSPanel {
     /// One construction site, used by the initialiser and by every rebuild.
     private var shellView: NotchShellView {
         NotchShellView(state: state, geometry: geometry, budget: budget, metrics: metrics,
-                       alert: currentAlert, buddy: buddy, expression: expression,
+                       buddy: buddy, expression: expression,
                        sessionCount: sessionCount, sessions: sessions,
                        showPanelContent: contentRevealed, usage: usage,
                        l10n: l10n, locale: locale,
@@ -612,6 +615,7 @@ final class NotchPanel: NSPanel {
     func setBuddy(_ manifest: BuddyManifest) {
         buddy = manifest
         machine.apply(animated: false)
+        refreshTongue()
     }
 
     func setLanguage(_ strings: Strings, locale: Locale) {
@@ -650,6 +654,10 @@ final class NotchPanel: NSPanel {
         if let chosen, !list.contains(where: { $0.id == chosen }) { self.chosen = nil }
         applyExpression()
         if state == .panel { rebuildContent() }
+        // A session that has moved on takes its alert with it.
+        let before = alerts
+        alerts.prune(against: list)
+        if alerts != before { refreshTongue() }
     }
 
     /// The session the user clicked, if any.
@@ -785,23 +793,39 @@ final class NotchPanel: NSPanel {
     /// asking for a hit inside exactly that is asking for a miss.
     private var buddyClickRect: CGRect { buddyScreenRect.insetBy(dx: -8, dy: -8) }
 
-    /// Show an alert in the pill for a few seconds.
-    func present(_ alert: SessionAlert, for duration: TimeInterval = 4) {
-        guard state == .pill || state == .speech else { return }
-        alertDismissal?.cancel()
-        currentAlert = alert
-        setState(.speech)
-        rebuildContent()
+    /// An alert goes to the tongue under the notch, and stays until it is seen.
+    func present(_ alert: SessionAlert) {
+        alerts.push(alert)
+        refreshTongue()
+    }
 
-        let dismissal = DispatchWorkItem { [weak self] in
-            MainActor.assumeIsolated {
-                guard let self, self.state == .speech else { return }
-                self.currentAlert = nil
-                self.setState(.pill)
-            }
+    /// Shown only under the collapsed pill: the open panel says it all already, and a
+    /// hidden pill has nothing to hang from.
+    private func refreshTongue() {
+        guard state == .pill, !isDragging, let head = alerts.head, let geometry,
+              let pill = targetFrame(for: .pill)
+        else { tongue.hide(); return }
+        let layout = PillLayout.resolve(geometry: geometry, buddy: buddy, sessionCount: sessionCount)
+        let colour = buddy?.colour(for: AlertGlyph(head.kind).expression) ?? .white
+        // The cutout's centre: the pill is centred in its carrier, then shifted so its
+        // hole lands on the hardware.
+        tongue.show(
+            alert: head, others: alerts.count - 1, colour: colour,
+            centreX: pill.midX + layout.notchAlignmentOffset,
+            // Overlapping by its own edge, so the pill's bottom line is covered where
+            // the two join.
+            top: pill.minY + VibeTheme.Border.width,
+            maxWidth: max(layout.notchWidth + 40, 220))
+    }
+
+    /// Straight to the session's terminal; the next alert, if any, takes its place.
+    private func tongueClicked() {
+        guard let head = alerts.head else { return }
+        alerts.remove(sessionID: head.sessionID)
+        if let pid = sessions.first(where: { $0.id == head.sessionID && $0.isLive })?.pid {
+            onJump(pid)
         }
-        alertDismissal = dismissal
-        DispatchQueue.main.asyncAfter(deadline: .now() + duration, execute: dismissal)
+        refreshTongue()
     }
 
     /// Re-resolve after a display is plugged, unplugged or rearranged.
@@ -840,6 +864,7 @@ final class NotchPanel: NSPanel {
             display: true, animate: false
         )
         snapPreview.show(fraction: anchorFraction, size: frame.size, geometry: geometry)
+        tongue.hide()
     }
 
     override func mouseUp(with event: NSEvent) {
@@ -862,5 +887,7 @@ final class NotchPanel: NSPanel {
             )
         }
         hover.pillRect = pillScreenRect
+        // Placed from the target, not the frame: the snap is still animating.
+        refreshTongue()
     }
 }

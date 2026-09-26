@@ -93,7 +93,13 @@ public enum PermissionSamples {
             return common("sim-multi", "AskUserQuestion", .question([
                 AskedQuestion(
                     prompt: "Quels scénarios de mesure relancer ?",
+                    header: "Mesure",
                     options: ["A — repos", "B — trois sessions", "C — panneau ouvert"],
+                    details: ["10 min sur batterie, rien d'ouvert",
+                              "Trois agents actifs pendant 5 min",
+                              "Panneau déployé, curseur en mouvement"],
+                    previews: ["réveils/s  ▁▁▁▁▁▁▁▁  < 2", "Mo  ▃▅▃▅▃▅  < 40",
+                               "réveils/s  ▅▇▅▇▅▇  ≈ 3"],
                     multiSelect: true),
                 AskedQuestion(
                     prompt: "Combien de manches ?",

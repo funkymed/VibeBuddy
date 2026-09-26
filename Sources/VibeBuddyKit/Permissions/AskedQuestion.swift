@@ -3,15 +3,30 @@ import Foundation
 /// One question of an `AskUserQuestion` call.
 public struct AskedQuestion: Sendable, Equatable {
     public let prompt: String
+    /// The short chip Claude Code shows above the question (« Périmètre »).
+    public let header: String?
+    /// The labels, which are also what goes back as the answer.
     public let options: [String]
+    /// Aligned with `options`: the line under each label, and the monospace mock-up
+    /// shown beside it in the terminal. Nil where Claude gave none.
+    public let details: [String?]
+    public let previews: [String?]
     /// Several options may be picked, and the answer carries all of them.
     public let multiSelect: Bool
 
-    public init(prompt: String, options: [String], multiSelect: Bool = false) {
+    public init(prompt: String, header: String? = nil, options: [String],
+                details: [String?] = [], previews: [String?] = [],
+                multiSelect: Bool = false) {
         self.prompt = prompt
+        self.header = header
         self.options = options
+        // Padded to the options, so an index into one is an index into all three.
+        self.details = (details + Array(repeating: nil, count: options.count)).prefix(options.count).map { $0 }
+        self.previews = (previews + Array(repeating: nil, count: options.count)).prefix(options.count).map { $0 }
         self.multiSelect = multiSelect
     }
+
+    public var hasPreviews: Bool { previews.contains { $0 != nil } }
 }
 
 /// Each question with what was picked for it, in the order they were asked.

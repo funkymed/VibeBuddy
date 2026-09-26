@@ -132,9 +132,9 @@ simulate-questions: build-release
 .PHONY: simulate-questions
 
 ## L'alerte de fin de tâche dans la pastille, 30 s
-simulate-finished: build-release
-	$(RELEASE_BIN) --simulate-finished
-.PHONY: simulate-finished
+simulate-alert: build-release
+	$(RELEASE_BIN) --simulate-alert $(or $(kind),finished) $(or $(n),1)
+.PHONY: simulate-alert
 
 simulate: build-release
 	$(call title,"Permission simulée : $(or $(kind),shell)")

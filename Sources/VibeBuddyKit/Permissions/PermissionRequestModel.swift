@@ -174,20 +174,34 @@ public extension PermissionRequestModel {
                 ?? (input["plan"] as? String)
                 ?? ""
             let raw = (scope["options"] as? [Any]) ?? (scope["choices"] as? [Any]) ?? []
-            let options = raw.compactMap { entry -> String? in
-                if let text = entry as? String { return text }
-                guard let object = entry as? [String: Any] else { return nil }
-                return ((object["label"] ?? object["value"] ?? object["text"]) as? String)
+            // Label, description, preview — kept together so they stay aligned.
+            let entries = raw.compactMap { entry -> (String, String?, String?)? in
+                if let text = entry as? String { return (text, nil, nil) }
+                guard let object = entry as? [String: Any],
+                      let label = (object["label"] ?? object["value"] ?? object["text"]) as? String
+                else { return nil }
+                return (label, nonEmpty(object["description"]), nonEmpty(object["preview"]))
             }
+            let header = scope["question"] != nil ? nonEmpty(scope["header"]) : nil
             return AskedQuestion(
                 prompt: prompt.cut(to: fieldLimit),
-                options: options.map { $0.cut(to: 200) },
+                header: header?.cut(to: 40),
+                options: entries.map { $0.0.cut(to: 200) },
+                details: entries.map { $0.1?.cut(to: 300) },
+                previews: entries.map { $0.2?.cut(to: previewLimit) },
                 multiSelect: scope["multiSelect"] as? Bool ?? false)
         }
     }
 
     /// `AskUserQuestion` takes one to four.
     static let maxQuestions = 4
+    /// A mock-up is a few dozen short lines; past this it is not a preview any more.
+    static let previewLimit = 2_000
+
+    private static func nonEmpty(_ value: Any?) -> String? {
+        guard let text = value as? String, !text.isEmpty else { return nil }
+        return text
+    }
 
     /// An unknown tool's input, flattened.
     static func fields(from input: [String: Any]) -> [Summary.Field] {
