@@ -39,6 +39,10 @@ public struct ModeUpdate: Codable, Sendable, Equatable {
 /// The decision handed back to Claude Code.
 public enum HookDecision: Sendable, Equatable {
     case allow
+    /// Allow, with the tool's input replaced. The one way to answer `AskUserQuestion`:
+    /// Claude Code drops a bare `allow` for a tool that requires user interaction, and
+    /// honours one carrying `updatedInput` (read in 2.1.283). The data is a JSON object.
+    case allowUpdating(input: Data)
     case deny(message: String)
 }
 
@@ -57,6 +61,8 @@ public enum HookWire {
         switch decision {
         case .allow:
             inner = ["behavior": "allow"]
+        case let .allowUpdating(input):
+            inner = ["behavior": "allow", "updatedInput": Self.object(input)]
         case let .deny(message):
             inner = ["behavior": "deny", "message": message]
         }
@@ -68,6 +74,11 @@ public enum HookWire {
         ]
         // Sorted on purpose, and only here.
         return try JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys])
+    }
+
+    /// An object, or an empty one: never a non-object Claude Code would reject.
+    static func object(_ data: Data) -> [String: Any] {
+        (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] ?? [:]
     }
 }
 
@@ -124,6 +135,9 @@ public enum HookLine {
         switch decision {
         case .allow:
             body["behavior"] = "allow"
+        case let .allowUpdating(input):
+            body["behavior"] = "allow"
+            body["updatedInput"] = HookWire.object(input)
         case let .deny(message):
             body["behavior"] = "deny"
             body["message"] = message
@@ -139,7 +153,12 @@ public enum HookLine {
               let behavior = dictionary["behavior"] as? String
         else { return nil }
         switch behavior {
-        case "allow": return .allow
+        case "allow":
+            if let updated = dictionary["updatedInput"] as? [String: Any],
+               let data = try? JSONSerialization.data(withJSONObject: updated) {
+                return .allowUpdating(input: data)
+            }
+            return .allow
         case "deny":  return .deny(message: dictionary["message"] as? String ?? "")
         default:      return nil
         }

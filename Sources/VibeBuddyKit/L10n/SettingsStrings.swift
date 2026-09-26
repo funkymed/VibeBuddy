@@ -29,6 +29,30 @@ public struct SettingsStrings: Sendable {
     public let permissionsDenied: String
     public let permissionsNotAsked: String
 
+    // Permissions — the Claude Code hook
+    public let hookTitle: String
+    public let hookRow: String
+    public let hookExplanation: String
+    public let hookInstalled: String
+    public let hookMissing: String
+    public let hookStale: String
+    public let hookPartial: String
+    public let hookUnreadable: String
+    public let hookStalePath: @Sendable (String) -> String
+    public let hookAsksNothing: String
+    public let hookInstall: String
+    public let hookRepair: String
+    public let hookRemove: String
+    public let hookSheetInstall: String
+    public let hookSheetRemove: String
+    public let hookSheetFile: String
+    public let hookSheetBackup: String
+    public let hookSheetChanged: String
+    public let hookSheetNothing: String
+    public let hookSheetFailed: @Sendable (String) -> String
+    public let hookCancel: String
+    public let hookWrite: String
+
     // General
     public let system: String
     public let startAtLogin: String
@@ -111,6 +135,28 @@ public struct SettingsStrings: Sendable {
         permissionsGranted: "autorisé",
         permissionsDenied: "refusé",
         permissionsNotAsked: "jamais demandé",
+        hookTitle: "CLAUDE CODE",
+        hookRow: "Recevoir les demandes de permission",
+        hookExplanation: "Déclare vibe-hook dans ~/.claude/settings.json, pour que les demandes de permission s'affichent dans la notch. Les alertes et les sessions n'en ont pas besoin.",
+        hookInstalled: "installé",
+        hookMissing: "absent",
+        hookStale: "à réparer",
+        hookPartial: "incomplet",
+        hookUnreadable: "illisible",
+        hookStalePath: { "Pointe vers \($0), qui n'est pas cette app." },
+        hookAsksNothing: "« defaultMode » vaut « auto » dans vos réglages Claude Code : rien n'est demandé, donc rien n'arrive ici.",
+        hookInstall: "Installer…",
+        hookRepair: "Réparer…",
+        hookRemove: "Retirer…",
+        hookSheetInstall: "Installer le hook",
+        hookSheetRemove: "Retirer le hook",
+        hookSheetFile: "Fichier modifié",
+        hookSheetBackup: "Une sauvegarde est prise avant d'écrire, dans",
+        hookSheetChanged: "Le fichier a changé depuis l'ouverture. Voici le diff à jour : rien n'a été écrit.",
+        hookSheetNothing: "Rien à écrire : le fichier est déjà dans cet état.",
+        hookSheetFailed: { "Rien n'a été écrit : \($0)" },
+        hookCancel: "Annuler",
+        hookWrite: "Écrire",
         system: "Système",
         startAtLogin: "Ouvrir à l'ouverture de session",
         startAtLoginUnavailable: "Indisponible tant que l'app n'est pas empaquetée",
@@ -177,6 +223,28 @@ public struct SettingsStrings: Sendable {
         permissionsGranted: "granted",
         permissionsDenied: "refused",
         permissionsNotAsked: "never asked",
+        hookTitle: "CLAUDE CODE",
+        hookRow: "Receive permission requests",
+        hookExplanation: "Registers vibe-hook in ~/.claude/settings.json, so permission requests show up in the notch. Alerts and sessions do not need it.",
+        hookInstalled: "installed",
+        hookMissing: "missing",
+        hookStale: "needs repair",
+        hookPartial: "incomplete",
+        hookUnreadable: "unreadable",
+        hookStalePath: { "Points to \($0), which is not this app." },
+        hookAsksNothing: "« defaultMode » is « auto » in your Claude Code settings: nothing is asked, so nothing arrives here.",
+        hookInstall: "Install…",
+        hookRepair: "Repair…",
+        hookRemove: "Remove…",
+        hookSheetInstall: "Install the hook",
+        hookSheetRemove: "Remove the hook",
+        hookSheetFile: "File changed",
+        hookSheetBackup: "A backup is taken before writing, in",
+        hookSheetChanged: "The file changed since this opened. Here is the current diff: nothing was written.",
+        hookSheetNothing: "Nothing to write: the file is already in that state.",
+        hookSheetFailed: { "Nothing was written: \($0)" },
+        hookCancel: "Cancel",
+        hookWrite: "Write",
         system: "System",
         startAtLogin: "Open at login",
         startAtLoginUnavailable: "Unavailable until the app is packaged",

@@ -29,6 +29,14 @@ public struct ParsedTail: Sendable, Equatable {
     public var subagentsFinished: Int = 0
 
     public var subagentsRunning: Int { max(0, subagentsStarted - subagentsFinished) }
+    /// Background tasks — a `Workflow`, an async `Agent` — launched and not yet reported
+    /// back. The launch returns at once and the turn ends on it: without these the
+    /// parent reads as finished for as long as the work runs.
+    /// Keyed by task id, true for a workflow.
+    public var backgroundTasks: [String: Bool] = [:]
+    /// Task ids whose `<task-notification>` is in the tail. Read before their launch,
+    /// since the parser walks newest first.
+    public var reportedTasks: Set<String> = []
     /// Entry types the parser did not recognise, with counts.
     public var unrecognised: [String: Int] = [:]
 
@@ -50,6 +58,47 @@ public enum QuestionTools {
         }
         if let plan = input["plan"] as? String, !plan.isEmpty { return nil }
         return nil
+    }
+}
+
+/// A background `Bash` is left out on purpose: a dev server never reports back, and
+/// counting it would keep its session busy for good.
+public enum BackgroundTasks {
+    /// `Workflow` writes `taskId`, an async `Agent` writes `agentId`.
+    static func launched(in result: Any?) -> (id: String, isWorkflow: Bool)? {
+        guard let result = result as? [String: Any],
+              result["status"] as? String == "async_launched",
+              let id = (result["taskId"] ?? result["agentId"]) as? String
+        else { return nil }
+        return (id, result["taskType"] as? String == "local_workflow")
+    }
+
+    static func notifiedID(in text: String?) -> String? {
+        guard let text, text.hasPrefix("<task-notification>"),
+              let open = text.range(of: "<task-id>"),
+              let close = text.range(of: "</task-id>", range: open.upperBound..<text.endIndex)
+        else { return nil }
+        let id = String(text[open.upperBound..<close.lowerBound])
+        return id.isEmpty ? nil : id
+    }
+}
+
+/// A tool result Claude Code writes as an error when a person said no — in the
+/// terminal, or from the notch. The agent did not fail: showing the failed face for
+/// the user's own decision says the opposite of what happened.
+public enum UserRefusal {
+    /// Written verbatim by Claude Code for a refusal in its own prompt.
+    static let terminal = "User rejected tool use"
+    /// What a hook `deny` from this app turns into: `Error: ` and our message.
+    static var fromTheNotch: [String] {
+        [Strings.french.permissionDenied, Strings.english.permissionDenied,
+         // The question detour, before answers went back as `updatedInput`.
+         "The user chose: ", "The user answered:"].map { "Error: " + $0 }
+    }
+
+    static func matches(_ result: Any?) -> Bool {
+        guard let text = result as? String else { return false }
+        return text == terminal || fromTheNotch.contains { text.hasPrefix($0) }
     }
 }
 
@@ -81,6 +130,7 @@ public enum TranscriptParser {
 
             switch type {
             case "assistant", "user":
+                if type == "user" { absorbBackgroundTask(entry, into: &out) }
                 absorbMessage(entry, into: &out, isAssistant: type == "assistant")
             case "permission-mode":
                 take(&out.permissionMode, entry["permissionMode"] as? String)
@@ -90,8 +140,14 @@ public enum TranscriptParser {
                 out.subagentsStarted += 1
             case "result":
                 out.subagentsFinished += 1
+            case "queue-operation":
+                // The notification is enqueued when the task ends, even while the
+                // parent is busy and has not read it yet.
+                if let id = BackgroundTasks.notifiedID(in: entry["content"] as? String) {
+                    out.reportedTasks.insert(id)
+                }
             case "attachment", "file-history-snapshot", "file-history-delta",
-                 "last-prompt", "mode", "queue-operation", "summary":
+                 "last-prompt", "mode", "summary":
                 break  // known, nothing needed from them
             case "":
                 break
@@ -127,7 +183,8 @@ public enum TranscriptParser {
             case "tool_result":
                 if !out.sawResult {
                     out.sawResult = true
-                    out.lastResultWasError = (block["is_error"] as? Bool) ?? false
+                    out.lastResultWasError = ((block["is_error"] as? Bool) ?? false)
+                        && !UserRefusal.matches(entry["toolUseResult"])
                 }
                 if let id = block["tool_use_id"] as? String { out.answered.insert(id) }
             // Past a turn boundary the tool uses belong to a finished turn: letting one
@@ -151,6 +208,17 @@ public enum TranscriptParser {
             default:
                 continue
             }
+        }
+    }
+
+    private static func absorbBackgroundTask(_ entry: [String: Any], into out: inout ParsedTail) {
+        if let message = entry["message"] as? [String: Any],
+           let id = BackgroundTasks.notifiedID(in: message["content"] as? String) {
+            out.reportedTasks.insert(id)
+        }
+        if let (id, isWorkflow) = BackgroundTasks.launched(in: entry["toolUseResult"]),
+           !out.reportedTasks.contains(id) {
+            out.backgroundTasks[id] = isWorkflow
         }
     }
 

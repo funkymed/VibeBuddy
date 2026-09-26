@@ -23,6 +23,12 @@ public struct Strings: Sendable {
     public let noMatch: @Sendable (String) -> String
     public let since: @Sendable (String) -> String
     public let sessionHistory: @Sendable (Int) -> String
+    public let workflowsBadge: @Sendable (Int) -> String
+    public let agentsBadge: @Sendable (Int) -> String
+    public let delegationHint: String
+    /// The panel's one-time notice that permission requests cannot reach the app.
+    public let hookNotice: String
+    public let hookNoticeHint: String
     public let contextTooltip: @Sendable (Int, Int) -> String
     public let jumpHint: String
     /// Shown when the click found the terminal but not the tab — under tmux, or on an
@@ -123,6 +129,8 @@ public struct Strings: Sendable {
     public let permissionAnswerHint: String
     /// What « Allow » does on a question, said as what it does.
     public let permissionAnswerInTerminal: String
+    public let permissionSend: String
+    public let permissionPickSeveral: String
     /// A diff whose left side is empty: the file does not exist yet.
     public let permissionNewFile: String
     /// A write of nothing at all — said out loud, because an empty box reads as a
@@ -149,6 +157,11 @@ public struct Strings: Sendable {
         noMatch: { "Aucune session ne correspond à « \($0) »." },
         since: { "depuis \($0)" },
         sessionHistory: { "\($0) sessions dans ce dossier" },
+        workflowsBadge: { $0 == 1 ? "workflow" : "\($0) workflows" },
+        agentsBadge: { $0 == 1 ? "1 agent" : "\($0) agents" },
+        delegationHint: "Travail délégué en cours — la session attend son retour",
+        hookNotice: "Permissions non reliées",
+        hookNoticeHint: "Les demandes de permission restent dans le terminal. Réglages › Autorisations pour les recevoir ici.",
         contextTooltip: { "\($0) / \($1) jetons" },
         jumpHint: "Cliquer pour revenir à ce terminal",
         jumpNoTab: "Terminal activé — onglet introuvable (tmux ?)",
@@ -219,6 +232,8 @@ public struct Strings: Sendable {
         permissionAlwaysAllowHint: "Ajoute une règle dans ~/.claude/settings.json",
         permissionAnswerHint: "Votre choix est renvoyé à Claude comme réponse.",
         permissionAnswerInTerminal: "Répondre dans le terminal",
+        permissionSend: "Envoyer",
+        permissionPickSeveral: "plusieurs choix possibles",
         permissionNewFile: "nouveau fichier",
         permissionNoContent: "Aucun contenu",
         permissionDomain: "DOMAINE"
@@ -242,6 +257,11 @@ public struct Strings: Sendable {
         noMatch: { "No session matches “\($0)”." },
         since: { "up \($0)" },
         sessionHistory: { "\($0) sessions in this folder" },
+        workflowsBadge: { $0 == 1 ? "workflow" : "\($0) workflows" },
+        agentsBadge: { $0 == 1 ? "1 agent" : "\($0) agents" },
+        delegationHint: "Delegated work running — the session is waiting for it",
+        hookNotice: "Permissions not connected",
+        hookNoticeHint: "Permission requests stay in the terminal. Settings › Permissions to get them here.",
         contextTooltip: { "\($0) / \($1) tokens" },
         jumpHint: "Click to go back to this terminal",
         jumpNoTab: "Terminal activated — tab not found (tmux?)",
@@ -312,6 +332,8 @@ public struct Strings: Sendable {
         permissionAlwaysAllowHint: "Adds a rule to ~/.claude/settings.json",
         permissionAnswerHint: "Your choice is sent back to Claude as the answer.",
         permissionAnswerInTerminal: "Answer in the terminal",
+        permissionSend: "Send",
+        permissionPickSeveral: "several choices allowed",
         permissionNewFile: "new file",
         permissionNoContent: "No content",
         permissionDomain: "DOMAIN"

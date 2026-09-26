@@ -15,6 +15,7 @@ public actor SessionStore {
     public static let largeContextWindow = ContextWindowResolver.largeWindow
 
     private let root: String
+    private let resolvedRoot: String
     private var reader = JSONLTailReader()
 
     private let liveness: @Sendable () -> [String: [pid_t]]
@@ -30,6 +31,13 @@ public actor SessionStore {
     /// long tool run pushes the last `permission-mode` entry out of it.
     private var stickyMode: [String: String] = [:]
 
+    /// Sticky for the same reason as the mode: a parent that keeps talking while its
+    /// workflow runs pushes the launch out of the 80-line tail.
+    private var pendingTasks: [String: [String: Bool]] = [:]
+    /// Transcripts kept past `staleAfter`: a parent waiting on a workflow writes
+    /// nothing for as long as the workflow runs.
+    private var busyPaths: Set<String> = []
+
     private var current: [AgentSession] = []
 
     public init(
@@ -38,6 +46,7 @@ public actor SessionStore {
     ) {
         self.root = root
             ?? (NSHomeDirectory() as NSString).appendingPathComponent(".claude/projects")
+        self.resolvedRoot = URL(fileURLWithPath: self.root).resolvingSymlinksInPath().path
         self.liveness = liveness ?? { ProcessLookup.agentPIDs() }
     }
 
@@ -76,7 +85,7 @@ public actor SessionStore {
             let ranked = group.sorted { $0.modified > $1.modified }
             for (index, candidate) in ranked.enumerated() {
                 let isLive = index < pids.count
-                guard isLive || now.timeIntervalSince(candidate.modified) < Self.staleAfter else { continue }
+                guard isLive || isFresh(candidate.path, candidate.modified, now) else { continue }
                 sessions.append(makeSession(
                     candidate: candidate,
                     cwd: cwd,
@@ -87,6 +96,10 @@ public actor SessionStore {
                 ))
             }
         }
+
+        let listed = Set(sessions.map(\.id))
+        pendingTasks = pendingTasks.filter { listed.contains($0.key) }
+        busyPaths.formIntersection(seenPaths)
 
         // Ten seconds after it stops, a session stops being news.
         sessions.removeAll {
@@ -119,6 +132,15 @@ public actor SessionStore {
         if let seen = tail.permissionMode, !seen.isEmpty { stickyMode[sessionID] = seen }
         let mode = stickyMode[sessionID] ?? modes.mode(forProject: cwd)
 
+        // A dead process takes its background tasks with it.
+        var pending = isLive ? (pendingTasks[sessionID] ?? [:]) : [:]
+        if isLive {
+            pending.merge(tail.backgroundTasks) { $1 }
+            for id in tail.reportedTasks { pending[id] = nil }
+        }
+        pendingTasks[sessionID] = pending.isEmpty ? nil : pending
+        if pending.isEmpty { busyPaths.remove(candidate.path) } else { busyPaths.insert(candidate.path) }
+
         return AgentSession(
             id: sessionID,
             cwd: cwd,
@@ -137,7 +159,9 @@ public actor SessionStore {
             subject: tail.subject,
             turnEnded: tail.turnEnded,
             lastResultWasError: tail.lastResultWasError,
-            subagentsRunning: tail.subagentsRunning,
+            // A workflow is subagents run elsewhere: same effect on the state.
+            subagentsRunning: tail.subagentsRunning + pending.count,
+            workflowsRunning: pending.values.filter { $0 }.count,
             awaitingAnswer: tail.awaitingQuestion,
             question: tail.question,
             transcriptPath: candidate.path
@@ -146,7 +170,7 @@ public actor SessionStore {
 
     private func incremental(changed: [String], now: Date)
         -> [(path: String, tail: ParsedTail, modified: Date, created: Date)] {
-        for path in changed where path.hasSuffix(".jsonl") {
+        for path in changed where isSessionTranscript(path) {
             let url = URL(fileURLWithPath: path)
             guard let values = try? url.resourceValues(
                     forKeys: [.contentModificationDateKey, .fileSizeKey, .creationDateKey]),
@@ -161,7 +185,7 @@ public actor SessionStore {
 
         var out: [(String, ParsedTail, Date, Date)] = []
         for (path, meta) in knownPaths {
-            guard now.timeIntervalSince(meta.modified) < Self.staleAfter else { continue }
+            guard isFresh(path, meta.modified, now) else { continue }
             guard let tail = reader.read(path: path, modified: meta.modified, size: meta.size)
             else { continue }
             out.append((path, tail, meta.modified, meta.created))
@@ -169,11 +193,27 @@ public actor SessionStore {
         return out
     }
 
+    /// Only `<root>/<project>/<session>.jsonl` is a session. FSEvents reports the
+    /// subagent files below it too.
+    private func isSessionTranscript(_ path: String) -> Bool {
+        guard path.hasSuffix(".jsonl") else { return false }
+        // FSEvents reports resolved paths: `/private/var/…` for a root under `/var`.
+        for base in [root, resolvedRoot] where path.hasPrefix(base + "/") {
+            return path.dropFirst(base.count + 1).split(separator: "/").count == 2
+        }
+        return false
+    }
+
+    private func isFresh(_ path: String, _ modified: Date, _ now: Date) -> Bool {
+        now.timeIntervalSince(modified) < Self.staleAfter || busyPaths.contains(path)
+    }
+
     /// The enumerator prefetches the attributes asked for, batching the `stat`s. Doing
     /// it per path instead cost 517 syscalls, 30 ms a refresh, 1,5 % of a core.
     private func transcripts(now: Date) -> [(path: String, tail: ParsedTail, modified: Date, created: Date)] {
         let keys: [URLResourceKey] = [
             .contentModificationDateKey, .fileSizeKey, .creationDateKey, .isRegularFileKey,
+            .isDirectoryKey,
         ]
         guard let walker = FileManager.default.enumerator(
             at: URL(fileURLWithPath: root),
@@ -183,12 +223,18 @@ public actor SessionStore {
 
         var out: [(String, ParsedTail, Date, Date)] = []
         for case let url as URL in walker {
-            guard url.pathExtension == "jsonl" else { continue }
+            // `<project>/<session>/` holds subagent and workflow transcripts: same
+            // `sessionId`, same `cwd`, and fresher than the parent while they run.
+            if walker.level >= 2, (try? url.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory == true {
+                walker.skipDescendants()
+                continue
+            }
+            guard walker.level == 2, url.pathExtension == "jsonl" else { continue }
             guard let values = try? url.resourceValues(forKeys: Set(keys)),
                   values.isRegularFile == true,
                   let modified = values.contentModificationDate
             else { continue }
-            guard now.timeIntervalSince(modified) < Self.staleAfter else { continue }
+            guard isFresh(url.path, modified, now) else { continue }
 
             let path = url.path
             let size = UInt64(values.fileSize ?? 0)

@@ -3,7 +3,7 @@ import Foundation
 /// One believable request per kind of summary, for `--simulate-permission`.
 public enum PermissionSamples {
     public static let kinds = ["shell", "diff", "write", "read", "url",
-                               "question", "plan", "other"]
+                               "question", "multi", "plan", "other"]
 
     /// A queue of questions, oldest first, for `--simulate-questions`.
     public static func questions(_ count: Int, at now: Date = Date()) -> [PermissionRequestModel] {
@@ -86,6 +86,19 @@ public enum PermissionSamples {
                 prompt: "Le curseur « Taille de la pastille » doit devenir quoi ?",
                 options: ["Curseur = pastille seule", "Deux curseurs séparés",
                           "Garder couplé, corriger le débordement"]), [])
+
+        case "multi":
+            // Two questions, the first with several picks: the only shape that needs
+            // the send button, and the one that went unanswered before.
+            return common("sim-multi", "AskUserQuestion", .question([
+                AskedQuestion(
+                    prompt: "Quels scénarios de mesure relancer ?",
+                    options: ["A — repos", "B — trois sessions", "C — panneau ouvert"],
+                    multiSelect: true),
+                AskedQuestion(
+                    prompt: "Combien de manches ?",
+                    options: ["Une", "Trois"]),
+            ]), [])
 
         case "plan":
             // `ExitPlanMode` is a question with no options: its prompt is the plan

@@ -311,7 +311,7 @@ struct PermissionSampleTests {
         let matches: Bool
         switch (kind, model.summary) {
         case ("shell", .shell), ("diff", .diff), ("write", .write), ("read", .read),
-             ("url", .url), ("question", .question), ("plan", .question),
+             ("url", .url), ("question", .question), ("multi", .question), ("plan", .question),
              ("other", .other):
             matches = true
         default:
@@ -328,12 +328,12 @@ struct PermissionSampleTests {
     func planHasNoOptions() {
         let model = PermissionSamples.model("plan")
         #expect(model.toolName == "ExitPlanMode")
-        guard case let .question(prompt, options) = model.summary else {
+        guard case let .question(questions) = model.summary, let plan = questions.first else {
             Issue.record("attendu .question, reçu \(model.summary)"); return
         }
-        #expect(options.isEmpty)
+        #expect(plan.options.isEmpty)
         // Tall enough to pass the 260 pt ceiling, which is the point of it.
-        #expect(prompt.count > 400)
+        #expect(plan.prompt.count > 400)
     }
 
     /// The one thing a queue of samples must get right.
@@ -345,11 +345,11 @@ struct PermissionSampleTests {
         #expect(Set(models.map(\.id)).count == count)
         for model in models {
             #expect(model.toolName == "AskUserQuestion")
-            guard case let .question(prompt, options) = model.summary else {
+            guard case let .question(questions) = model.summary, let first = questions.first else {
                 Issue.record("attendu .question"); return
             }
-            #expect(!prompt.isEmpty)
-            #expect(!options.isEmpty)
+            #expect(!first.prompt.isEmpty)
+            #expect(!first.options.isEmpty)
         }
         // Three questions of the same height would prove the panel keeps its size, not
         // that it follows what it shows.
@@ -375,7 +375,7 @@ struct PermissionSampleTests {
         var texts: [String] = []
         switch summary {
         case let .shell(command, description): texts = [command, description ?? ""]
-        case let .question(prompt, options): texts = [prompt] + options
+        case let .question(questions): texts = questions.flatMap { [$0.prompt] + $0.options }
         case let .diff(path, _, _), let .write(path, _), let .read(path): texts = [path]
         case let .url(url): texts = [url]
         case let .other(fields): texts = fields.map(\.value)
@@ -545,7 +545,7 @@ private extension PermissionRequestModel.Summary {
     /// Length of whatever text this summary leads with, for the tests that care that two
     /// samples do not draw to the same height.
     var promptLength: Int {
-        if case let .question(prompt, _) = self { return prompt.count }
+        if case let .question(questions) = self { return questions.first?.prompt.count ?? 0 }
         return 0
     }
 }

@@ -17,7 +17,10 @@ struct PermissionPanelView: View {
     var onAllow: () -> Void
     var onAlwaysAllow: () -> Void
     /// `AskUserQuestion`'s only way back.
-    var onAnswer: (String) -> Void = { _ in }
+    var onAnswer: (QuestionPicks) -> Void = { _ in }
+
+    /// Ticked options, when a click does not answer on its own.
+    @State private var selection = QuestionSelection()
 
     // The header of the deployed panel — buddy, counter, settings, quit — is
     // `DeployedPanel`'s and is drawn above this.
@@ -42,8 +45,14 @@ struct PermissionPanelView: View {
                 .frame(maxHeight: .infinity)
             }
 
-            decisionBar
+            if case let .question(questions) = model.summary {
+                questionBar(questions)
+            } else {
+                decisionBar
+            }
         }
+        // The next request in the queue starts with nothing ticked.
+        .onChange(of: model.id) { _, _ in selection = QuestionSelection() }
     }
 
     private var headerText: some View {
@@ -115,8 +124,9 @@ struct PermissionPanelView: View {
         case let .url(target):
             URLSummaryView(target: target, l10n: l10n)
 
-        case let .question(prompt, options):
-            AskQuestionView(prompt: prompt, options: options, l10n: l10n, onAnswer: onAnswer)
+        case let .question(questions):
+            AskQuestionView(questions: questions, l10n: l10n, onAnswer: onAnswer,
+                            selection: $selection)
 
         // An unknown tool's fields, one per line, in the same monospace block a command
         // gets.
@@ -135,32 +145,40 @@ struct PermissionPanelView: View {
 
             Spacer(minLength: VibeTheme.Spacing.m)
 
-            // Never on a question. Read in Claude Code 2.1.239: a tool that
-            // declares `requiresUserInteraction` — `AskUserQuestion` does,
-            // unconditionally — has any `allow` from a hook discarded
-            // (`if(!updatedInput && requiresUserInteraction()) return null`), and the
-            // binary carries a `suppress_always_allow_rule` flag for the same reason.
-            if !isQuestion {
-                VibeButton(title: l10n.permissionAlwaysAllow, role: .neutral,
-                           action: onAlwaysAllow)
-                    // Says out loud that this one writes to the user's own settings
-                    // file — the consent half of R1.
-                    .help(l10n.permissionAlwaysAllowHint)
-            }
+            // Never on a question: that has its own bar, `questionBar`. Read in Claude
+            // Code 2.1.239, a tool that declares `requiresUserInteraction` discards a
+            // bare `allow`, so « always » would silence our panel and nothing else.
+            VibeButton(title: l10n.permissionAlwaysAllow, role: .neutral,
+                       action: onAlwaysAllow)
+                // Says out loud that this one writes to the user's own settings
+                // file — the consent half of R1.
+                .help(l10n.permissionAlwaysAllowHint)
 
-            // The action that goes forward, whichever it is: on a question it hands the
-            // ask back to Claude Code's own picker, on anything else it lets the tool
-            // run.
-            VibeButton(
-                title: isQuestion ? l10n.permissionAnswerInTerminal : l10n.permissionAllow,
-                role: .accent, action: onAllow)
+            VibeButton(title: l10n.permissionAllow, role: .accent, action: onAllow)
         }
     }
 
-    /// Whether the request is the agent waiting on a person rather than asking for
-    /// something to be run.
-    private var isQuestion: Bool {
-        if case .question = model.summary { return true }
-        return false
+    /// Three columns, the middle one centred: refuse on the left in red, send on the
+    /// right in blue, and the terminal between them with no colour at all — it hands
+    /// the question back, it answers nothing, and wearing the accent it was mistaken
+    /// for the send button.
+    private func questionBar(_ questions: [AskedQuestion]) -> some View {
+        HStack(spacing: VibeTheme.Spacing.s) {
+            VibeButton(title: l10n.permissionDeny, role: .deny, action: onDeny)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            VibeButton(title: l10n.permissionAnswerInTerminal, role: .neutral, action: onAllow)
+                .fixedSize()
+            Group {
+                if !questions.answersOnClick, questions.contains(where: { !$0.options.isEmpty }) {
+                    let complete = selection.isComplete(questions)
+                    VibeButton(title: l10n.permissionSend, role: .accent) {
+                        if complete { onAnswer(selection.picks(questions)) }
+                    }
+                    .disabled(!complete)
+                    .opacity(complete ? 1 : 0.4)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .trailing)
+        }
     }
 }

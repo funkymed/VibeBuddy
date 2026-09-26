@@ -22,6 +22,9 @@ struct PermissionsSection: View {
                         .foregroundStyle(.secondary)
                 }
             }
+            // The other thing that must be allowed for the app to work, and it is
+            // the user's to allow: a line in another tool's configuration.
+            HookSettingsGroup(s: s)
         }
         .onAppear { reload() }
         // Coming back from System Settings is the only moment any of this can have
@@ -79,12 +82,6 @@ struct PermissionsSection: View {
             case let .unavailable(reason): return (reason, .secondary)
             }
         }()
-        return Text(text)
-            .font(.system(size: 11, weight: .medium))
-            .foregroundStyle(colour)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 3)
-            .background(Capsule().fill(colour.opacity(0.12)))
-            .fixedSize()
+        return SettingsStateBadge(text: text, colour: colour)
     }
 }

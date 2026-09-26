@@ -108,6 +108,21 @@ enum TranscriptFixtures {
         #"{"type":"result","key":"v2:aaa","agentId":"a92c0c13dfc397e99","result":"done"}"#,
     ])
 
+    /// A `Workflow` launch, shaped like Claude Code's: the result returns at once and
+    /// the turn ends on it.
+    static let workflowLaunch = [
+        base("user", #""toolUseResult":{"status":"async_launched","taskId":"wmzqz8gk5","taskType":"local_workflow"},"message":{"content":[{"type":"tool_result","content":"Workflow launched in background. Task ID: wmzqz8gk5"}]}"#),
+        base("user", #""toolUseResult":{"isAsync":true,"status":"async_launched","agentId":"ad93bfb6a3a4b5a3a"},"message":{"content":[{"type":"tool_result","content":"Async agent launched successfully."}]}"#),
+        #"{"type":"system","subtype":"turn_duration","durationMs":7000,"sessionId":"\#(sessionID)","timestamp":"2026-08-19T16:33:50.000Z"}"#,
+    ]
+
+    static func taskNotification(_ id: String, queued: Bool) -> String {
+        let text = "<task-notification>\\n<task-id>\(id)</task-id>\\n<status>completed</status>"
+        return queued
+            ? #"{"type":"queue-operation","operation":"enqueue","content":""# + text + #"","sessionId":"\#(sessionID)"}"#
+            : base("user", #""message":{"role":"user","content":""# + text + #""}"#)
+    }
+
     /// A type the parser has never seen — the R9 case.
     static let unknownType = data([
         base("assistant", "\"message\":{\"model\":\"claude-opus-5\"}"),

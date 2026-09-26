@@ -78,6 +78,7 @@ struct SessionRow: View, Equatable {
                         .lineLimit(1)
                     if !session.effort.isEmpty { RowEffortBadge(session: session) }
                     RowStateChip(session: session, l10n: l10n)
+                    RowDelegationBadge(session: session, l10n: l10n)
                     if group.hasHistory { RowHistoryBadge(group: group, l10n: l10n) }
                 }
                 HStack(spacing: 8) {

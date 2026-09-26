@@ -5,10 +5,9 @@ import VibeBuddyKit
 /// under it.
 struct DeployedPanel<Content: View>: View {
     let header: PanelHeader
-    /// The newer version, when one exists. Nil almost always.
-    var updateAvailable: String?
+    /// Empty almost always.
+    var notices = PanelNotices()
     var l10n: Strings = .french
-    var onUpdate: () -> Void = {}
     @ViewBuilder var content: () -> Content
 
     var body: some View {
@@ -40,7 +39,14 @@ struct DeployedPanel<Content: View>: View {
             // Beside the version, because that is the number it is about. The header
             // row above sits at the height of the physical notch, where a chip is
             // behind the hardware and unreadable.
-            if let updateAvailable { updateChip(updateAvailable) }
+            if notices.hookMissing {
+                PanelNoticeChip(symbol: "exclamationmark.triangle", text: l10n.hookNotice,
+                                help: l10n.hookNoticeHint, action: notices.onHookNotice)
+            }
+            if let version = notices.updateAvailable {
+                PanelNoticeChip(symbol: "arrow.down.circle", text: l10n.updateBadge(version),
+                                help: l10n.updateBadge(version), action: notices.onUpdate)
+            }
             Text(AppVersion.short)
                 .font(VibeTheme.Typography.mono(12, weight: .medium))
                 .foregroundStyle(VibeTheme.Accent.primary)
@@ -56,15 +62,31 @@ struct DeployedPanel<Content: View>: View {
             RoundedRectangle(cornerRadius: VibeTheme.Radius.medium)
                 .strokeBorder(VibeTheme.Border.subtle, lineWidth: VibeTheme.Border.width))
     }
+}
 
-    /// Where a new version gets noticed inside the panel. The settings say it properly;
-    /// this is the line somebody already reads to know which build they are on.
-    private func updateChip(_ version: String) -> some View {
-        Button(action: onUpdate) {
+/// What the identity line can carry besides the version.
+struct PanelNotices {
+    /// The newer version, when one exists.
+    var updateAvailable: String?
+    var onUpdate: () -> Void = {}
+    var hookMissing = false
+    var onHookNotice: () -> Void = {}
+}
+
+/// Where a notice gets seen inside the panel: on the line somebody already reads to
+/// know which build they are on. The settings say it properly.
+struct PanelNoticeChip: View {
+    let symbol: String
+    let text: String
+    let help: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
             HStack(spacing: 4) {
-                Image(systemName: "arrow.down.circle")
+                Image(systemName: symbol)
                     .font(.system(size: 10, weight: .semibold))
-                Text(l10n.updateBadge(version))
+                Text(text)
                     .font(.system(size: 11, weight: .medium))
                     .lineLimit(1)
             }
@@ -77,7 +99,7 @@ struct DeployedPanel<Content: View>: View {
         }
         .buttonStyle(.plain)
         .contentShape(Capsule())
-        .help(l10n.updateBadge(version))
+        .help(help)
         .pointingHandCursor()
     }
 }

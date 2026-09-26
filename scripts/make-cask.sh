@@ -53,6 +53,15 @@ cask "vibebuddy" do
   # installing:
   #   xattr -dr com.apple.quarantine /Applications/VibeBuddy.app
 
+  # The app never removes its hook on its own, and neither can the cask: it would
+  # have to run the binary it is deleting, with nobody there to confirm.
+  caveats <<~EOS
+    Permission requests reach the notch only once the hook is installed:
+      Settings › Permissions › Claude Code › Install…
+    Before uninstalling, remove it from the same place, or Claude Code keeps
+    calling a vibe-hook that no longer exists.
+  EOS
+
   zap trash: [
     "~/Library/Application Support/VibeBuddy",
     "~/Library/Preferences/fr.funkylab.vibebuddy.plist",

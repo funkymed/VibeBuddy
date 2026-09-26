@@ -24,7 +24,9 @@ public struct AgentSession: Sendable, Equatable, Identifiable {
     /// Read from `system/turn_duration`, not inferred from inactivity.
     public let turnEnded: Bool
     public let lastResultWasError: Bool
+    /// Counts subagents and background tasks alike, workflows included.
     public let subagentsRunning: Int
+    public let workflowsRunning: Int
     public let awaitingAnswer: Bool
     public let question: String?
     public let isLive: Bool
@@ -40,6 +42,7 @@ public struct AgentSession: Sendable, Equatable, Identifiable {
         contextTokens: Int, contextWindow: Int, pid: pid_t?, isLive: Bool,
         subject: String? = nil, turnEnded: Bool = false,
         lastResultWasError: Bool = false, subagentsRunning: Int = 0,
+        workflowsRunning: Int = 0,
         awaitingAnswer: Bool = false, question: String? = nil,
         transcriptPath: String = ""
     ) {
@@ -53,6 +56,7 @@ public struct AgentSession: Sendable, Equatable, Identifiable {
         self.subject = subject; self.turnEnded = turnEnded
         self.lastResultWasError = lastResultWasError
         self.subagentsRunning = subagentsRunning
+        self.workflowsRunning = workflowsRunning
         self.awaitingAnswer = awaitingAnswer
         self.question = question
         self.transcriptPath = transcriptPath

@@ -54,7 +54,8 @@ struct QuestionAnswerTests {
         while queue.head == nil { await Task.yield() }
 
         #expect(queue.head?.toolName == "AskUserQuestion")
-        guard case let .question(_, options)? = queue.head?.summary else {
+        guard case let .question(questions)? = queue.head?.summary,
+              let options = questions.first?.options else {
             Issue.record("An AskUserQuestion must parse as a question")
             return
         }
@@ -116,5 +117,72 @@ struct QuestionIsNeverPreGrantedTests {
             ]))
         #expect(await queue.handle(request, from: nil) == .allow)
         #expect(queue.isEmpty)
+    }
+
+    // One question, one pick: the same message as before, so nothing the model has
+    // already learnt to read changes.
+    @Test("A single pick keeps the single-answer wording")
+    func singlePickUnchanged() {
+        #expect(QuestionAnswer.denyMessage(for: [("Laquelle ?", ["Oui"])])
+            == QuestionAnswer.denyMessage(for: "Oui"))
+    }
+
+    @Test("Every question is named with all of its picks")
+    func severalPicks() {
+        let message = QuestionAnswer.denyMessage(for: [
+            ("Quels scénarios ?", ["A — repos", "C — panneau ouvert"]),
+            ("Combien de manches ?", ["Trois"]),
+        ])
+        #expect(message.contains("\"Quels scénarios ?\" → \"A — repos\", \"C — panneau ouvert\""))
+        #expect(message.contains("\"Combien de manches ?\" → \"Trois\""))
+        #expect(message.lowercased().contains("not a refusal"))
+        guard case .deny = QuestionAnswer.decision(for: [("q", ["a", "b"])]) else {
+            Issue.record("attendu un deny"); return
+        }
+    }
+
+    private static let input = Data(#"""
+    {"questions":[
+      {"question":"Quels scénarios ?","multiSelect":true,"options":[{"label":"A"},{"label":"B"},{"label":"C"}]},
+      {"question":"Combien de manches ?","multiSelect":false,"options":[{"label":"Une"},{"label":"Trois"}]}
+    ]}
+    """#.utf8)
+
+    // A deny reads as « Error » in the terminal and fails the turn: with the input in
+    // hand, the answer goes back as the tool's own `answers`.
+    @Test("With the input, the answer is an allow carrying answers")
+    func answersGoBackAsInput() throws {
+        let decision = QuestionAnswer.decision(
+            for: [("Quels scénarios ?", ["A", "C"]), ("Combien de manches ?", ["Trois"])],
+            input: Self.input)
+        guard case let .allowUpdating(data) = decision else {
+            Issue.record("attendu allowUpdating, reçu \(decision)"); return
+        }
+        let object = try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let answers = try #require(object["answers"] as? [String: String])
+        #expect(answers == ["Quels scénarios ?": "A, C", "Combien de manches ?": "Trois"])
+        // The questions go back untouched: Claude Code validates the whole input.
+        #expect((object["questions"] as? [Any])?.count == 2)
+    }
+
+    // The panel truncates long prompts; the answer must be keyed on what Claude wrote.
+    @Test("Answers are keyed on the original question text, not the panel's copy")
+    func keyedOnOriginalText() throws {
+        let long = String(repeating: "x", count: 900)
+        let input = try JSONSerialization.data(withJSONObject: [
+            "questions": [["question": long, "options": [["label": "Oui"]]]],
+        ])
+        guard case let .allowUpdating(data) = QuestionAnswer.decision(
+                for: [("xxx… (tronqué)", ["Oui"])], input: input) else {
+            Issue.record("attendu allowUpdating"); return
+        }
+        let object = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+        #expect((object?["answers"] as? [String: String])?[long] == "Oui")
+    }
+
+    @Test("Without the input, the answer falls back to the deny")
+    func fallsBackToDeny() {
+        let decision = QuestionAnswer.decision(for: [("Laquelle ?", ["Oui"])], input: nil)
+        #expect(decision == .deny(message: QuestionAnswer.denyMessage(for: "Oui")))
     }
 }

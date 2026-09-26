@@ -81,6 +81,30 @@ struct HookRequestTests {
         #expect(try JSONSerialization.jsonObject(with: back.payload) is [String: Any])
     }
 
+    // The only allow `AskUserQuestion` honours: a bare one is dropped for a tool that
+    // requires user interaction (Claude Code 2.1.283).
+    @Test("an allow with a new input carries it as updatedInput, and nothing else")
+    func allowUpdatingSchema() throws {
+        let input = Data(#"{"answers":{"Couleur ?":"Vert"}}"#.utf8)
+        let object = try JSONSerialization.jsonObject(
+            with: HookWire.encode(.allowUpdating(input: input))) as? [String: Any]
+        let inner = try #require(object?["hookSpecificOutput"] as? [String: Any])
+        let body = try #require(inner["decision"] as? [String: Any])
+        #expect(Set(body.keys) == ["behavior", "updatedInput"])
+        #expect(body["behavior"] as? String == "allow")
+        let updated = try #require(body["updatedInput"] as? [String: Any])
+        #expect((updated["answers"] as? [String: String])?["Couleur ?"] == "Vert")
+    }
+
+    @Test("the line protocol round-trips an allow with a new input")
+    func allowUpdatingRoundTrip() throws {
+        // One key: the decode re-serialises, and a single key has a single order.
+        let decision = HookDecision.allowUpdating(input: Data(#"{"answers":{}}"#.utf8))
+        var line = try HookLine.encodeDecision(decision)
+        line.removeLast()
+        #expect(HookLine.decodeDecision(line) == decision)
+    }
+
     @Test("the line protocol round-trips a decision")
     func decisionRoundTrip() throws {
         for decision in [HookDecision.allow, .deny(message: "pas ça")] {

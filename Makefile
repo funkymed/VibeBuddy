@@ -125,7 +125,7 @@ info: build-release
 	$(RELEASE_BIN) --info
 .PHONY: info
 
-## Show a fake permission panel — kind=shell|diff|write|read|url|question|other
+## Show a fake permission panel — kind=shell|diff|write|read|url|question|multi|plan|other
 ## Une file de questions : le compteur, l'enchaînement, le redimensionnement
 simulate-questions: build-release
 	$(RELEASE_BIN) --simulate-questions $(or $(n),3)

@@ -87,14 +87,20 @@ make publish version=0.1.0    # sign, package, tag, release
 ```
 
 Permission interception needs a hook registered in `~/.claude/settings.json`. The
-app never writes that file on its own: `make install-hook` shows the exact diff
-and waits.
+app never writes that file on its own: **Settings › Permissions › Claude Code**
+shows the hook's state, then the exact diff, and writes only once you confirm.
+Removing it goes through the same sheet — do that before `brew uninstall`.
+Alerts, usage and sessions work without it.
+
+From a checkout, `make install-hook` does the same in the terminal.
 
 ## Documentation
 
 | File | Contents |
 |---|---|
-| [`CLAUDE.md`](CLAUDE.md) | The rules: product goals, structural decisions, Gantt, conventions |
+| [`CLAUDE.md`](CLAUDE.md) | The rules: product goals, architecture rules, conventions |
+| [`docs/rfc/GANTT.md`](docs/rfc/GANTT.md) | Every RFC, its progress and its milestone |
+| [`docs/rfc/README.md`](docs/rfc/README.md) | Structural decisions, ordering, phases, open risks |
 | [`docs/rfc/`](docs/rfc/) | One RFC per subject, with its action plan and percentages |
 
 Lightness comes before features. The app is on screen permanently, so every

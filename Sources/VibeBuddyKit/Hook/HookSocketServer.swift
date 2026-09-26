@@ -28,6 +28,11 @@ public actor HookSocketServer {
     public func start() throws {
         guard listening < 0 else { return }
         listening = try HookSocket.listen(at: path)
+        // Non-blocking, or a spare `acceptOne` blocks the actor. The read source can
+        // fire more than once for one pending connection; the first call takes it, and
+        // a blocking `accept` in the next waited for the *following* hook — with the
+        // actor held the whole time, `stop()` included. That was the test suite's hang.
+        _ = fcntl(listening, F_SETFL, fcntl(listening, F_GETFL) | O_NONBLOCK)
         let source = DispatchSource.makeReadSource(
             fileDescriptor: listening, queue: .global(qos: .userInitiated))
         source.setEventHandler { [weak self] in
@@ -68,10 +73,15 @@ public actor HookSocketServer {
         }
         let fd = accept(listening, nil, nil)
         guard fd >= 0 else {
+            // Another call took the connection first: nothing was waiting.
+            if errno == EAGAIN || errno == EWOULDBLOCK { return }
             note("accept → \(fd), errno \(errno)")
             return
         }
         note("accept → fd \(fd)")
+        // Darwin hands the listening socket's O_NONBLOCK down to the connection, and
+        // the reads below rely on blocking with a deadline.
+        _ = fcntl(fd, F_SETFL, fcntl(fd, F_GETFL) & ~O_NONBLOCK)
         // Not inherited from the listening socket: each connection needs it.
         HookSocket.silencePipe(fd)
         // And neither is a read deadline. `readLine` blocks byte by byte with no

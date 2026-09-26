@@ -25,11 +25,14 @@ public struct PermissionRequestModel: Sendable, Equatable, Identifiable {
     public let receivedAt: Date
     /// PID of the `claude` process, when the socket could name it.
     public let pid: pid_t?
+    /// `tool_input` as it came, for a question only: the answer goes back as that same
+    /// input with `answers` added, keyed on the untruncated question text.
+    public let questionInput: Data?
 
     public init(
         id: String, toolName: String, sessionID: String? = nil, cwd: String? = nil,
         transcriptPath: String? = nil, summary: Summary, suggestions: [String] = [],
-        receivedAt: Date = Date(), pid: pid_t? = nil
+        receivedAt: Date = Date(), pid: pid_t? = nil, questionInput: Data? = nil
     ) {
         self.id = id
         self.toolName = toolName
@@ -40,6 +43,7 @@ public struct PermissionRequestModel: Sendable, Equatable, Identifiable {
         self.suggestions = suggestions
         self.receivedAt = receivedAt
         self.pid = pid
+        self.questionInput = questionInput
     }
 
     /// What the request is asking for, by kind rather than by tool name.
@@ -54,10 +58,16 @@ public struct PermissionRequestModel: Sendable, Equatable, Identifiable {
         case read(path: String)
         case url(String)
         /// `AskUserQuestion` and `ExitPlanMode`: the agent is waiting on a person, and
-        /// the hook has no channel to answer with.
-        case question(prompt: String, options: [String])
+        /// the hook has no channel to answer with. One to four questions; a plan is one
+        /// question with no options.
+        case question([AskedQuestion])
         /// Anything this app has never heard of, kept as it came.
         case other(fields: [Field])
+
+        /// One question, as the panel shows it.
+        public static func question(prompt: String, options: [String]) -> Summary {
+            .question([AskedQuestion(prompt: prompt, options: options)])
+        }
 
         public struct Field: Sendable, Equatable {
             public let name: String
@@ -91,7 +101,9 @@ public extension PermissionRequestModel {
             summary: summarise(tool: tool, input: input),
             suggestions: suggestions(from: root),
             receivedAt: now,
-            pid: pid)
+            pid: pid,
+            questionInput: tool == "AskUserQuestion"
+                ? try? JSONSerialization.data(withJSONObject: input) : nil)
     }
 
     /// `permission_suggestions` as strings, whatever shape it arrives in.
@@ -143,34 +155,39 @@ public extension PermissionRequestModel {
             return .url(text("url") ?? text("query") ?? "")
 
         case "AskUserQuestion", "ExitPlanMode":
-            let parsed = question(from: input)
-            return .question(prompt: parsed.prompt, options: parsed.options)
+            return .question(questions(from: input))
 
         default:
             return .other(fields: fields(from: input))
         }
     }
 
-    /// The prompt and its options, out of a shape that has changed before.
-    static func question(from input: [String: Any]) -> (prompt: String, options: [String]) {
-        var scope = input
-        if let questions = input["questions"] as? [[String: Any]], let first = questions.first {
-            scope = first
+    /// Every question, out of a shape that has changed before: `questions[]` today, a
+    /// single flat question before that, a `plan` for `ExitPlanMode`.
+    static func questions(from input: [String: Any]) -> [AskedQuestion] {
+        let scopes = (input["questions"] as? [[String: Any]]).flatMap { $0.isEmpty ? nil : $0 }
+            ?? [input]
+        return scopes.prefix(maxQuestions).map { scope in
+            let prompt = (scope["question"] as? String)
+                ?? (scope["prompt"] as? String)
+                ?? (scope["header"] as? String)
+                ?? (input["plan"] as? String)
+                ?? ""
+            let raw = (scope["options"] as? [Any]) ?? (scope["choices"] as? [Any]) ?? []
+            let options = raw.compactMap { entry -> String? in
+                if let text = entry as? String { return text }
+                guard let object = entry as? [String: Any] else { return nil }
+                return ((object["label"] ?? object["value"] ?? object["text"]) as? String)
+            }
+            return AskedQuestion(
+                prompt: prompt.cut(to: fieldLimit),
+                options: options.map { $0.cut(to: 200) },
+                multiSelect: scope["multiSelect"] as? Bool ?? false)
         }
-        let prompt = (scope["question"] as? String)
-            ?? (scope["prompt"] as? String)
-            ?? (scope["header"] as? String)
-            ?? (input["plan"] as? String)
-            ?? ""
-
-        let raw = (scope["options"] as? [Any]) ?? (scope["choices"] as? [Any]) ?? []
-        let options = raw.compactMap { entry -> String? in
-            if let text = entry as? String { return text }
-            guard let object = entry as? [String: Any] else { return nil }
-            return ((object["label"] ?? object["value"] ?? object["text"]) as? String)
-        }
-        return (prompt.cut(to: fieldLimit), options.map { $0.cut(to: 200) })
     }
+
+    /// `AskUserQuestion` takes one to four.
+    static let maxQuestions = 4
 
     /// An unknown tool's input, flattened.
     static func fields(from input: [String: Any]) -> [Summary.Field] {

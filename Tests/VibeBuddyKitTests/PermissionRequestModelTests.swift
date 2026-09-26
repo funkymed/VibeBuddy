@@ -150,6 +150,51 @@ struct PermissionRequestModelTests {
         #expect(model.summary == .question(prompt: "?", options: ["Choix A", "Choix B"]))
     }
 
+    // Only the first question used to be read: the others were dropped, and answering
+    // the first answered the whole call.
+    @Test("every question is read, each with its own multiSelect")
+    func severalQuestions() {
+        let model = Self.parsed(tool: "AskUserQuestion", input: [
+            "questions": [
+                ["question": "Lesquels ?", "multiSelect": true,
+                 "options": [["label": "A"], ["label": "B"], ["label": "C"]]],
+                ["question": "Combien ?", "multiSelect": false,
+                 "options": [["label": "Un"], ["label": "Deux"]]],
+            ],
+        ])
+        #expect(model.summary == .question([
+            AskedQuestion(prompt: "Lesquels ?", options: ["A", "B", "C"], multiSelect: true),
+            AskedQuestion(prompt: "Combien ?", options: ["Un", "Deux"]),
+        ]))
+    }
+
+    @Test("a click answers only one single-choice question")
+    func answersOnClick() {
+        #expect([AskedQuestion(prompt: "?", options: ["a"])].answersOnClick)
+        #expect(![AskedQuestion(prompt: "?", options: ["a"], multiSelect: true)].answersOnClick)
+        #expect(![AskedQuestion(prompt: "1", options: ["a"]),
+                  AskedQuestion(prompt: "2", options: ["b"])].answersOnClick)
+    }
+
+    @Test("ticking: several for a multi-select, one for the rest, send only when complete")
+    func selection() {
+        let questions = [
+            AskedQuestion(prompt: "Lesquels ?", options: ["A", "B", "C"], multiSelect: true),
+            AskedQuestion(prompt: "Combien ?", options: ["Un", "Deux"]),
+        ]
+        var selection = QuestionSelection()
+        selection.toggle(0, of: questions[0], at: 0)
+        selection.toggle(2, of: questions[0], at: 0)
+        #expect(!selection.isComplete(questions), "la seconde question n'a pas de choix")
+        selection.toggle(0, of: questions[1], at: 1)
+        selection.toggle(1, of: questions[1], at: 1)   // a radio replaces
+        #expect(selection.isComplete(questions))
+        let picks = selection.picks(questions)
+        #expect(picks.map(\.options) == [["A", "C"], ["Deux"]])
+        selection.toggle(0, of: questions[0], at: 0)   // a checkbox unticks
+        #expect(selection.picks(questions)[0].options == ["C"])
+    }
+
     @Test("a plan is a question with no options")
     func exitPlanMode() {
         let model = Self.parsed(tool: "ExitPlanMode", input: ["plan": "1. faire ceci"])

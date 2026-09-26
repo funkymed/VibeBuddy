@@ -49,6 +49,10 @@ final class AppCoordinator: NSObject, NSApplicationDelegate {
     let notifications: NotificationPrefs
     private let voice = VoiceAnnouncer()
     private var settings: SettingsWindow?
+    /// Read at launch, when the first session goes live, and after the settings write.
+    /// Never on a clock (D3).
+    private var hookState: HookInstallState?
+    private var hadLiveSession = false
     private var buddyWatchers: [ProjectsWatcher] = []
     var onBuddyReload: ((String) -> Void)?
 
@@ -115,6 +119,20 @@ final class AppCoordinator: NSObject, NSApplicationDelegate {
         }
         self.settings = settings
         panel.onSettings = { settings.show() }
+        panel.onHookNotice = { [weak self] in
+            self?.markHookNoticeSeen()
+            settings.show(tab: .permissions)
+        }
+        NotificationCenter.default.addObserver(
+            forName: .hookInstallChanged, object: nil, queue: .main
+        ) { [weak self] _ in
+            // Whoever installed or removed it from the settings has been told.
+            MainActor.assumeIsolated {
+                self?.markHookNoticeSeen()
+                self?.refreshHookState()
+            }
+        }
+        refreshHookState()
         panel.onJump = { [weak self] pid in self?.jump(to: pid) }
 
         panel.setLanguage(l10n.strings, locale: l10n.locale)
@@ -199,6 +217,12 @@ final class AppCoordinator: NSObject, NSApplicationDelegate {
                 activity: activity, hasLiveSession: !live.isEmpty, isVisible: true))
             panel.setSessionCount(live.count)
             panel.setSessions(list)
+            // A hand edit may have landed since launch: re-read on the rare edge where
+            // the notice could start to matter, never on every refresh.
+            if live.isEmpty == self.hadLiveSession {
+                self.hadLiveSession = !live.isEmpty
+                live.isEmpty ? self.publishHookNotice() : self.refreshHookState()
+            }
             // D7's preference, applied where liveness is actually known.
             if !self.layout.showPillWithoutSession {
                 live.isEmpty ? panel.hide() : panel.show()
@@ -445,6 +469,27 @@ final class AppCoordinator: NSObject, NSApplicationDelegate {
         }
     }
 
+    private func refreshHookState() {
+        Task.detached(priority: .utility) { [weak self] in
+            let state = HookInstaller().inspect().state
+            await MainActor.run {
+                self?.hookState = state
+                self?.publishHookNotice()
+            }
+        }
+    }
+
+    private func publishHookNotice() {
+        panel?.hookNotice = HookNotice.shows(
+            state: hookState, hasLiveSession: hadLiveSession,
+            seen: prefs.bool(HookNotice.seenKey, default: false))
+    }
+
+    private func markHookNoticeSeen() {
+        prefs.set(true, forKey: HookNotice.seenKey)
+        publishHookNotice()
+    }
+
     private func resetEverything() {
         for key in PreferencesStore.allKeys { prefs.remove(key) }
         appearance.reload()
@@ -453,6 +498,7 @@ final class AppCoordinator: NSObject, NSApplicationDelegate {
         updates.reload()
         applyLayoutPrefs()
         loadBuddy(appearance.buddyID)
+        publishHookNotice()
         PerfProbe.log.info("réglages réinitialisés")
     }
 

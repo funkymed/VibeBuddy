@@ -25,9 +25,8 @@ struct NotchShellView: View {
     var onDismissSession: ((AgentSession) -> Void)?
     var dismissedCount = 0
     var onRestoreDismissed: (() -> Void)?
-    /// The newer version, when one exists.
-    var updateAvailable: String?
-    var onUpdate: () -> Void = {}
+    /// A newer version, a hook that is not installed.
+    var notices = PanelNotices()
     var jumpNote: String?
     /// Passed down rather than built here: see `NotchPanel.timelines`.
     var timelines = SessionTimelineLoader()
@@ -38,7 +37,7 @@ struct NotchShellView: View {
     var onPermissionDeny: () -> Void = {}
     var onPermissionAllow: () -> Void = {}
     var onPermissionAlwaysAllow: () -> Void = {}
-    var onPermissionAnswer: (String) -> Void = { _ in }
+    var onPermissionAnswer: (QuestionPicks) -> Void = { _ in }
     /// Set while « Toujours autoriser » is waiting to be confirmed.
     var consent: PermissionConsent?
     var onConsentCancel: () -> Void = {}
@@ -56,7 +55,7 @@ struct NotchShellView: View {
         return PillLayout.resolve(
             geometry: geometry, buddy: buddy,
             sessionCount: sessionCount, alertText: alertText,
-            hasUpdate: updateAvailable != nil)
+            hasUpdate: notices.updateAvailable != nil)
     }
 
     var body: some View {
@@ -94,8 +93,7 @@ struct NotchShellView: View {
         if state == .panel, showPanelContent {
             // One wrapper, one header, three possible bodies.
             DeployedPanel(
-                header: deployedHeader, updateAvailable: updateAvailable,
-                l10n: l10n, onUpdate: onUpdate) { deployedBody }
+                header: deployedHeader, notices: notices, l10n: l10n) { deployedBody }
         }
     }
 
@@ -281,7 +279,7 @@ struct NotchShellView: View {
     @ViewBuilder
     private var sessionCounter: some View {
         HStack(spacing: PillLayout.updateGlyphGap) {
-            if updateAvailable != nil { updateGlyph }
+            if notices.updateAvailable != nil { updateGlyph }
             if sessionCount > 0 {
                 Text(PillLayout.counterText(sessionCount))
                     .font(.system(size: 11, weight: .semibold, design: .monospaced))

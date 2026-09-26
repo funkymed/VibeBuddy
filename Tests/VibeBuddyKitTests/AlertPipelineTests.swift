@@ -137,4 +137,60 @@ struct AlertPipelineTests {
         let alerts = tracker.ingest(await store.refresh())
         #expect(alerts.isEmpty)
     }
+
+    private func launchedWorkflow(cwd: String, session: String) -> [String] {
+        [
+            #"{"type":"user","sessionId":"\#(session)","cwd":"\#(cwd)","timestamp":"2026-08-19T16:00:02.000Z","toolUseResult":{"status":"async_launched","taskId":"wf1","taskType":"local_workflow"},"message":{"content":[{"type":"tool_result","content":"Workflow launched in background. Task ID: wf1"}]}}"#,
+            #"{"type":"system","subtype":"turn_duration","durationMs":1200,"sessionId":"\#(session)","cwd":"\#(cwd)","timestamp":"2026-08-19T16:00:03.000Z"}"#,
+        ]
+    }
+
+    // The case that made the parent alert thirty minutes early: the turn ends on the
+    // launch, and the work is still running.
+    @Test("a turn ending on a workflow launch is working, not finished")
+    func workflowKeepsWorking() async throws {
+        let root = try makeRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let cwd = "/Users/dev/notch"
+        try write(root, project: "notch", session: "s1",
+                  entries: working(cwd: cwd, session: "s1") + launchedWorkflow(cwd: cwd, session: "s1"))
+        let store = SessionStore(root: root.path, liveness: { [cwd: [4242]] })
+        let tracker = AlertTracker(bus: AlertBus())
+
+        var sessions = await store.refresh()
+        #expect(sessions.first?.subagentsRunning == 1)
+        #expect(sessions.first?.workflowsRunning == 1)
+        #expect(tracker.ingest(sessions).isEmpty, "a running workflow must not alert")
+
+        let notified = #"{"type":"queue-operation","operation":"enqueue","content":"<task-notification>\n<task-id>wf1</task-id>","sessionId":"s1"}"#
+        try write(root, project: "notch", session: "s1",
+                  entries: working(cwd: cwd, session: "s1") + launchedWorkflow(cwd: cwd, session: "s1")
+                      + [notified] + finished(cwd: cwd, session: "s1"))
+        sessions = await store.refresh()
+        #expect(sessions.first?.subagentsRunning == 0)
+        #expect(sessions.first?.workflowsRunning == 0)
+        #expect(tracker.ingest(sessions).first?.kind == .finished)
+    }
+
+    // Workflow agents write under `<session>/subagents/`, with the parent's session id
+    // and cwd: read as sessions, they took the parent's process and its row.
+    @Test("subagent transcripts are not sessions")
+    func subagentFilesIgnored() async throws {
+        let root = try makeRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let cwd = "/Users/dev/notch"
+        try write(root, project: "notch", session: "s1",
+                  entries: working(cwd: cwd, session: "s1") + launchedWorkflow(cwd: cwd, session: "s1"))
+        let nested = root.appendingPathComponent("-Users-dev-notch/s1/subagents/workflows/wf_1")
+        try FileManager.default.createDirectory(at: nested, withIntermediateDirectories: true)
+        try Data(finished(cwd: cwd, session: "s1").joined(separator: "\n").utf8)
+            .write(to: nested.appendingPathComponent("agent-a1.jsonl"))
+
+        let store = SessionStore(root: root.path, liveness: { [cwd: [4242]] })
+        let sessions = await store.refresh()
+        #expect(sessions.count == 1)
+        #expect(sessions.first?.transcriptPath.hasSuffix("/s1.jsonl") == true)
+        let changed = await store.refresh(changed: [nested.appendingPathComponent("agent-a1.jsonl").path])
+        #expect(changed.count == 1)
+    }
 }

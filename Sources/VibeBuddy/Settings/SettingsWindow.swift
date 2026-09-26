@@ -37,10 +37,10 @@ final class SettingsWindow {
         self.onReset = onReset
     }
 
-    /// Every opening starts on the first pane.
-    func show() {
+    /// Every opening starts on the first pane, unless a notice points at another.
+    func show(tab: SettingsShell.Tab = .general) {
         onVisibilityChange?(true)
-        navigation.tab = .general
+        navigation.tab = tab
         if let window {
             bringToFront(window)
             return

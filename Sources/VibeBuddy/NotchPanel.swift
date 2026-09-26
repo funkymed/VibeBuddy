@@ -62,6 +62,12 @@ final class NotchPanel: NSPanel {
     var updateAvailable: String? {
         didSet { if updateAvailable != oldValue, state == .panel { rebuildContent() } }
     }
+    /// Opens the settings on the hook. Set by the coordinator.
+    var onHookNotice: () -> Void = {}
+    /// Permission requests cannot reach the app, and nobody has been told yet.
+    var hookNotice = false {
+        didSet { if hookNotice != oldValue, state == .panel { rebuildContent() } }
+    }
     /// How many rows are hidden, so the panel can offer the way back.
     var dismissedCount = 0 {
         didSet { if dismissedCount != oldValue, state == .panel { rebuildContent() } }
@@ -449,7 +455,8 @@ final class NotchPanel: NSPanel {
                        onDismissSession: onDismissSession,
                        dismissedCount: dismissedCount,
                        onRestoreDismissed: onRestoreDismissed,
-                       updateAvailable: updateAvailable, onUpdate: onUpdate,
+                       notices: PanelNotices(updateAvailable: updateAvailable, onUpdate: onUpdate,
+                                             hookMissing: hookNotice, onHookNotice: onHookNotice),
                        jumpNote: jumpNote, timelines: timelines,
                        gaze: gaze,
                        permission: permissions.permission,
@@ -457,7 +464,9 @@ final class NotchPanel: NSPanel {
                        onPermissionDeny: { [weak self] in self?.answerPermission(.deny(message: self?.l10n.permissionDenied ?? "")) },
                        onPermissionAllow: { [weak self] in self?.answerPermission(.allow) },
                        onPermissionAlwaysAllow: { [weak self] in self?.alwaysAllowPermission() },
-                       onPermissionAnswer: { [weak self] in self?.answerPermission(QuestionAnswer.decision(for: $0)) },
+                       onPermissionAnswer: { [weak self] in
+                           self?.answerPermission(QuestionAnswer.decision(
+                               for: $0, input: self?.permissions.permission?.questionInput)) },
                        consent: permissions.consent,
                        onConsentCancel: { [weak self] in self?.cancelConsent() },
                        onConsentConfirm: { [weak self] in self?.confirmConsent() },

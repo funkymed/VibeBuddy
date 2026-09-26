@@ -55,6 +55,53 @@ struct TranscriptNativeSignalsTests {
         #expect(t.permissionMode == "auto")
     }
 
+    // The launch returns at once and the turn ends on it: without this the parent reads
+    // as finished for the thirty minutes the workflow runs.
+    @Test("a background workflow or async agent stays pending until notified")
+    func backgroundTaskPending() {
+        let t = TranscriptParser.parse(TranscriptFixtures.data(TranscriptFixtures.workflowLaunch))
+        #expect(t.turnEnded)
+        #expect(t.backgroundTasks == ["wmzqz8gk5": true, "ad93bfb6a3a4b5a3a": false])
+    }
+
+    // Enqueued when the task ends, while the parent may still be busy; read by the
+    // parent later, as a user entry.
+    @Test("a task notification, queued or read, clears the task")
+    func backgroundTaskReported() {
+        for queued in [true, false] {
+            let t = TranscriptParser.parse(TranscriptFixtures.data(
+                TranscriptFixtures.workflowLaunch
+                    + [TranscriptFixtures.taskNotification("wmzqz8gk5", queued: queued)]))
+            #expect(t.backgroundTasks == ["ad93bfb6a3a4b5a3a": false])
+            #expect(t.reportedTasks == ["wmzqz8gk5"])
+            #expect(t.unrecognised.isEmpty)
+        }
+    }
+
+    // The user's own « no » is not the agent failing: the failed face said the opposite.
+    @Test("a refusal by the user is not an error", arguments: [
+        "User rejected tool use",
+        "Error: " + Strings.french.permissionDenied,
+        #"Error: The user chose: "Vert". This is the answer to your question"#,
+    ])
+    func userRefusalIsNotAnError(_ result: String) throws {
+        let escaped = String(data: try JSONSerialization.data(withJSONObject: [result]), encoding: .utf8)!
+            .dropFirst().dropLast()
+        let t = TranscriptParser.parse(TranscriptFixtures.data([
+            TranscriptFixtures.base("user", #""toolUseResult":"# + escaped
+                + #","message":{"content":[{"type":"tool_result","is_error":true,"content":"x"}]}"#),
+        ]))
+        #expect(!t.lastResultWasError)
+    }
+
+    @Test("a real tool error still is one")
+    func realErrorStays() {
+        let t = TranscriptParser.parse(TranscriptFixtures.data([
+            TranscriptFixtures.base("user", #""toolUseResult":"Error: Exit code 1","message":{"content":[{"type":"tool_result","is_error":true,"content":"x"}]}"#),
+        ]))
+        #expect(t.lastResultWasError)
+    }
+
     // Found by the R9 counter, not by reading documentation: `started` and `result`
     // carry an `agentId` and track subagents.
     @Test("subagent lifecycle is in the transcript")
